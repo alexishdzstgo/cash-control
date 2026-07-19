@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
+import { FolioField } from "@/components/shared/FolioField";
 import { PersonNameField } from "@/components/shared/PersonNameField";
 import { SelectField } from "@/components/shared/SelectField";
+import { getFolioStatus } from "@/lib/folio";
+import type { FolioStatus } from "@/types/folio";
 import type {
   WithdrawalFormData,
   WithdrawalMode,
 } from "@/types/withdrawal";
-
-export type FolioStatus = "empty" | "duplicate" | "available";
 
 interface WithdrawalFormProps {
   mode: WithdrawalMode;
@@ -25,25 +25,10 @@ export function WithdrawalForm({
   onFormDataChange,
   onFolioStatusChange,
 }: WithdrawalFormProps) {
-  const folioInputRef = useRef<HTMLInputElement>(null);
   const isPendingMode = mode === "pending";
 
-  useEffect(() => {
-    folioInputRef.current?.focus();
-  }, []);
-
-  const folioStatus: FolioStatus =
-    formData.bankFolio.trim() === ""
-      ? "empty"
-      : formData.bankFolio.trim() === "12345"
-        ? "duplicate"
-        : "available";
-
-  useEffect(() => {
-    onFolioStatusChange(folioStatus);
-  }, [folioStatus, onFolioStatusChange]);
-
-  const isFormEnabled = folioStatus === "available";
+  const isFormEnabled =
+    getFolioStatus(formData.bankFolio) === "available";
 
   function updateField<K extends keyof WithdrawalFormData>(
     field: K,
@@ -72,35 +57,16 @@ export function WithdrawalForm({
       </div>
 
       <form className="space-y-6">
-        <Field label="Folio bancario" required>
-          <input
-            ref={folioInputRef}
-            className={inputClass}
-            placeholder="Ej. 837291045"
-            value={formData.bankFolio}
-            onChange={(event) =>
-              updateField("bankFolio", event.target.value)
-            }
-          />
-
-          {folioStatus === "empty" && (
-            <p className="mt-2 text-sm text-slate-500">
-              Captura el folio para habilitar el resto del formulario.
-            </p>
-          )}
-
-          {folioStatus === "available" && (
-            <p className="mt-2 text-sm font-medium text-emerald-600">
-              Folio disponible. Puedes continuar con la captura.
-            </p>
-          )}
-
-          {folioStatus === "duplicate" && (
-            <p className="mt-2 text-sm font-medium text-red-600">
-              Este folio ya fue registrado anteriormente. No se puede continuar.
-            </p>
-          )}
-        </Field>
+        <FolioField
+          id="withdrawal-bank-folio"
+          value={formData.bankFolio}
+          onChange={(value) => updateField("bankFolio", value)}
+          onStatusChange={onFolioStatusChange}
+          label="Folio bancario"
+          placeholder="Ej. 837291045"
+          colorVariant="withdrawal"
+          showStatusMessages
+        />
 
         <AmountField
           id="withdrawal-amount"

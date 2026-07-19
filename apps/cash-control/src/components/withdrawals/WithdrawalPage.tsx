@@ -10,10 +10,8 @@ import {
   type WithdrawalFormData,
   type WithdrawalMode,
 } from "@/types/withdrawal";
-import {
-  type FolioStatus,
-  WithdrawalForm,
-} from "./WithdrawalForm";
+import { WithdrawalForm } from "./WithdrawalForm";
+import type { FolioStatus } from "@/types/folio";
 import { WithdrawalSummary } from "./WithdrawalSummary";
 import { calculateCommission } from "@/lib/commission";
 

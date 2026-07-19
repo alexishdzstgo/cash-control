@@ -14,10 +14,8 @@ import {
   type DepositFormData,
   type DepositMode,
 } from "@/types/deposit";
-import {
-  DepositForm,
-  type DepositFolioStatus,
-} from "./DepositForm";
+import { DepositForm } from "./DepositForm";
+import type { FolioStatus } from "@/types/folio";
 import { DepositSummary } from "./DepositSummary";
 
 export function DepositPage() {
@@ -30,7 +28,7 @@ export function DepositPage() {
     );
 
   const [folioStatus, setFolioStatus] =
-    useState<DepositFolioStatus>("empty");
+    useState<FolioStatus>("empty");
 
   const [
     isPendingConfirmationOpen,

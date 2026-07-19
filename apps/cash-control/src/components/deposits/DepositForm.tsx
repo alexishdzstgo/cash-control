@@ -1,20 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
+import { FolioField } from "@/components/shared/FolioField";
 import { PersonNameField } from "@/components/shared/PersonNameField";
+import { getFolioStatus } from "@/lib/folio";
+import type { FolioStatus } from "@/types/folio";
 import type {
   DepositDeliveryMethod,
   DepositFormData,
   DepositMode,
   DepositPendingReason,
 } from "@/types/deposit";
-
-export type DepositFolioStatus =
-  | "empty"
-  | "duplicate"
-  | "available";
 
 type DepositFormProps = {
   mode: DepositMode;
@@ -23,7 +20,7 @@ type DepositFormProps = {
     formData: DepositFormData,
   ) => void;
   onFolioStatusChange: (
-    status: DepositFolioStatus,
+    status: FolioStatus,
   ) => void;
 };
 
@@ -79,14 +76,10 @@ export function DepositForm({
   onFormDataChange,
   onFolioStatusChange,
 }: DepositFormProps) {
-  const folioInputRef =
-    useRef<HTMLInputElement>(null);
-
   const isPendingMode = mode === "pending";
 
-  useEffect(() => {
-    folioInputRef.current?.focus();
-  }, [mode]);
+  const isFormEnabled =
+    getFolioStatus(formData.bankFolio) === "available";
 
   function updateField<
     Key extends keyof DepositFormData,
@@ -98,29 +91,6 @@ export function DepositForm({
       ...formData,
       [field]: value,
     });
-  }
-
-  function handleFolioChange(value: string) {
-    updateField("bankFolio", value);
-
-    const normalizedFolio = value.trim();
-
-    if (normalizedFolio === "") {
-      onFolioStatusChange("empty");
-      return;
-    }
-
-    /*
-     * Validación temporal.
-     * Después se sustituirá por una consulta
-     * real a Supabase.
-     */
-    if (normalizedFolio === "12345") {
-      onFolioStatusChange("duplicate");
-      return;
-    }
-
-    onFolioStatusChange("available");
   }
 
   return (
@@ -147,37 +117,17 @@ export function DepositForm({
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <div>
-          <label
-            htmlFor="deposit-bank-folio"
-            className={labelClass}
-          >
-            Folio bancario
-          </label>
-
-          <input
-            ref={folioInputRef}
-            id="deposit-bank-folio"
-            type="text"
-            autoComplete="off"
-            value={formData.bankFolio}
-            onChange={(event) =>
-              handleFolioChange(
-                event.target.value,
-              )
-            }
-            placeholder="Ej. 458732"
-            className={inputClass}
-          />
-
-          {formData.bankFolio.trim() ===
-            "12345" && (
-            <p className="mt-2 text-sm font-medium text-red-600">
-              Este folio ya se encuentra
-              registrado.
-            </p>
-          )}
-        </div>
+        <FolioField
+          id="deposit-bank-folio"
+          value={formData.bankFolio}
+          onChange={(value) => updateField("bankFolio", value)}
+          onStatusChange={onFolioStatusChange}
+          label="Folio bancario"
+          placeholder="Ej. 458732"
+          colorVariant="deposit"
+          showStatusMessages
+          focusKey={mode}
+        />
 
         <AmountField
           id="deposit-amount"
@@ -189,6 +139,7 @@ export function DepositForm({
           placeholder="0.00"
           min={0}
           step={0.01}
+          disabled={!isFormEnabled}
           colorVariant="deposit"
         />
 
@@ -200,6 +151,7 @@ export function DepositForm({
           }
           label="Nombre de quien entrega el efectivo"
           placeholder="Nombre completo"
+          disabled={!isFormEnabled}
           colorVariant="deposit"
         />
 
@@ -211,6 +163,7 @@ export function DepositForm({
           }
           label="Nombre de quien recibe"
           placeholder="Titular o beneficiario"
+          disabled={!isFormEnabled}
           colorVariant="deposit"
         />
 
@@ -221,6 +174,7 @@ export function DepositForm({
             updateField("destinationBank", value)
           }
           label="Banco de destino"
+          disabled={!isFormEnabled}
           colorVariant="deposit"
         />
 
@@ -242,6 +196,7 @@ export function DepositForm({
                   .value as DepositDeliveryMethod,
               )
             }
+            disabled={!isFormEnabled}
             className={inputClass}
           >
             <option value="">
@@ -282,6 +237,7 @@ export function DepositForm({
                 event.target.value,
               )
             }
+            disabled={!isFormEnabled}
             placeholder="Captura los datos del destino"
             className={inputClass}
           />
@@ -307,6 +263,7 @@ export function DepositForm({
                       .value as DepositPendingReason,
                   )
                 }
+                disabled={!isFormEnabled}
                 className={inputClass}
               >
                 <option value="">
@@ -348,6 +305,7 @@ export function DepositForm({
                       event.target.value,
                     )
                   }
+                  disabled={!isFormEnabled}
                   placeholder="Explica por qué la operación no pudo completarse"
                   className={inputClass}
                 />
@@ -377,6 +335,7 @@ export function DepositForm({
                 event.target.value,
               )
             }
+            disabled={!isFormEnabled}
             placeholder="Agrega alguna nota interna"
             className={inputClass}
           />
