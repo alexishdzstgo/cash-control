@@ -1,0 +1,2 @@
+Crear el boton para registro sin entrega 
+en la parte de depositos

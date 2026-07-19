@@ -81,6 +81,39 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Retiros: verde esmeralda */
+  --withdrawal-50: #ecfdf5;
+  --withdrawal-100: #d1fae5;
+  --withdrawal-200: #a7f3d0;
+  --withdrawal-300: #6ee7b7;
+  --withdrawal-400: #34d399;
+  --withdrawal-500: #10b981;
+  --withdrawal-600: #059669;
+  --withdrawal-700: #047857;
+  --withdrawal-800: #065f46;
+
+  /* Depósitos: azul índigo */
+  --deposit-50: #eef2ff;
+  --deposit-100: #e0e7ff;
+  --deposit-200: #c7d2fe;
+  --deposit-300: #a5b4fc;
+  --deposit-400: #818cf8;
+  --deposit-500: #6366f1;
+  --deposit-600: #4f46e5;
+  --deposit-700: #4338ca;
+  --deposit-800: #3730a3;
+
+  /* Operaciones pendientes: violeta */
+  --pending-50: #f5f3ff;
+  --pending-100: #ede9fe;
+  --pending-200: #ddd6fe;
+  --pending-300: #c4b5fd;
+  --pending-400: #a78bfa;
+  --pending-500: #8b5cf6;
+  --pending-600: #7c3aed;
+  --pending-700: #6d28d9;
+  --pending-800: #5b21b6;
 }
 
 .dark {
@@ -116,7 +149,62 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+@theme inline {
+  --color-withdrawal-50: var(--color-withdrawal-50);
+  --color-withdrawal-100: var(--color-withdrawal-100);
+  --color-withdrawal-200: var(--color-withdrawal-200);
+  --color-withdrawal-400: var(--color-withdrawal-400);
+  --color-withdrawal-600: var(--color-withdrawal-600);
+  --color-withdrawal-700: var(--color-withdrawal-700);
+  --color-withdrawal-800: var(--color-withdrawal-800);
 
+  --color-deposit-50: var(--color-deposit-50);
+  --color-deposit-100: var(--color-deposit-100);
+  --color-deposit-200: var(--color-deposit-200);
+  --color-deposit-400: var(--color-deposit-400);
+  --color-deposit-600: var(--color-deposit-600);
+  --color-deposit-700: var(--color-deposit-700);
+  --color-deposit-800: var(--color-deposit-800);
+
+  --color-pending-50: var(--color-pending-50);
+  --color-pending-100: var(--color-pending-100);
+  --color-pending-200: var(--color-pending-200);
+  --color-pending-600: var(--color-pending-600);
+  --color-pending-700: var(--color-pending-700);
+  --color-pending-800: var(--color-pending-800);
+    /* Retiros */
+  --color-withdrawal-50: var(--withdrawal-50);
+  --color-withdrawal-100: var(--withdrawal-100);
+  --color-withdrawal-200: var(--withdrawal-200);
+  --color-withdrawal-300: var(--withdrawal-300);
+  --color-withdrawal-400: var(--withdrawal-400);
+  --color-withdrawal-500: var(--withdrawal-500);
+  --color-withdrawal-600: var(--withdrawal-600);
+  --color-withdrawal-700: var(--withdrawal-700);
+  --color-withdrawal-800: var(--withdrawal-800);
+
+  /* Depósitos */
+  --color-deposit-50: var(--deposit-50);
+  --color-deposit-100: var(--deposit-100);
+  --color-deposit-200: var(--deposit-200);
+  --color-deposit-300: var(--deposit-300);
+  --color-deposit-400: var(--deposit-400);
+  --color-deposit-500: var(--deposit-500);
+  --color-deposit-600: var(--deposit-600);
+  --color-deposit-700: var(--deposit-700);
+  --color-deposit-800: var(--deposit-800);
+
+  /* Pendientes */
+  --color-pending-50: var(--pending-50);
+  --color-pending-100: var(--pending-100);
+  --color-pending-200: var(--pending-200);
+  --color-pending-300: var(--pending-300);
+  --color-pending-400: var(--pending-400);
+  --color-pending-500: var(--pending-500);
+  --color-pending-600: var(--pending-600);
+  --color-pending-700: var(--pending-700);
+  --color-pending-800: var(--pending-800);
+}
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -128,3 +216,4 @@
     @apply font-sans;
   }
 }
+
