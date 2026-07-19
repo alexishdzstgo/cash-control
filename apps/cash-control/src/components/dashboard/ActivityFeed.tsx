@@ -58,7 +58,7 @@ Actividad reciente </h2>
 
                 <OperationStatusBadge status={operation.status} />
 
-                {operation.edited && (
+                {operation.isEdited && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
                     <Pencil className="h-3.5 w-3.5" />
                     Editado

@@ -1,19 +1,43 @@
-export type OperationStatus = "pendiente" | "entregado";
+export type OperationType =
+  | "deposito"
+  | "retiro";
 
-export type OperationType = "deposito" | "retiro";
+export type OperationStatus =
+  | "completado"
+  | "pendiente"
+  | "entregado"
+  | "cancelado";
 
 export type Operation = {
   id: string;
   type: OperationType;
+  status: OperationStatus;
+
+  bankFolio: string;
   amount: number;
   commission: number;
-  bankFrom: string;
-  bankTo: string;
-  bankFolio: string;
+  total: number;
+
   senderName: string;
   receiverName: string;
-  status: OperationStatus;
-  createdBy: string;
+
+  bankFrom?: string;
+  bankTo?: string;
+
+  destinationReference?: string;
+  deliveryMethod?:
+    | "bank-transfer"
+    | "cash-deposit";
+
+  pendingReason?: string;
+  pendingReasonDetails?: string;
+
+  observations?: string;
+
   createdAt: string;
-  edited: boolean;
+  createdBy: string;
+
+  isEdited?: boolean;
+  editedAt?: string;
+  editedBy?: string;
 };

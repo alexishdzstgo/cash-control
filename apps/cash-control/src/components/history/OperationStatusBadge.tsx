@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3 } from "lucide-react";
+import { CheckCircle2, Clock3, XCircle, CheckCheck } from "lucide-react";
 import type { OperationStatus } from "@/types/operation";
 
 type OperationStatusBadgeProps = {
@@ -11,10 +11,20 @@ const statusConfig = {
     icon: Clock3,
     className: "bg-amber-100 text-amber-700",
   },
+  completado: {
+    label: "Completado",
+    icon: CheckCheck,
+    className: "bg-blue-100 text-blue-700",
+  },
   entregado: {
     label: "Entregado",
     icon: CheckCircle2,
     className: "bg-emerald-100 text-emerald-700",
+  },
+  cancelado: {
+    label: "Cancelado",
+    icon: XCircle,
+    className: "bg-red-100 text-red-700",
   },
 } satisfies Record<
   OperationStatus,

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { AmountField } from "@/components/shared/AmountField";
+import { BankSelect } from "@/components/shared/BankSelect";
+import { PersonNameField } from "@/components/shared/PersonNameField";
 import { SelectField } from "@/components/shared/SelectField";
 import type {
   WithdrawalFormData,
@@ -99,72 +102,54 @@ export function WithdrawalForm({
           )}
         </Field>
 
-        <Field label="Monto a entregar" required>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            inputMode="decimal"
-            className={inputClass}
-            placeholder="$0.00"
-            disabled={!isFormEnabled}
-            value={formData.amount}
-            onChange={(event) =>
-              updateField("amount", event.target.value)
-            }
-          />
-        </Field>
+        <AmountField
+          id="withdrawal-amount"
+          value={formData.amount}
+          onChange={(value) => updateField("amount", value)}
+          label="Monto a entregar"
+          placeholder="$0.00"
+          required
+          disabled={!isFormEnabled}
+          min={0}
+          step={0.01}
+          colorVariant="withdrawal"
+        />
 
-        <Field label="Banco donde se recibió el dinero" required>
-          <SelectField
-            value={formData.bank}
-            onChange={(value) => updateField("bank", value)}
-            disabled={!isFormEnabled}
-            options={[
-              {
-                value: "banco-azteca",
-                label: "Banco Azteca",
-              },
-              {
-                value: "bbva",
-                label: "BBVA",
-              },
-              {
-                value: "banamex",
-                label: "Banamex",
-              },
-            ]}
-          />
-        </Field>
+        <BankSelect
+          id="withdrawal-bank"
+          value={formData.bank}
+          onChange={(value) => updateField("bank", value)}
+          label="Banco de origen"
+          colorVariant="withdrawal"
+          disabled={!isFormEnabled}
+        />
 
-        <Field label="Nombre de quien envía" required>
-          <input
-            className={inputClass}
-            placeholder="Nombre completo"
-            disabled={!isFormEnabled}
-            value={formData.senderName}
-            onChange={(event) =>
-              updateField("senderName", event.target.value)
-            }
-          />
-        </Field>
+        <PersonNameField
+          id="withdrawal-sender"
+          value={formData.senderName}
+          onChange={(value) =>
+            updateField("senderName", value)
+          }
+          label="Nombre de quien envía"
+          placeholder="Nombre completo"
+          disabled={!isFormEnabled}
+          required
+          colorVariant="withdrawal"
+        />
 
         {!isPendingMode && (
-          <Field
+          <PersonNameField
+            id="withdrawal-receiver"
+            value={formData.receiverName}
+            onChange={(value) =>
+              updateField("receiverName", value)
+            }
             label="Nombre de quien recibe"
+            placeholder="Nombre completo"
+            disabled={!isFormEnabled}
             required
-            help="Captura el nombre completo de la persona que recibirá el efectivo."
-          >
-            <input
-              className={inputClass}
-              placeholder="Nombre completo"
-              disabled={!isFormEnabled}
-              value={formData.receiverName}
-              onChange={(event) =>
-                updateField("receiverName", event.target.value)
-              }
-            />
-          </Field>
+            colorVariant="withdrawal"
+          />
         )}
 
         {isPendingMode && (

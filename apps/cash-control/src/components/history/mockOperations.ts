@@ -14,7 +14,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 1",
     createdAt: "2026-07-12T08:30:00",
-    edited: false,
+    total: 510,
+    isEdited: false,
   },
   {
     id: "2",
@@ -29,7 +30,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 2",
     createdAt: "2026-07-12T08:15:00",
-    edited: true,
+    total: 1215,
+    isEdited: true,
   },
   {
     id: "3",
@@ -44,7 +46,8 @@ export const mockOperations: Operation[] = [
     status: "pendiente",
     createdBy: "Empleado 1",
     createdAt: "2026-07-12T08:00:00",
-    edited: false,
+    total: 812,
+    isEdited: false,
   },
   {
     id: "4",
@@ -59,7 +62,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 2",
     createdAt: "2026-07-11T18:30:00",
-    edited: false,
+    total: 360,
+    isEdited: false,
   },
   {
     id: "5",
@@ -74,7 +78,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 1",
     createdAt: "2026-07-11T17:50:00",
-    edited: true,
+    total: 2220,
+    isEdited: true,
   },
   {
     id: "6",
@@ -89,7 +94,8 @@ export const mockOperations: Operation[] = [
     status: "pendiente",
     createdBy: "Empleado 2",
     createdAt: "2026-07-11T16:40:00",
-    edited: false,
+    total: 962,
+    isEdited: false,
   },
   {
     id: "7",
@@ -104,7 +110,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 1",
     createdAt: "2026-07-11T15:20:00",
-    edited: false,
+    total: 1415,
+    isEdited: false,
   },
   {
     id: "8",
@@ -119,7 +126,8 @@ export const mockOperations: Operation[] = [
     status: "pendiente",
     createdBy: "Empleado 2",
     createdAt: "2026-07-11T14:15:00",
-    edited: false,
+    total: 662,
+    isEdited: false,
   },
   {
     id: "9",
@@ -134,7 +142,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 1",
     createdAt: "2026-07-11T13:00:00",
-    edited: false,
+    total: 490,
+    isEdited: false,
   },
   {
     id: "10",
@@ -149,7 +158,8 @@ export const mockOperations: Operation[] = [
     status: "pendiente",
     createdBy: "Empleado 2",
     createdAt: "2026-07-11T12:30:00",
-    edited: true,
+    total: 1115,
+    isEdited: true,
   },
   {
     id: "11",
@@ -164,7 +174,8 @@ export const mockOperations: Operation[] = [
     status: "entregado",
     createdBy: "Empleado 1",
     createdAt: "2026-07-11T11:40:00",
-    edited: false,
+    total: 1768,
+    isEdited: false,
   },
   {
     id: "12",
@@ -179,6 +190,7 @@ export const mockOperations: Operation[] = [
     status: "pendiente",
     createdBy: "Empleado 2",
     createdAt: "2026-07-11T10:25:00",
-    edited: false,
+    total: 732,
+    isEdited: false,
   },
 ];

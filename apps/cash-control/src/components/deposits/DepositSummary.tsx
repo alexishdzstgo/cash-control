@@ -1,55 +1,79 @@
 "use client";
 
-import { CheckCircle2, Clock3 } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { getBankLabel } from "@/config/banks";
 import type {
-  WithdrawalFormData,
-  WithdrawalMode,
-} from "@/types/withdrawal";
+  DepositFormData,
+  DepositMode,
+} from "@/types/deposit";
 
-interface WithdrawalSummaryProps {
-  mode: WithdrawalMode;
-  formData: WithdrawalFormData;
+type DepositSummaryProps = {
+  mode: DepositMode;
+  formData: DepositFormData;
   amount: number;
   commission: number;
   isReadyToRegister: boolean;
   onRegister: () => void;
-}
+};
 
-const pendingReasonLabels: Record<string, string> = {
-  "bank-movement-limit":
-    "Límite de movimientos visibles en la aplicación bancaria",
-  "customer-not-present":
-    "El cliente no se encuentra presente",
+const deliveryMethodLabels: Record<
+  string,
+  string
+> = {
+  "bank-transfer":
+    "Transferencia bancaria",
+  "cash-deposit": "Depósito en efectivo",
+};
+
+const pendingReasonLabels: Record<
+  string,
+  string
+> = {
+  "bank-unavailable":
+    "Servicio bancario no disponible",
+  "insufficient-bank-balance":
+    "Saldo insuficiente en la cuenta",
+  "movement-limit":
+    "Límite de movimientos alcanzado",
+  "customer-request":
+    "Solicitud del cliente",
   other: "Otro motivo",
 };
 
-export function WithdrawalSummary({
+export function DepositSummary({
   mode,
   formData,
   amount,
   commission,
   isReadyToRegister,
   onRegister,
-}: WithdrawalSummaryProps) {
+}: DepositSummaryProps) {
   const isPendingMode = mode === "pending";
-  const total = amount + commission;
+
+  /*
+   * El cliente entrega el monto y además
+   * paga la comisión.
+   */
+  const totalReceived = amount + commission;
 
   return (
     <aside className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div
         className={`border-b px-6 py-5 ${
           isPendingMode
-            ? "border-pending-100 bg-pending-50/70"
-            : "border-withdrawal-100 bg-withdrawal-50/70"
+            ? "border-pending-border bg-pending-soft"
+            : "border-deposit-border bg-deposit-soft"
         }`}
       >
         <p
           className={`text-xs font-semibold uppercase tracking-wide ${
             isPendingMode
-              ? "text-pending-700"
-              : "text-withdrawal-700"
+              ? "text-pending-text"
+              : "text-deposit-text"
           }`}
         >
           Vista previa
@@ -57,14 +81,13 @@ export function WithdrawalSummary({
 
         <h2 className="mt-1 text-lg font-semibold text-slate-950">
           {isPendingMode
-            ? "Resumen del retiro pendiente"
-            : "Resumen de entrega"}
+            ? "Resumen del depósito pendiente"
+            : "Resumen del depósito"}
         </h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          {isPendingMode
-            ? "Verifica los datos antes de registrar el retiro pendiente."
-            : "Verifica los datos antes de entregar el efectivo."}
+          Verifica la información antes de
+          registrar la operación.
         </p>
       </div>
 
@@ -72,33 +95,53 @@ export function WithdrawalSummary({
         <div className="space-y-4">
           <SummaryRow
             label="Folio bancario"
-            value={formData.bankFolio || "Sin capturar"}
+            value={
+              formData.bankFolio ||
+              "Sin capturar"
+            }
             mono
           />
 
           <SummaryRow
-            label="Banco"
+            label="Banco de destino"
             value={getBankLabel(
-              formData.bank,
+              formData.destinationBank,
             )}
           />
 
           <SummaryRow
-            label="Nombre de quien envía"
+            label="Método de envío"
             value={
-              formData.senderName || "Sin capturar"
+              deliveryMethodLabels[
+                formData.deliveryMethod
+              ] ?? "Sin seleccionar"
             }
           />
 
-          {!isPendingMode && (
-            <SummaryRow
-              label="Nombre de quien recibe"
-              value={
-                formData.receiverName ||
-                "Sin capturar"
-              }
-            />
-          )}
+          <SummaryRow
+            label="Entrega el efectivo"
+            value={
+              formData.senderName ||
+              "Sin capturar"
+            }
+          />
+
+          <SummaryRow
+            label="Recibe el depósito"
+            value={
+              formData.receiverName ||
+              "Sin capturar"
+            }
+          />
+
+          <SummaryRow
+            label="Referencia de destino"
+            value={
+              formData.destinationReference ||
+              "Sin capturar"
+            }
+            mono
+          />
 
           {isPendingMode && (
             <>
@@ -116,7 +159,7 @@ export function WithdrawalSummary({
                 <SummaryRow
                   label="Detalle del motivo"
                   value={
-                    formData.pendingReasonDetails.trim() ||
+                    formData.pendingReasonDetails ||
                     "Sin especificar"
                   }
                 />
@@ -129,7 +172,7 @@ export function WithdrawalSummary({
 
         <div className="space-y-4">
           <AmountRow
-            label="Monto a entregar"
+            label="Monto del depósito"
             value={formatCurrency(amount)}
           />
 
@@ -140,8 +183,10 @@ export function WithdrawalSummary({
 
           <div className="border-t border-slate-100 pt-4">
             <AmountRow
-              label="Total de la operación"
-              value={formatCurrency(total)}
+              label="Total recibido"
+              value={formatCurrency(
+                totalReceived,
+              )}
               large
             />
           </div>
@@ -153,8 +198,8 @@ export function WithdrawalSummary({
           onClick={onRegister}
           className={
             isPendingMode
-              ? "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pending-700 px-4 py-3 font-semibold text-white transition hover:bg-pending-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
-              : "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-withdrawal-700 px-4 py-3 font-semibold text-white transition hover:bg-withdrawal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+              ? "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pending-solid px-4 py-3 font-semibold text-white transition hover:bg-pending-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+              : "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-deposit-solid px-4 py-3 font-semibold text-white transition hover:bg-deposit-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
           }
         >
           {isPendingMode ? (
@@ -165,15 +210,15 @@ export function WithdrawalSummary({
           ) : (
             <>
               <CheckCircle2 className="h-5 w-5" />
-              Registrar entrega
+              Registrar depósito
             </>
           )}
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
           {isPendingMode
-            ? "Aparecerá en retiros pendientes y se considerará durante el corte."
-            : "Después de registrar, se podrá imprimir el ticket."}
+            ? "La operación aparecerá en depósitos pendientes hasta que se complete."
+            : "Después de registrar, la operación aparecerá en el historial."}
         </p>
       </div>
     </aside>

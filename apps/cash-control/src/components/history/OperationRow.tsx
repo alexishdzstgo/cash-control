@@ -26,7 +26,7 @@ export function OperationRow({
   const isDelivered = operation.status === "entregado";
 
   return (
-    <tr className={operation.edited ? "bg-red-50" : "bg-white"}>
+    <tr className={operation.isEdited ? "bg-red-50" : "bg-white"}>
       <td className="px-4 py-3">
   <OperationTypeBadge type={operation.type} />
 </td>
@@ -46,7 +46,7 @@ export function OperationRow({
       </td>
 
       <td className="px-4 py-3">
-        {operation.edited ? (
+        {operation.isEdited ? (
           <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-600">
             Editado
           </span>

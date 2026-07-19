@@ -1,33 +1,36 @@
 "use client";
 
-import { ArrowLeft, Clock3 } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock3,
+} from "lucide-react";
+import { calculateCommission } from "@/lib/commission";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  initialWithdrawalFormData,
-  type WithdrawalFormData,
-  type WithdrawalMode,
-} from "@/types/withdrawal";
+  initialDepositFormData,
+  type DepositFormData,
+  type DepositMode,
+} from "@/types/deposit";
 import {
-  type FolioStatus,
-  WithdrawalForm,
-} from "./WithdrawalForm";
-import { WithdrawalSummary } from "./WithdrawalSummary";
-import { calculateCommission } from "@/lib/commission";
+  DepositForm,
+  type DepositFolioStatus,
+} from "./DepositForm";
+import { DepositSummary } from "./DepositSummary";
 
-export function WithdrawalPage() {
+export function DepositPage() {
   const [mode, setMode] =
-    useState<WithdrawalMode>("delivered");
+    useState<DepositMode>("completed");
 
   const [formData, setFormData] =
-    useState<WithdrawalFormData>(
-      initialWithdrawalFormData,
+    useState<DepositFormData>(
+      initialDepositFormData,
     );
 
   const [folioStatus, setFolioStatus] =
-    useState<FolioStatus>("empty");
+    useState<DepositFolioStatus>("empty");
 
   const [
     isPendingConfirmationOpen,
@@ -37,8 +40,8 @@ export function WithdrawalPage() {
   const [isSuccessOpen, setIsSuccessOpen] =
     useState(false);
 
-  const [successType, setSuccessType] =
-    useState<WithdrawalMode>("delivered");
+  const [successMode, setSuccessMode] =
+    useState<DepositMode>("completed");
 
   const isPendingMode = mode === "pending";
   const amount = Number(formData.amount) || 0;
@@ -49,30 +52,29 @@ const commission = calculateCommission(amount);
     folioStatus === "available" &&
     amount > 0 &&
     formData.senderName.trim() !== "" &&
-    formData.bank !== "";
-
-  const hasRequiredDeliveryFields =
-    formData.receiverName.trim() !== "";
+    formData.receiverName.trim() !== "" &&
+    formData.destinationBank !== "" &&
+    formData.deliveryMethod !== "" &&
+    formData.destinationReference.trim() !==
+      "";
 
   const hasValidPendingReason =
     formData.pendingReason !== "" &&
     (formData.pendingReason !== "other" ||
-      formData.pendingReasonDetails.trim() !== "");
+      formData.pendingReasonDetails.trim() !==
+        "");
 
   const isReadyToRegister = isPendingMode
     ? hasRequiredCommonFields &&
       hasValidPendingReason
-    : hasRequiredCommonFields &&
-      hasRequiredDeliveryFields;
+    : hasRequiredCommonFields;
 
   function resetForm() {
-    setFormData(initialWithdrawalFormData);
+    setFormData(initialDepositFormData);
     setFolioStatus("empty");
   }
 
-  function changeMode(
-    nextMode: WithdrawalMode,
-  ) {
+  function changeMode(nextMode: DepositMode) {
     setMode(nextMode);
     resetForm();
   }
@@ -88,42 +90,63 @@ const commission = calculateCommission(amount);
     }
 
     const operation = {
-      ...formData,
+      type: "deposito" as const,
+      status: "completado" as const,
+      bankFolio: formData.bankFolio,
       amount,
       commission,
       total: amount + commission,
-      type: "retiro" as const,
-      status: "entregado" as const,
+      senderName: formData.senderName,
+      receiverName: formData.receiverName,
+      bankTo: formData.destinationBank,
+      destinationReference:
+        formData.destinationReference,
+      deliveryMethod:
+        formData.deliveryMethod,
+      observations:
+        formData.observations,
     };
 
     console.log(
-      "Registrar retiro entregado:",
+      "Registrar depósito completado:",
       operation,
     );
 
-    setSuccessType("delivered");
+    setSuccessMode("completed");
     setIsSuccessOpen(true);
     resetForm();
   }
 
-  function confirmPendingWithdrawal() {
+  function confirmPendingDeposit() {
     const operation = {
-      ...formData,
-      receiverName: "",
+      type: "deposito" as const,
+      status: "pendiente" as const,
+      bankFolio: formData.bankFolio,
       amount,
       commission,
       total: amount + commission,
-      type: "retiro" as const,
-      status: "pendiente" as const,
+      senderName: formData.senderName,
+      receiverName: formData.receiverName,
+      bankTo: formData.destinationBank,
+      destinationReference:
+        formData.destinationReference,
+      deliveryMethod:
+        formData.deliveryMethod,
+      pendingReason:
+        formData.pendingReason,
+      pendingReasonDetails:
+        formData.pendingReasonDetails,
+      observations:
+        formData.observations,
     };
 
     console.log(
-      "Registrar retiro pendiente:",
+      "Registrar depósito pendiente:",
       operation,
     );
 
     setIsPendingConfirmationOpen(false);
-    setSuccessType("pending");
+    setSuccessMode("pending");
     setIsSuccessOpen(true);
     resetForm();
   }
@@ -137,23 +160,23 @@ const commission = calculateCommission(amount);
               <p
                 className={`mb-1 text-sm font-medium ${
                   isPendingMode
-                    ? "text-pending-700"
-                    : "text-withdrawal-700"
+                    ? "text-pending-text"
+                    : "text-deposit-text"
                 }`}
               >
-                Retiros
+                Depósitos
               </p>
 
               <h1 className="text-2xl font-bold text-slate-900">
                 {isPendingMode
-                  ? "Nuevo retiro pendiente"
-                  : "Nuevo retiro"}
+                  ? "Nuevo depósito pendiente"
+                  : "Nuevo depósito"}
               </h1>
 
               <p className="mt-1 max-w-2xl text-sm text-slate-500">
                 {isPendingMode
-                  ? "Registra un retiro cuyo efectivo todavía no ha sido entregado al cliente."
-                  : "Registra la entrega de efectivo correspondiente a un movimiento validado en la aplicación bancaria."}
+                  ? "Registra el efectivo recibido cuando la operación bancaria todavía no puede completarse."
+                  : "Registra el efectivo entregado por el cliente y el envío realizado a la cuenta de destino."}
               </p>
             </div>
 
@@ -161,12 +184,12 @@ const commission = calculateCommission(amount);
               <button
                 type="button"
                 onClick={() =>
-                  changeMode("delivered")
+                  changeMode("completed")
                 }
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-withdrawal-200 hover:bg-withdrawal-50 hover:text-withdrawal-800"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-deposit-border hover:bg-deposit-soft hover:text-deposit-text"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Volver a registrar entrega
+                Volver a depósito completado
               </button>
             ) : (
               <button
@@ -174,17 +197,17 @@ const commission = calculateCommission(amount);
                 onClick={() =>
                   changeMode("pending")
                 }
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-pending-200 bg-pending-50 px-4 py-2.5 text-sm font-semibold text-pending-800 shadow-sm transition hover:border-pending-300 hover:bg-pending-100"
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-pending-border bg-pending-soft px-4 py-2.5 text-sm font-semibold text-pending-text shadow-sm transition hover:bg-pending-ring"
               >
                 <Clock3 className="h-4 w-4" />
-                Registrar retiro sin entregar
+                Registrar sin completar
               </button>
             )}
           </div>
         </div>
 
         <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <WithdrawalForm
+          <DepositForm
             mode={mode}
             formData={formData}
             onFormDataChange={setFormData}
@@ -193,7 +216,7 @@ const commission = calculateCommission(amount);
             }
           />
 
-          <WithdrawalSummary
+          <DepositSummary
             mode={mode}
             formData={formData}
             amount={amount}
@@ -210,34 +233,34 @@ const commission = calculateCommission(amount);
         isOpen={
           isPendingConfirmationOpen
         }
-        title="Registrar retiro pendiente de entrega"
-        description={`El retiro con folio ${formData.bankFolio} y monto de ${formatCurrency(
+        title="Registrar depósito pendiente"
+        description={`El depósito con folio ${
+          formData.bankFolio
+        } por ${formatCurrency(
           amount,
-        )} quedará pendiente de entrega. Aparecerá en retiros pendientes y se considerará durante el corte.`}
+        )} quedará pendiente de completar.`}
         confirmLabel="Registrar como pendiente"
         onCancel={() =>
           setIsPendingConfirmationOpen(
             false,
           )
         }
-        onConfirm={
-          confirmPendingWithdrawal
-        }
+        onConfirm={confirmPendingDeposit}
       />
 
       <SuccessDialog
         isOpen={isSuccessOpen}
         title={
-          successType === "pending"
-            ? "Retiro pendiente registrado"
-            : "Retiro entregado correctamente"
+          successMode === "pending"
+            ? "Depósito pendiente registrado"
+            : "Depósito registrado correctamente"
         }
         description={
-          successType === "pending"
-            ? "El retiro quedó registrado como pendiente de entrega y se incluirá en el corte."
-            : "La entrega de efectivo fue registrada correctamente."
+          successMode === "pending"
+            ? "La operación quedó pendiente y podrá completarse posteriormente."
+            : "El depósito fue registrado correctamente y aparecerá en el historial."
         }
-        buttonLabel="Registrar otro retiro"
+        buttonLabel="Registrar otro depósito"
         onClose={() =>
           setIsSuccessOpen(false)
         }

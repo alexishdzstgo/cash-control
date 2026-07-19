@@ -87,7 +87,7 @@ export function OperationDetailsModal({
           />
         </div>
 
-        {operation.edited && (
+        {operation.isEdited && (
           <div className="mx-5 mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
             Esta operación fue editada. Más adelante se mostrará aquí el
             historial de cambios.

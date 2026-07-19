@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: "%s | Xolobit Cash Control",
   },
   description:
-    "Sistema de control de depósitos y transferencias desarrollado por Xolobit.",
+    "Sistema de control de depósitos y retiros desarrollado por Xolobit.",
 };
 
 export default function RootLayout({
@@ -31,7 +31,9 @@ export default function RootLayout({
       lang="es-MX"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+      </body>
     </html>
   );
 }

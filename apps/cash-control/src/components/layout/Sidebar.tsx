@@ -39,14 +39,14 @@ const navigationItems = [
     activeClass:
       "bg-pending-600 text-white shadow-sm",
   },
-  {
-    label: "Depósitos",
-    href: "/deposits",
-    icon: ArrowDownToLine,
-    enabled: false,
-    activeClass:
-      "bg-deposit-600 text-white shadow-sm",
-  },
+{
+  label: "Depósitos",
+  href: "/deposits",
+  icon: ArrowDownToLine,
+  enabled: true,
+  activeClass:
+    "bg-deposit-solid text-white shadow-sm",
+},
   {
     label: "Bancos",
     href: "/banks",
