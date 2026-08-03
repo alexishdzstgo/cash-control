@@ -17,65 +17,40 @@ import {
 import type { Operation } from "@/types/operation";
 
 export function PendingWithdrawalsPage() {
-  const [operations, setOperations] =
-    useState<Operation[]>(mockOperations);
+  const [operations, setOperations] = useState<Operation[]>(mockOperations);
 
-  const [
-    selectedOperation,
-    setSelectedOperation,
-  ] = useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
 
-  const [
-    operationToDeliver,
-    setOperationToDeliver,
-  ] = useState<Operation | null>(null);
+  const [operationToDeliver, setOperationToDeliver] = useState<Operation | null>(null);
 
-  const pendingWithdrawals =
-    useMemo(() => {
-      return operations
-        .filter(
-          (operation) =>
-            operation.type === "retiro" &&
-            operation.status ===
-              "pendiente",
-        )
-        .sort(
-          (
-            firstOperation,
-            secondOperation,
-          ) =>
-            new Date(
-              secondOperation.createdAt,
-            ).getTime() -
-            new Date(
-              firstOperation.createdAt,
-            ).getTime(),
-        );
-    }, [operations]);
+  const pendingWithdrawals = useMemo(() => {
+    return operations
+      .filter(
+        (operation) =>
+          operation.type === "retiro" &&
+          operation.status === "pendiente",
+      )
+      .sort(
+        (firstOperation, secondOperation) =>
+          new Date(secondOperation.createdAt).getTime() -
+          new Date(firstOperation.createdAt).getTime(),
+      );
+  }, [operations]);
 
   const pendingAmount = useMemo(() => {
     return pendingWithdrawals.reduce(
-      (total, operation) =>
-        total + operation.amount,
+      (total, operation) => total + operation.amount,
       0,
     );
   }, [pendingWithdrawals]);
 
-  function markAsDelivered(
-    operationId: string,
-  ) {
-    setOperations(
-      (currentOperations) =>
-        currentOperations.map(
-          (operation) =>
-            operation.id === operationId
-              ? {
-                  ...operation,
-                  status:
-                    "entregado",
-                }
-              : operation,
-        ),
+  function markAsDelivered(operationId: string) {
+    setOperations((currentOperations) =>
+      currentOperations.map((operation) =>
+        operation.id === operationId
+          ? { ...operation, status: "entregado" }
+          : operation,
+      ),
     );
 
     setOperationToDeliver(null);
@@ -83,161 +58,93 @@ export function PendingWithdrawalsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium text-withdrawal-700">
-          Retiros
-        </p>
-
-        <h1 className="text-2xl font-bold text-slate-900">
-          Retiros pendientes de entrega
-        </h1>
-
-        <p className="mt-1 text-sm text-slate-500">
-          Consulta los retiros cuyo efectivo
-          todavía no ha sido entregado al
-          cliente.
-        </p>
-      </div>
-
       <div className="grid gap-4 md:grid-cols-2">
         <SummaryCard
           title="Retiros pendientes"
-          value={String(
-            pendingWithdrawals.length,
-          )}
+          value={String(pendingWithdrawals.length)}
           description="Operaciones por entregar"
-          icon={
-            <ListChecks className="h-5 w-5" />
-          }
+          icon={<ListChecks className="h-5 w-5" aria-hidden="true" />}
         />
 
         <SummaryCard
           title="Efectivo pendiente"
-          value={formatCurrency(
-            pendingAmount,
-          )}
+          value={formatCurrency(pendingAmount)}
           description="Monto todavía no entregado"
-          icon={
-            <Banknote className="h-5 w-5" />
-          }
+          icon={<Banknote className="h-5 w-5" aria-hidden="true" />}
         />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="bg-slate-100 text-xs uppercase text-slate-500">
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead className="bg-slate-100 text-xs uppercase text-slate-500 font-semibold tracking-wide">
               <tr>
-                <th className="px-4 py-3">
-                  Folio
-                </th>
-                <th className="px-4 py-3">
-                  Monto
-                </th>
-                <th className="px-4 py-3">
-                  Banco
-                </th>
-                <th className="px-4 py-3">
-                  Cliente
-                </th>
-                <th className="px-4 py-3">
-                  Registró
-                </th>
-                <th className="px-4 py-3">
-                  Fecha
-                </th>
-                <th className="px-4 py-3">
-                  Ver
-                </th>
-                <th className="px-4 py-3">
-                  Entregar
-                </th>
+                <th className="px-4 py-3">Folio</th>
+                <th className="px-4 py-3 text-right">Monto</th>
+                <th className="px-4 py-3">Banco</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Registró</th>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {pendingWithdrawals.map(
-                (operation) => (
-                  <tr
-                    key={operation.id}
-                    className="bg-white"
-                  >
-                    <td className="px-4 py-3 font-mono font-medium text-slate-800">
-                      {
-                        operation.bankFolio
-                      }
-                    </td>
+              {pendingWithdrawals.map((operation) => (
+                <tr key={operation.id} className="bg-white transition-colors duration-200 hover:bg-slate-50/70">
+                  <td className="px-4 py-3 font-mono font-medium tabular-nums text-slate-800">
+                    {operation.bankFolio}
+                  </td>
 
-                    <td className="px-4 py-3 font-semibold text-slate-800">
-                      {formatCurrency(
-                        operation.amount,
-                      )}
-                    </td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+                    {formatCurrency(operation.amount)}
+                  </td>
 
-                    <td className="px-4 py-3 text-slate-600">
-                      {operation.bankFrom}
-                    </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {operation.bankFrom}
+                  </td>
 
-                    <td className="px-4 py-3 text-slate-700">
-                      {
-                        operation.senderName
-                      }
-                    </td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {operation.senderName}
+                  </td>
 
-                    <td className="px-4 py-3 text-slate-600">
-                      {
-                        operation.createdBy
-                      }
-                    </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {operation.createdBy}
+                  </td>
 
-                    <td className="px-4 py-3 text-slate-500">
-                      {formatDateTime(
-                        operation.createdAt,
-                      )}
-                    </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {formatDateTime(operation.createdAt)}
+                  </td>
 
-                    <td className="px-4 py-3">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
                         title="Ver detalle"
-                        onClick={() =>
-                          setSelectedOperation(
-                            operation,
-                          )
-                        }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-withdrawal-300 hover:bg-withdrawal-50 hover:text-withdrawal-700"
+                        aria-label={`Ver detalle de la operación ${operation.bankFolio}`}
+                        onClick={() => setSelectedOperation(operation)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye aria-hidden="true" className="h-4 w-4" />
                       </button>
-                    </td>
 
-                    <td className="px-4 py-3">
                       <button
                         type="button"
-                        title="Marcar como entregado"
-                        onClick={() =>
-                          setOperationToDeliver(
-                            operation,
-                          )
-                        }
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-withdrawal-300 hover:bg-withdrawal-50 hover:text-withdrawal-700"
+                        onClick={() => setOperationToDeliver(operation)}
+                        className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 shrink-0"
                       >
-                        <CheckCircle2 className="h-4 w-4" />
+                        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                        Confirmar entrega
                       </button>
-                    </td>
-                  </tr>
-                ),
-              )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
 
-              {pendingWithdrawals.length ===
-                0 && (
+              {pendingWithdrawals.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-12 text-center text-slate-500"
-                  >
-                    No hay retiros pendientes de
-                    entrega.
+                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                    No hay retiros pendientes de entrega.
                   </td>
                 </tr>
               )}
@@ -248,35 +155,25 @@ export function PendingWithdrawalsPage() {
 
       <OperationDetailsModal
         operation={selectedOperation}
-        onClose={() =>
-          setSelectedOperation(null)
-        }
+        onClose={() => setSelectedOperation(null)}
       />
 
       <ConfirmDialog
-        isOpen={
-          operationToDeliver !== null
-        }
+        isOpen={operationToDeliver !== null}
         title="Confirmar entrega de efectivo"
         description={
           operationToDeliver
-            ? `El retiro con folio ${operationToDeliver.bankFolio} por ${formatCurrency(
-                operationToDeliver.amount,
-              )} se marcará como entregado.`
+            ? `El retiro con folio ${operationToDeliver.bankFolio} por ${formatCurrency(operationToDeliver.amount)} se marcará como entregado.`
             : ""
         }
         confirmLabel="Confirmar entrega"
-        onCancel={() =>
-          setOperationToDeliver(null)
-        }
+        onCancel={() => setOperationToDeliver(null)}
         onConfirm={() => {
           if (!operationToDeliver) {
             return;
           }
 
-          markAsDelivered(
-            operationToDeliver.id,
-          );
+          markAsDelivered(operationToDeliver.id);
         }}
       />
     </div>
@@ -313,7 +210,7 @@ function SummaryCard({
           </p>
         </div>
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-withdrawal-100 text-withdrawal-700">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
           {icon}
         </div>
       </div>

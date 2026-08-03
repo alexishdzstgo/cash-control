@@ -13,6 +13,7 @@ type FolioFieldProps = {
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
+  /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
   showStatusMessages?: boolean;
   focusKey?: string;
@@ -21,25 +22,13 @@ type FolioFieldProps = {
 };
 
 const inputBase =
-  "w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
+  "w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
 
-const inputVariants: Record<string, string> = {
-  withdrawal:
-    "border-slate-300 focus:border-withdrawal-400 focus:bg-white focus:ring-4 focus:ring-withdrawal-50",
-  deposit:
-    "border-slate-300 focus:border-deposit-border focus:bg-white focus:ring-4 focus:ring-deposit-ring",
-  neutral:
-    "border-slate-300 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100",
-};
+const inputNeutral =
+  "border-slate-300 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100";
 
 const inputDuplicate =
   "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100";
-
-const messageVariants: Record<string, string> = {
-  withdrawal: "text-emerald-600",
-  deposit: "text-emerald-600",
-  neutral: "text-emerald-600",
-};
 
 const defaultMessages: Record<FolioStatus, string> = {
   empty: "Captura el folio para habilitar el resto del formulario.",
@@ -57,7 +46,6 @@ export function FolioField({
   placeholder = "Ej. 458732",
   disabled = false,
   required = true,
-  colorVariant = "neutral",
   showStatusMessages = true,
   focusKey,
   className = "",
@@ -82,7 +70,7 @@ export function FolioField({
 
   const inputClassName = [
     inputBase,
-    status === "duplicate" ? inputDuplicate : inputVariants[colorVariant],
+    status === "duplicate" ? inputDuplicate : inputNeutral,
   ].join(" ");
 
   function getMessage(): string | null {
@@ -106,7 +94,7 @@ export function FolioField({
       return "mt-2 text-sm font-medium text-red-600";
     }
 
-    return `mt-2 text-sm font-medium ${messageVariants[colorVariant]}`;
+    return "mt-2 text-sm font-medium text-emerald-600";
   }
 
   const message = getMessage();

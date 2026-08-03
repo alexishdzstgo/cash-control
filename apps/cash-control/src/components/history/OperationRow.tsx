@@ -1,4 +1,7 @@
-import { formatDateTime } from "@/lib/formatters";
+import {
+  formatCurrency,
+  formatDateTime,
+} from "@/lib/formatters";
 import { OperationStatusBadge } from "./OperationStatusBadge";
 import { OperationTypeBadge } from "./OperationTypeBadge";
 import {
@@ -23,21 +26,23 @@ export function OperationRow({
   onViewDetails,
   onMarkAsDelivered,
 }: OperationRowProps) {
-  const isDelivered = operation.status === "entregado";
-
   return (
-    <tr className={operation.isEdited ? "bg-red-50" : "bg-white"}>
+    <tr className="group relative bg-white transition-colors duration-200 hover:bg-slate-50/70">
       <td className="px-4 py-3">
-  <OperationTypeBadge type={operation.type} />
-</td>
+        <OperationTypeBadge type={operation.type} />
+      </td>
 
-      <td className="px-4 py-3 font-mono text-slate-700">
+      <td className="px-4 py-3 font-mono font-medium tabular-nums text-slate-700">
         {operation.bankFolio}
       </td>
 
-<td className="px-4 py-3">
-  <OperationStatusBadge status={operation.status} />
-</td>
+      <td className="px-4 py-3 text-right font-semibold tabular-nums text-slate-900">
+        {formatCurrency(operation.amount)}
+      </td>
+
+      <td className="px-4 py-3">
+        <OperationStatusBadge status={operation.status} />
+      </td>
 
       <td className="px-4 py-3 text-slate-700">{operation.createdBy}</td>
 
@@ -47,66 +52,65 @@ export function OperationRow({
 
       <td className="px-4 py-3">
         {operation.isEdited ? (
-          <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-600">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
             Editado
           </span>
         ) : (
-          <span className="text-xs text-slate-400">Sin cambios</span>
+          <span className="text-xs font-medium text-slate-400">
+            Sin cambios
+          </span>
         )}
       </td>
 
       <td className="px-4 py-3">
-        <button
-          type="button"
-          title={
-            isDelivered
-              ? "La operación ya está entregada"
-              : "Marcar como entregada"
-          }
-          onClick={() => onMarkAsDelivered(operation)}
-          disabled={isDelivered}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
-        >
-          <CheckCircle2 className="h-4 w-4" />
-        </button>
-      </td>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            title="Ver detalle"
+            aria-label={`Ver detalle de la operación ${operation.bankFolio}`}
+            onClick={() => onViewDetails(operation)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+          >
+            <Eye aria-hidden="true" className="h-4 w-4" />
+          </button>
 
-      <td className="px-4 py-3">
-        <button
-          type="button"
-          title="Ver detalle"
-          onClick={() => onViewDetails(operation)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-        >
-          <Eye className="h-4 w-4" />
-        </button>
-      </td>
+          {operation.status === "pendiente" && (
+            <button
+              type="button"
+              onClick={() => onMarkAsDelivered(operation)}
+              className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 shrink-0"
+            >
+              <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+              Entregar
+            </button>
+          )}
 
-      <td className="px-4 py-3">
-        <ActionMenu
-          items={[
-            {
-              label: "Editar operación",
-              icon: <Pencil className="h-4 w-4" />,
-              onClick: () => console.log("Editar operación:", operation),
-            },
-            {
-              label: "Ver ticket",
-              icon: <FileText className="h-4 w-4" />,
-              onClick: () => console.log("Ver ticket:", operation),
-            },
-            {
-              label: "Imprimir ticket",
-              icon: <Printer className="h-4 w-4" />,
-              onClick: () => console.log("Imprimir ticket:", operation),
-            },
-            {
-              label: "Historial de cambios",
-              icon: <History className="h-4 w-4" />,
-              onClick: () => console.log("Historial de cambios:", operation),
-            },
-          ]}
-        />
+          <ActionMenu
+            items={[
+              {
+                label: "Editar operación",
+                icon: <Pencil aria-hidden="true" className="h-4 w-4" />,
+                onClick: () => console.log("Editar operación:", operation),
+              },
+              {
+                label: "Ver ticket",
+                icon: <FileText aria-hidden="true" className="h-4 w-4" />,
+                onClick: () => console.log("Ver ticket:", operation),
+              },
+              {
+                label: "Imprimir ticket",
+                icon: <Printer aria-hidden="true" className="h-4 w-4" />,
+                onClick: () => console.log("Imprimir ticket:", operation),
+              },
+              {
+                label: "Historial de cambios",
+                icon: <History aria-hidden="true" className="h-4 w-4" />,
+                onClick: () => console.log("Historial de cambios:", operation),
+              },
+            ]}
+          />
+        </div>
       </td>
     </tr>
   );

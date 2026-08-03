@@ -47,43 +47,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  --color-deposit-soft: var(--deposit-soft);
-  --color-deposit-border: var(--deposit-border);
-  --color-deposit-text: var(--deposit-text);
-  --color-deposit-solid: var(--deposit-solid);
-  --color-deposit-hover: var(--deposit-hover);
-  --color-deposit-ring: var(--deposit-ring);
-
-  --color-pending-soft: var(--pending-soft);
-  --color-pending-border: var(--pending-border);
-  --color-pending-text: var(--pending-text);
-  --color-pending-solid: var(--pending-solid);
-  --color-pending-hover: var(--pending-hover);
-  --color-pending-ring: var(--pending-ring);
-
-  --color-withdrawal-50: var(--color-withdrawal-50);
-  --color-withdrawal-100: var(--color-withdrawal-100);
-  --color-withdrawal-200: var(--color-withdrawal-200);
-  --color-withdrawal-400: var(--color-withdrawal-400);
-  --color-withdrawal-600: var(--color-withdrawal-600);
-  --color-withdrawal-700: var(--color-withdrawal-700);
-  --color-withdrawal-800: var(--color-withdrawal-800);
-
-  --color-deposit-50: var(--color-deposit-50);
-  --color-deposit-100: var(--color-deposit-100);
-  --color-deposit-200: var(--color-deposit-200);
-  --color-deposit-400: var(--color-deposit-400);
-  --color-deposit-600: var(--color-deposit-600);
-  --color-deposit-700: var(--color-deposit-700);
-  --color-deposit-800: var(--color-deposit-800);
-
-  --color-pending-50: var(--color-pending-50);
-  --color-pending-100: var(--color-pending-100);
-  --color-pending-200: var(--color-pending-200);
-  --color-pending-600: var(--color-pending-600);
-  --color-pending-700: var(--color-pending-700);
-  --color-pending-800: var(--color-pending-800);
-  /* Retiros */
+  /* Operación: Retiro — neutral (solo es un movimiento, no implica juicio) */
   --color-withdrawal-50: var(--withdrawal-50);
   --color-withdrawal-100: var(--withdrawal-100);
   --color-withdrawal-200: var(--withdrawal-200);
@@ -93,8 +57,14 @@
   --color-withdrawal-600: var(--withdrawal-600);
   --color-withdrawal-700: var(--withdrawal-700);
   --color-withdrawal-800: var(--withdrawal-800);
+  --color-withdrawal-soft: var(--withdrawal-soft);
+  --color-withdrawal-border: var(--withdrawal-border);
+  --color-withdrawal-text: var(--withdrawal-text);
+  --color-withdrawal-solid: var(--withdrawal-solid);
+  --color-withdrawal-hover: var(--withdrawal-hover);
+  --color-withdrawal-ring: var(--withdrawal-ring);
 
-  /* Depósitos */
+  /* Operación: Depósito — azul informativo */
   --color-deposit-50: var(--deposit-50);
   --color-deposit-100: var(--deposit-100);
   --color-deposit-200: var(--deposit-200);
@@ -104,8 +74,14 @@
   --color-deposit-600: var(--deposit-600);
   --color-deposit-700: var(--deposit-700);
   --color-deposit-800: var(--deposit-800);
+  --color-deposit-soft: var(--deposit-soft);
+  --color-deposit-border: var(--deposit-border);
+  --color-deposit-text: var(--deposit-text);
+  --color-deposit-solid: var(--deposit-solid);
+  --color-deposit-hover: var(--deposit-hover);
+  --color-deposit-ring: var(--deposit-ring);
 
-  /* Pendientes */
+  /* Operación: Pendiente — ámbar */
   --color-pending-50: var(--pending-50);
   --color-pending-100: var(--pending-100);
   --color-pending-200: var(--pending-200);
@@ -115,21 +91,29 @@
   --color-pending-600: var(--pending-600);
   --color-pending-700: var(--pending-700);
   --color-pending-800: var(--pending-800);
-  /* Depósitos */
-  --deposit-soft: #eff6ff;
-  --deposit-border: #93c5fd;
-  --deposit-text: #1d4ed8;
-  --deposit-solid: #2563eb;
-  --deposit-hover: #1d4ed8;
-  --deposit-ring: #dbeafe;
+  --color-pending-soft: var(--pending-soft);
+  --color-pending-border: var(--pending-border);
+  --color-pending-text: var(--pending-text);
+  --color-pending-solid: var(--pending-solid);
+  --color-pending-hover: var(--pending-hover);
+  --color-pending-ring: var(--pending-ring);
 
-  /* Operaciones pendientes */
-  --pending-soft: #f5f3ff;
-  --pending-border: #c4b5fd;
-  --pending-text: #6d28d9;
-  --pending-solid: #7c3aed;
-  --pending-hover: #6d28d9;
-  --pending-ring: #ede9fe;
+  /* Marca Xolobit — morado corporativo */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-primary-soft: var(--brand-primary-soft);
+  --color-brand-primary-ring: var(--brand-primary-ring);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-border: var(--brand-border);
+  --color-brand-text: var(--brand-text);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-responsible: var(--brand-responsible);
+  --color-brand-responsible-soft: var(--brand-responsible-soft);
+  --color-brand-responsible-border: var(--brand-responsible-border);
+
+  --color-brand-support: var(--brand-support);
+  --color-brand-support-soft: var(--brand-support-soft);
+  --color-brand-support-border: var(--brand-support-border);
 }
 
 :root {
@@ -166,38 +150,77 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Retiros: verde esmeralda */
-  --withdrawal-50: #ecfdf5;
-  --withdrawal-100: #d1fae5;
-  --withdrawal-200: #a7f3d0;
-  --withdrawal-300: #6ee7b7;
-  --withdrawal-400: #34d399;
-  --withdrawal-500: #10b981;
-  --withdrawal-600: #059669;
-  --withdrawal-700: #047857;
-  --withdrawal-800: #065f46;
+  /* Retiros: neutral — dinero que sale, sin connotación emocional */
+  --withdrawal-50: #f8fafc;
+  --withdrawal-100: #f1f5f9;
+  --withdrawal-200: #e2e8f0;
+  --withdrawal-300: #cbd5e1;
+  --withdrawal-400: #94a3b8;
+  --withdrawal-500: #64748b;
+  --withdrawal-600: #475569;
+  --withdrawal-700: #334155;
+  --withdrawal-800: #1e293b;
 
-  /* Depósitos: azul índigo */
-  --deposit-50: #eef2ff;
-  --deposit-100: #e0e7ff;
-  --deposit-200: #c7d2fe;
-  --deposit-300: #a5b4fc;
-  --deposit-400: #818cf8;
-  --deposit-500: #6366f1;
-  --deposit-600: #4f46e5;
-  --deposit-700: #4338ca;
-  --deposit-800: #3730a3;
+  /* Depósitos: azul informativo */
+  --deposit-50: #eff6ff;
+  --deposit-100: #dbeafe;
+  --deposit-200: #bfdbfe;
+  --deposit-300: #93c5fd;
+  --deposit-400: #60a5fa;
+  --deposit-500: #3b82f6;
+  --deposit-600: #2563eb;
+  --deposit-700: #1d4ed8;
+  --deposit-800: #1e40af;
 
-  /* Operaciones pendientes: violeta */
-  --pending-50: #f5f3ff;
-  --pending-100: #ede9fe;
-  --pending-200: #ddd6fe;
-  --pending-300: #c4b5fd;
-  --pending-400: #a78bfa;
-  --pending-500: #8b5cf6;
-  --pending-600: #7c3aed;
-  --pending-700: #6d28d9;
-  --pending-800: #5b21b6;
+  /* Operaciones pendientes: ámbar — requiere atención */
+  --pending-50: #fffbeb;
+  --pending-100: #fef3c7;
+  --pending-200: #fde68a;
+  --pending-300: #fcd34d;
+  --pending-400: #fbbf24;
+  --pending-500: #f59e0b;
+  --pending-600: #d97706;
+  --pending-700: #b45309;
+  --pending-800: #92400e;
+
+  /* Variantes de estado para compatibilidad */
+  --withdrawal-soft: #f8fafc;
+  --withdrawal-border: #e2e8f0;
+  --withdrawal-text: #334155;
+  --withdrawal-solid: #334155;
+  --withdrawal-hover: #1e293b;
+  --withdrawal-ring: #e2e8f0;
+
+  --deposit-soft: #eff6ff;
+  --deposit-border: #bfdbfe;
+  --deposit-text: #1d4ed8;
+  --deposit-solid: #2563eb;
+  --deposit-hover: #1d4ed8;
+  --deposit-ring: #dbeafe;
+
+  --pending-soft: #fffbeb;
+  --pending-border: #fde68a;
+  --pending-text: #b45309;
+  --pending-solid: #d97706;
+  --pending-hover: #b45309;
+  --pending-ring: #fef3c7;
+
+  /* Marca Xolobit — morado */
+  --brand-primary: #6d28d9;
+  --brand-primary-hover: #5b21b6;
+  --brand-primary-soft: #f5f3ff;
+  --brand-primary-ring: #c4b5fd;
+  --brand-surface: #fafaf9;
+  --brand-border: #e7e5e4;
+  --brand-text: #1c1917;
+  --brand-text-muted: #78716c;
+  --brand-responsible: #059669;
+  --brand-responsible-soft: #ecfdf5;
+  --brand-responsible-border: #a7f3d0;
+
+  --brand-support: #6d28d9;
+  --brand-support-soft: #f5f3ff;
+  --brand-support-border: #ddd6fe;
 }
 
 .dark {
@@ -232,6 +255,18 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Marca Xolobit - modo oscuro */
+  --brand-primary: #8b5cf6;
+  --brand-primary-hover: #a78bfa;
+  --brand-primary-soft: #2e1065;
+  --brand-primary-ring: #6d28d9;
+  --brand-surface: #0f172a;
+  --brand-border: #1e293b;
+  --brand-text: #f1f5f9;
+  --brand-text-muted: #94a3b8;
+  --brand-responsible: #10b981;
+  --brand-responsible-soft: #064e3b;
 }
 
 @layer base {
@@ -246,4 +281,105 @@
   html {
     @apply font-sans;
   }
+
+  /* Números tabulares para montos y valores numéricos */
+  .tabular-nums,
+  .font-mono,
+  [class*="text-3xl"],
+  [class*="text-4xl"],
+  [class*="text-5xl"] {
+    font-variant-numeric: tabular-nums;
+  }
 }
+
+/* Animaciones suaves y profesionales */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+/* Respetar preferencias de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Clases de animación reutilizables */
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Stagger delays para aparición escalonada */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }

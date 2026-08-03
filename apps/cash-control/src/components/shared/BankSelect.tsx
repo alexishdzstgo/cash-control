@@ -10,19 +10,8 @@ type BankSelectProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
-};
-
-const focusStyles: Record<
-  NonNullable<BankSelectProps["colorVariant"]>,
-  string
-> = {
-  withdrawal:
-    "focus:border-withdrawal-400 focus:bg-white focus:ring-4 focus:ring-withdrawal-50",
-  deposit:
-    "focus:border-deposit-border focus:bg-white focus:ring-4 focus:ring-deposit-ring",
-  neutral:
-    "focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100",
 };
 
 export function BankSelect({
@@ -33,7 +22,6 @@ export function BankSelect({
   placeholder = "Selecciona un banco",
   disabled = false,
   className = "",
-  colorVariant = "neutral",
 }: BankSelectProps) {
   return (
     <div className={className}>
@@ -49,7 +37,7 @@ export function BankSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className={`w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 ${focusStyles[colorVariant]}`}
+        className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
       >
         <option value="">{placeholder}</option>
 

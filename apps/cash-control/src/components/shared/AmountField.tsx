@@ -11,20 +11,12 @@ type AmountFieldProps = {
   min?: number;
   step?: number;
   className?: string;
+  /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
 };
 
-const inputStyles: Record<
-  NonNullable<AmountFieldProps["colorVariant"]>,
-  string
-> = {
-  withdrawal:
-    "w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 font-sans text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-withdrawal-400 focus:bg-white focus:ring-4 focus:ring-withdrawal-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400",
-  deposit:
-    "w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-deposit-border focus:bg-white focus:ring-4 focus:ring-deposit-ring disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400",
-  neutral:
-    "w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400",
-};
+const inputBase =
+  "w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
 
 export function AmountField({
   id,
@@ -37,7 +29,6 @@ export function AmountField({
   min = 0,
   step = 0.01,
   className = "",
-  colorVariant = "neutral",
 }: AmountFieldProps) {
   return (
     <div className={className}>
@@ -63,7 +54,7 @@ export function AmountField({
           required={required}
           min={min}
           step={step}
-          className={inputStyles[colorVariant]}
+          className={inputBase}
         />
       </div>
     </div>

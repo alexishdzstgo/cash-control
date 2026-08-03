@@ -52,7 +52,7 @@ export function SuccessDialog({
       >
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div className="flex gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-6 w-6" />
             </div>
 
@@ -84,7 +84,7 @@ export function SuccessDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primary-hover"
           >
             {buttonLabel}
           </button>

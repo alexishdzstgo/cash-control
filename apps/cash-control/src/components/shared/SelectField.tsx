@@ -76,9 +76,9 @@ export function SelectField<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((currentValue) => !currentValue)}
-        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-left font-sans text-sm text-slate-900 outline-none transition hover:border-slate-400 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-left font-sans text-sm text-slate-900 outline-none transition hover:border-slate-400 focus:border-slate-500 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
       >
-        <span className={!selectedOption ? "text-slate-400" : undefined}>
+        <span className={!selectedOption ? "text-slate-500" : undefined}>
           {selectedOption?.label ?? placeholder}
         </span>
 
@@ -106,14 +106,14 @@ export function SelectField<T extends string>({
                 onClick={() => selectOption(option.value)}
                 className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left font-sans text-sm transition ${
                   isSelected
-                    ? "bg-emerald-50 font-semibold text-emerald-800"
+                    ? "bg-brand-primary-soft font-semibold text-brand-primary"
                     : "text-slate-700 hover:bg-slate-50 hover:text-slate-950"
                 }`}
               >
                 <span>{option.label}</span>
 
                 {isSelected && (
-                  <Check className="h-4 w-4 shrink-0 text-emerald-700" />
+                  <Check className="h-4 w-4 shrink-0 text-brand-primary" />
                 )}
               </button>
             );

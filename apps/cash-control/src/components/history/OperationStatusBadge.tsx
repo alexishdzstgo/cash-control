@@ -1,4 +1,5 @@
 import { CheckCircle2, Clock3, XCircle, CheckCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { OperationStatus } from "@/types/operation";
 
 type OperationStatusBadgeProps = {
@@ -9,29 +10,29 @@ const statusConfig = {
   pendiente: {
     label: "Pendiente",
     icon: Clock3,
-    className: "bg-amber-100 text-amber-700",
+    variant: "alert" as const,
   },
   completado: {
     label: "Completado",
     icon: CheckCheck,
-    className: "bg-blue-100 text-blue-700",
+    variant: "info" as const,
   },
   entregado: {
     label: "Entregado",
     icon: CheckCircle2,
-    className: "bg-emerald-100 text-emerald-700",
+    variant: "success" as const,
   },
   cancelado: {
     label: "Cancelado",
     icon: XCircle,
-    className: "bg-red-100 text-red-700",
+    variant: "error" as const,
   },
 } satisfies Record<
   OperationStatus,
   {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
-    className: string;
+    variant: "success" | "info" | "alert" | "error";
   }
 >;
 
@@ -42,11 +43,9 @@ export function OperationStatusBadge({
   const Icon = config.icon;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${config.className}`}
-    >
+    <Badge variant={config.variant}>
       <Icon className="h-3.5 w-3.5" />
       {config.label}
-    </span>
+    </Badge>
   );
 }

@@ -1,14 +1,13 @@
 import { DepositPage } from "@/components/deposits/DepositPage";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
+import { ParticipationGuard } from "@/components/participation/ParticipationGuard";
 
 export default function DepositsRoute() {
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-
-      <main className="min-w-0 flex-1 p-6 lg:p-8">
+    <AppShell>
+      <ParticipationGuard>
         <DepositPage />
-      </main>
-    </div>
+      </ParticipationGuard>
+    </AppShell>
   );
 }

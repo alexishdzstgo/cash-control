@@ -65,7 +65,7 @@ const pendingReasons: Array<{
 ];
 
 const inputClass =
-  "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-deposit-border focus:bg-white focus:ring-4 focus:ring-deposit-ring";
+  "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100";
 
 const labelClass =
   "mb-2 block text-sm font-semibold text-slate-700";
@@ -96,13 +96,7 @@ export function DepositForm({
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6">
-        <p
-          className={`text-sm font-semibold ${
-            isPendingMode
-              ? "text-pending-text"
-              : "text-deposit-text"
-          }`}
-        >
+        <p className="text-sm font-semibold text-slate-500">
           Información de la operación
         </p>
 

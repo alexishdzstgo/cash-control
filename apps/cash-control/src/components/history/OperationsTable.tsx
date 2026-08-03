@@ -26,18 +26,17 @@ export function OperationsTable({
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-slate-100 text-xs uppercase text-slate-500">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead className="bg-slate-100 text-xs uppercase text-slate-500 font-semibold tracking-wide">
             <tr>
               <th className="px-4 py-3">Tipo</th>
               <th className="px-4 py-3">Folio</th>
+              <th className="px-4 py-3 text-right">Monto</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Usuario</th>
               <th className="px-4 py-3">Fecha</th>
               <th className="px-4 py-3">Auditoría</th>
-              <th className="px-4 py-3">Cambiar estado</th>
-              <th className="px-4 py-3">Ver</th>
-              <th className="px-4 py-3">Más</th>
+              <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
 
@@ -54,7 +53,7 @@ export function OperationsTable({
             {operations.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={8}
                   className="px-4 py-10 text-center text-slate-500"
                 >
                   No se encontraron operaciones.
@@ -65,12 +64,12 @@ export function OperationsTable({
         </table>
       </div>
       <Pagination
-  currentPage={currentPage}
-  totalPages={totalPages}
-  totalItems={totalItems}
-  pageSize={pageSize}
-  onPageChange={onPageChange}
-/>
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 }

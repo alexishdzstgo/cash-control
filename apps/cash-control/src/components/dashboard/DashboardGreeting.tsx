@@ -17,20 +17,20 @@ export function DashboardGreeting() {
   }).format(now);
 
   return (
-    <section className="mb-10">
-    <p className="mb-3 text-sm font-medium text-blue-600">
-    Cash Control
-    </p>
+    <section>
+      <p className="mb-2 text-sm font-medium text-brand-primary">
+        Cash Control
+      </p>
 
-      <h1 className="text-4xl font-bold tracking-tight text-slate-950">
+      <h1 className="text-3xl font-bold tracking-tight text-slate-950">
         {greeting}, Alex
       </h1>
 
-      <p className="mt-3 max-w-2xl text-slate-600">
+      <p className="mt-2 max-w-2xl text-slate-600">
         Todo listo para comenzar la operación.
       </p>
 
-      <p className="mt-4 text-sm text-slate-500 capitalize">
+      <p className="mt-3 text-sm text-slate-500 capitalize">
         {formattedDate} · {formattedTime}
       </p>
     </section>

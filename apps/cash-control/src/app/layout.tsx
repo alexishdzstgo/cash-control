@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { MockSessionProvider } from "@/components/session/MockSessionContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,11 +15,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Xolobit Cash Control",
-    template: "%s | Xolobit Cash Control",
+    default: "Control de caja",
+    template: "%s | Control de caja",
   },
   description:
-    "Sistema de control de depósitos y retiros desarrollado por Xolobit.",
+    "Sistema para el control de depósitos, retiros y operaciones de caja.",
 };
 
 export default function RootLayout({
@@ -31,8 +32,10 @@ export default function RootLayout({
       lang="es-MX"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        {children}
+      <body className="h-full">
+        <MockSessionProvider>
+          {children}
+        </MockSessionProvider>
       </body>
     </html>
   );

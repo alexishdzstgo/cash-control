@@ -14,78 +14,85 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navigationItems = [
+const navigationGroups = [
   {
-    label: "Dashboard",
-    href: "/",
-    icon: Gauge,
-    enabled: true,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
+    label: null,
+    items: [
+      {
+        label: "Dashboard",
+        href: "/",
+        icon: Gauge,
+        enabled: true,
+      },
+    ],
   },
   {
-    label: "Retiros",
-    href: "/withdrawals",
-    icon: ArrowUpFromLine,
-    enabled: true,
-    activeClass:
-      "bg-withdrawal-600 text-white shadow-sm",
+    label: "Dinero",
+    items: [
+      {
+        label: "Caja y bancos",
+        href: "/balances",
+        icon: Landmark,
+        enabled: true,
+      },
+      {
+        label: "Historial",
+        href: "/history",
+        icon: History,
+        enabled: true,
+      },
+    ],
   },
   {
-    label: "Retiros pendientes",
-    href: "/pending-withdrawals",
-    icon: Clock3,
-    enabled: true,
-    activeClass:
-      "bg-pending-600 text-white shadow-sm",
-  },
-{
-  label: "Depósitos",
-  href: "/deposits",
-  icon: ArrowDownToLine,
-  enabled: true,
-  activeClass:
-    "bg-deposit-solid text-white shadow-sm",
-},
-  {
-    label: "Bancos",
-    href: "/banks",
-    icon: Landmark,
-    enabled: false,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
-  },
-  {
-    label: "Corte de caja",
-    href: "/cash-closing",
-    icon: Building2,
-    enabled: false,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
+    label: "Operaciones",
+    items: [
+      {
+        label: "Retiros",
+        href: "/withdrawals",
+        icon: ArrowUpFromLine,
+        enabled: true,
+      },
+      {
+        label: "Retiros pendientes",
+        href: "/pending-withdrawals",
+        icon: Clock3,
+        enabled: true,
+      },
+      {
+        label: "Depósitos",
+        href: "/deposits",
+        icon: ArrowDownToLine,
+        enabled: true,
+      },
+    ],
   },
   {
-    label: "Turnos",
-    href: "/shifts",
-    icon: Users,
-    enabled: false,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
+    label: "Turno",
+    items: [
+      {
+        label: "Turnos",
+        href: "/shifts",
+        icon: Users,
+        enabled: true,
+      },
+      {
+        label: "Corte de caja",
+        href: "/cash-closing",
+        icon: Building2,
+        enabled: true,
+      },
+    ],
   },
   {
-    label: "Historial",
-    href: "/history",
-    icon: History,
-    enabled: true,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
-  },
-  {
-    label: "Configuración",
-    href: "/settings",
-    icon: Settings,
-    enabled: false,
-    activeClass:
-      "bg-slate-700 text-white shadow-sm",
+    label: null,
+    items: [
+      {
+        label: "Configuración",
+        href: "/settings",
+        icon: Settings,
+        enabled: false,
+      },
+    ],
   },
 ];
 
@@ -93,68 +100,85 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex min-h-screen w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-white">
-      <div className="border-b border-slate-800 p-6">
-        <h2 className="text-lg font-bold">
-          Xolobit
-        </h2>
+    <aside className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-stone-800 bg-stone-900 text-white">
+      <div className="flex items-center gap-3 border-b border-stone-800 px-6 py-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-primary">
+          <span className="text-sm font-bold">CC</span>
+        </div>
 
-        <p className="mt-1 text-sm text-slate-400">
-          Cash Control
-        </p>
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight">
+            Cash Control
+          </h2>
+          <p className="text-xs text-stone-400">
+            Xolobit
+          </p>
+        </div>
       </div>
 
-      <nav className="flex-1 p-4">
-        <ul className="space-y-1.5">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-6">
+          {navigationGroups.map((group, groupIndex) => (
+            <li key={groupIndex}>
+              {group.label && (
+                <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-stone-500">
+                  {group.label}
+                </p>
+              )}
 
-            if (!item.enabled) {
-              return (
-                <li key={item.href}>
-                  <div
-                    title="Disponible próximamente"
-                    className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600"
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
+              <ul className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
 
-                    <span className="flex-1">
-                      {item.label}
-                    </span>
+                  if (!item.enabled) {
+                    return (
+                      <li key={item.href}>
+                        <div
+                          title="Disponible próximamente"
+                          className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-stone-600"
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
 
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                      Próximamente
-                    </span>
-                  </div>
-                </li>
-              );
-            }
+                          <span className="flex-1">
+                            {item.label}
+                          </span>
 
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname === item.href ||
-                  pathname.startsWith(
-                    `${item.href}/`,
+                          <span className="rounded-full bg-stone-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-500">
+                            Próximamente
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  }
+
+                  const isActive =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname === item.href ||
+                        pathname.startsWith(
+                          `${item.href}/`,
+                        );
+
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                          isActive
+                            ? "bg-brand-primary text-white"
+                            : "text-stone-300 hover:bg-stone-800 hover:text-white"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+
+                        <span>{item.label}</span>
+                      </Link>
+                    </li>
                   );
-
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                    isActive
-                      ? item.activeClass
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
+                })}
+              </ul>
+            </li>
+          ))}
         </ul>
       </nav>
     </aside>

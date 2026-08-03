@@ -10,23 +10,12 @@ type PersonNameFieldProps = {
   required?: boolean;
   autoComplete?: string;
   className?: string;
+  /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
 };
 
-const focusStyles: Record<
-  NonNullable<PersonNameFieldProps["colorVariant"]>,
-  string
-> = {
-  withdrawal:
-    "focus:border-withdrawal-400 focus:bg-white focus:ring-4 focus:ring-withdrawal-50",
-  deposit:
-    "focus:border-deposit-border focus:bg-white focus:ring-4 focus:ring-deposit-ring",
-  neutral:
-    "focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100",
-};
-
 const baseInputClass =
-  "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
+  "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
 
 export function PersonNameField({
   id,
@@ -38,7 +27,6 @@ export function PersonNameField({
   required = false,
   autoComplete = "name",
   className = "",
-  colorVariant = "neutral",
 }: PersonNameFieldProps) {
   return (
     <div className={className}>
@@ -58,7 +46,7 @@ export function PersonNameField({
         disabled={disabled}
         required={required}
         autoComplete={autoComplete}
-        className={`${baseInputClass} ${focusStyles[colorVariant]}`}
+        className={baseInputClass}
       />
     </div>
   );

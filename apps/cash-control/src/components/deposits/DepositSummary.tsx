@@ -62,20 +62,8 @@ export function DepositSummary({
 
   return (
     <aside className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div
-        className={`border-b px-6 py-5 ${
-          isPendingMode
-            ? "border-pending-border bg-pending-soft"
-            : "border-deposit-border bg-deposit-soft"
-        }`}
-      >
-        <p
-          className={`text-xs font-semibold uppercase tracking-wide ${
-            isPendingMode
-              ? "text-pending-text"
-              : "text-deposit-text"
-          }`}
-        >
+      <div className="border-b border-slate-100 px-6 py-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
           Vista previa
         </p>
 
@@ -196,11 +184,7 @@ export function DepositSummary({
           type="button"
           disabled={!isReadyToRegister}
           onClick={onRegister}
-          className={
-            isPendingMode
-              ? "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-pending-solid px-4 py-3 font-semibold text-white transition hover:bg-pending-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
-              : "mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-deposit-solid px-4 py-3 font-semibold text-white transition hover:bg-deposit-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
-          }
+          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-3 font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
         >
           {isPendingMode ? (
             <>
@@ -269,8 +253,8 @@ function AmountRow({
       <span
         className={
           large
-            ? "text-2xl font-bold text-slate-950"
-            : "font-semibold text-slate-950"
+            ? "text-2xl font-bold text-slate-950 tabular-nums"
+            : "font-semibold text-slate-950 tabular-nums"
         }
       >
         {value}
