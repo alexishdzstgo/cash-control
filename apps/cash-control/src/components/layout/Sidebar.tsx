@@ -16,6 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { authenticatedUser } = useMockSession();
   const [collapsed, setCollapsed] = useState(false);
+  const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -23,6 +24,7 @@ export function Sidebar() {
     } catch {
       // localStorage no disponible
     }
+    setHasHydrated(true);
   }, []);
 
   function toggleCollapsed() {
@@ -42,38 +44,45 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`flex h-full shrink-0 flex-col overflow-hidden bg-[#0F172A] text-slate-100 transition-[width] duration-200 ${
-        collapsed ? "w-20" : "w-[272px]"
-      }`}
+      className={`flex h-full shrink-0 flex-col overflow-hidden bg-[#0F172A] text-slate-100 ${
+        hasHydrated
+          ? "transition-[width] duration-[240ms] ease-in-out"
+          : "transition-none"
+      } ${collapsed ? "w-20" : "w-[272px]"}`}
       style={{ borderRight: "1px solid #334155" }}
     >
       {/* Encabezado: monograma + título + botón de contraer (siempre en una fila) */}
       <div
-        className={`flex min-h-[64px] flex-nowrap items-center justify-between border-b border-slate-800 ${
-          collapsed ? "gap-1 px-2 py-4" : "gap-3 px-4 py-4"
+        className={`flex min-h-[64px] flex-nowrap items-center overflow-hidden border-b border-slate-800 ${
+          collapsed ? "justify-center gap-0 px-2 py-4" : "justify-between gap-3 px-4 py-4"
         }`}
       >
-        <div
-          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border border-[#3B82F6] bg-[#1E40AF]"
-          title={collapsed ? "Control de efectivo" : undefined}
-        >
-          <span className="text-sm font-bold text-white">CE</span>
-        </div>
-
         {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm font-semibold tracking-tight text-slate-50">
-              Control de efectivo
-            </h2>
+          <div
+            className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border border-[#3B82F6] bg-[#1E40AF]"
+          >
+            <span className="text-sm font-bold text-white">CE</span>
           </div>
         )}
+
+        <div
+          className={`min-w-0 flex-1 overflow-hidden transition-all duration-200 ease-in-out ${
+            collapsed
+              ? "pointer-events-none max-w-0 opacity-0 delay-0 translate-x-[6px]"
+              : "max-w-full opacity-100 delay-100 translate-x-0"
+          }`}
+        >
+          <h2 className="truncate whitespace-nowrap text-sm font-semibold tracking-tight text-slate-50">
+            Control de efectivo
+          </h2>
+        </div>
 
         <button
           type="button"
           onClick={toggleCollapsed}
           title={collapsed ? "Expandir menú" : "Contraer menú"}
           aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 bg-slate-800 text-[#93C5FD] transition-colors hover:border-slate-600 hover:bg-slate-700 hover:text-[#DBEAFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60A5FA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 bg-slate-800 text-blue-300 transition-all duration-150 hover:scale-105 hover:border-slate-600 hover:bg-blue-900 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60A5FA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]"
         >
           {collapsed ? (
             <PanelLeftOpen className="h-4 w-4" />
@@ -134,14 +143,24 @@ function SidebarNavItem({
           }`}
         >
           <Icon className="h-4 w-4 shrink-0 text-slate-600" />
-          {!collapsed && (
-            <>
-              <span className="flex-1 truncate">{item.label}</span>
-              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                Próximamente
-              </span>
-            </>
-          )}
+          <span
+            className={`flex-1 truncate whitespace-nowrap transition-all duration-200 ease-in-out ${
+              collapsed
+                ? "pointer-events-none max-w-0 opacity-0 delay-0 translate-x-[6px]"
+                : "max-w-full opacity-100 delay-100 translate-x-0"
+            }`}
+          >
+            {item.label}
+          </span>
+          <span
+            className={`shrink-0 whitespace-nowrap rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 transition-all duration-200 ease-in-out ${
+              collapsed
+                ? "pointer-events-none max-w-0 opacity-0 delay-0 translate-x-[6px]"
+                : "max-w-full opacity-100 delay-100 translate-x-0"
+            }`}
+          >
+            Próximamente
+          </span>
         </div>
       </li>
     );
@@ -175,7 +194,15 @@ function SidebarNavItem({
             isActive ? "text-white" : "text-slate-400"
           }`}
         />
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        <span
+          className={`truncate whitespace-nowrap transition-all duration-200 ease-in-out ${
+            collapsed
+              ? "pointer-events-none max-w-0 opacity-0 delay-0 translate-x-[6px]"
+              : "max-w-full opacity-100 delay-100 translate-x-0"
+          }`}
+        >
+          {item.label}
+        </span>
       </Link>
     </li>
   );
