@@ -30,6 +30,10 @@ export type BankAccountBalance = {
   visibleMovementsUsed?: number;
   /** Umbral (0-1) para alertar cuando se acerca al límite */
   movementWarningThreshold?: number;
+  /** Umbral de saldo bajo (disponible) */
+  lowBalanceThreshold?: number;
+  /** Umbral de saldo crítico (disponible) */
+  criticalBalanceThreshold?: number;
 };
 
 export type CashBalance = {
@@ -38,4 +42,8 @@ export type CashBalance = {
   shiftName: string;
   responsibleName: string;
   updatedAt: string;
+  /** Umbral de saldo bajo (disponible) */
+  lowBalanceThreshold?: number;
+  /** Umbral de saldo crítico (disponible) */
+  criticalBalanceThreshold?: number;
 };

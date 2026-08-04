@@ -5,10 +5,14 @@ import { UserParticipationMenu } from "@/components/participation/UserParticipat
 
 export function Header() {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
-      <GlobalFinancialStatus />
+    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 sm:px-6">
+      <div className="min-w-0 flex-1">
+        <GlobalFinancialStatus />
+      </div>
 
-      <UserParticipationMenu />
+      <div className="shrink-0">
+        <UserParticipationMenu />
+      </div>
     </header>
   );
 }

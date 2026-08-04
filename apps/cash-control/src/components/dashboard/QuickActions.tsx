@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   ArrowUpFromLine,
@@ -12,25 +14,25 @@ import { useMockSession } from "@/components/session/MockSessionContext";
 const quickActions = [
   {
     title: "Nuevo depósito",
-    description: "Registrar un depósito y controlar su entrega.",
+    description: "Registrar depósito",
     href: "/deposits",
     icon: ArrowDownToLine,
   },
   {
     title: "Nuevo retiro",
-    description: "Registrar la entrega de efectivo al cliente.",
+    description: "Registrar retiro",
     href: "/withdrawals",
     icon: ArrowUpFromLine,
   },
   {
     title: "Retiros pendientes",
-    description: "Consultar retiros cuyo efectivo todavía no ha sido entregado.",
+    description: "Entregar operaciones",
     href: "/pending-withdrawals",
     icon: Clock3,
   },
   {
-    title: "Historial de operaciones",
-    description: "Buscar depósitos y retiros registrados.",
+    title: "Historial",
+    description: "Buscar operación",
     href: "/history",
     icon: History,
   },
@@ -50,16 +52,14 @@ export function QuickActions() {
             Acciones rápidas
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Accede a las operaciones más utilizadas del sistema.
+            Accede a las tareas más utilizadas.
           </p>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
-          <Lock className="mx-auto h-12 w-12 text-slate-400" />
-          <p className="mt-3 font-medium text-slate-600">
-            Acceso restringido
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Inicia tu participación para acceder a las acciones rápidas.
+        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <Lock className="h-5 w-5 shrink-0 text-slate-400" />
+          <p className="text-sm text-slate-600">
+            Activa tu participación para registrar operaciones. Puedes hacerlo
+            desde el menú de usuario en la parte superior derecha.
           </p>
         </div>
       </section>
@@ -74,11 +74,11 @@ export function QuickActions() {
         </h2>
 
         <p className="mt-1 text-sm text-slate-500">
-          Accede a las operaciones más utilizadas del sistema.
+          Accede a las tareas más utilizadas.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {quickActions.map((action) => {
           const Icon = action.icon;
 
@@ -86,18 +86,18 @@ export function QuickActions() {
             <Link
               key={action.href}
               href={action.href}
-              className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
+              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
-                <Icon className="h-5 w-5" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
+                <Icon className="h-4 w-4" />
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-900">
+                <p className="truncate text-sm font-semibold text-slate-900">
                   {action.title}
                 </p>
 
-                <p className="mt-0.5 text-sm leading-5 text-slate-500">
+                <p className="truncate text-xs text-slate-500">
                   {action.description}
                 </p>
               </div>

@@ -23,17 +23,19 @@ export function DashboardPage() {
     return null;
   }
 
+  const isOwner = authenticatedUser.systemRole === "owner";
+
   return (
     <div className="app-dashboard-bg space-y-8">
       <DashboardGreeting />
 
-      <CashHero />
+      <QuickActions />
+
+      {isOwner && <CashHero />}
 
       <HealthAlerts />
 
       <ActivityFeed />
-
-      <QuickActions />
     </div>
   );
 }

@@ -4,6 +4,27 @@ import {
 } from "@/components/balances/balanceMockData";
 import type { BankAccountBalance } from "@/types/balance";
 
+export type BalanceHealthStatus = "normal" | "warning" | "critical";
+
+export type BalanceHealth = {
+  status: BalanceHealthStatus;
+  isLow: boolean;
+  isCritical: boolean;
+};
+
+export type BankBreakdownItem = {
+  bankId: string;
+  bankName: string;
+  realBalance: number;
+  reserved: number;
+  available: number;
+  lowBalanceThreshold?: number;
+  criticalBalanceThreshold?: number;
+  balanceStatus: BalanceHealthStatus;
+  isLow: boolean;
+  isCritical: boolean;
+};
+
 export type FinancialTotals = {
   totalControlled: number;
   totalReserved: number;
@@ -11,9 +32,15 @@ export type FinancialTotals = {
   cashAvailable: number;
   cashReserved: number;
   cashPhysical: number;
+  cashBalanceStatus: BalanceHealthStatus;
+  cashIsLow: boolean;
+  cashIsCritical: boolean;
   banksAvailable: number;
   banksReal: number;
   banksReserved: number;
+  banksAvailableTotal: number;
+  banksReservedTotal: number;
+  bankBreakdown: BankBreakdownItem[];
 };
 
 export type BankMovementAlert = {
@@ -30,17 +57,40 @@ export function computeFinancialTotals(): FinancialTotals {
     (sum, op) => sum + op.amount,
     0,
   );
+  const cashAvailable = cashPhysical - cashReserved;
+  const cashHealth = getBalanceHealth({
+    available: cashAvailable,
+    lowBalanceThreshold: cashBalance.lowBalanceThreshold,
+    criticalBalanceThreshold: cashBalance.criticalBalanceThreshold,
+  });
 
-  const banksReal = bankAccounts.reduce(
-    (sum, bank) => sum + bank.realBalance,
-    0,
-  );
-  const banksReserved = bankAccounts.reduce(
-    (sum, bank) =>
-      sum +
-      bank.reservedOperations.reduce((ops, op) => ops + op.amount, 0),
-    0,
-  );
+  const bankBreakdown: BankBreakdownItem[] = bankAccounts.map((bank) => {
+    const reserved = bank.reservedOperations.reduce(
+      (ops, op) => ops + op.amount,
+      0,
+    );
+    const available = bank.realBalance - reserved;
+    const health = getBalanceHealth({
+      available,
+      lowBalanceThreshold: bank.lowBalanceThreshold,
+      criticalBalanceThreshold: bank.criticalBalanceThreshold,
+    });
+    return {
+      bankId: bank.id,
+      bankName: bank.bankName,
+      realBalance: bank.realBalance,
+      reserved,
+      available,
+      lowBalanceThreshold: bank.lowBalanceThreshold,
+      criticalBalanceThreshold: bank.criticalBalanceThreshold,
+      balanceStatus: health.status,
+      isLow: health.isLow,
+      isCritical: health.isCritical,
+    };
+  });
+
+  const banksReal = bankBreakdown.reduce((sum, bank) => sum + bank.realBalance, 0);
+  const banksReserved = bankBreakdown.reduce((sum, bank) => sum + bank.reserved, 0);
 
   const totalControlled = cashPhysical + banksReal;
   const totalReserved = cashReserved + banksReserved;
@@ -50,13 +100,43 @@ export function computeFinancialTotals(): FinancialTotals {
     totalControlled,
     totalReserved,
     totalAvailable,
-    cashAvailable: cashPhysical - cashReserved,
+    cashAvailable,
     cashReserved,
     cashPhysical,
+    cashBalanceStatus: cashHealth.status,
+    cashIsLow: cashHealth.isLow,
+    cashIsCritical: cashHealth.isCritical,
     banksAvailable: banksReal - banksReserved,
     banksReal,
     banksReserved,
+    banksAvailableTotal: banksReal - banksReserved,
+    banksReservedTotal: banksReserved,
+    bankBreakdown,
   };
+}
+
+export function getBalanceHealth({
+  available,
+  lowBalanceThreshold,
+  criticalBalanceThreshold,
+}: {
+  available: number;
+  lowBalanceThreshold?: number;
+  criticalBalanceThreshold?: number;
+}): BalanceHealth {
+  if (
+    criticalBalanceThreshold !== undefined &&
+    available <= criticalBalanceThreshold
+  ) {
+    return { status: "critical", isLow: true, isCritical: true };
+  }
+  if (
+    lowBalanceThreshold !== undefined &&
+    available <= lowBalanceThreshold
+  ) {
+    return { status: "warning", isLow: true, isCritical: false };
+  }
+  return { status: "normal", isLow: false, isCritical: false };
 }
 
 /** Calcula alertas de límite de movimientos visibles por banco */
