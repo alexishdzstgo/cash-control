@@ -1,14 +1,20 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { mockOperations } from "@/components/history/mockOperations";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { validateCommissionRules } from "@/lib/commission";
+import {
+  hasCommissionRuleBeenApplied,
+  validateCommissionRuleCandidate,
+  validateCommissionRules,
+} from "@/lib/commission";
 import type {
   CommissionOperationType,
   CommissionRule,
 } from "@/types/commission";
 import { CommissionCoverageAlert } from "./CommissionCoverageAlert";
+import { CommissionDeleteDialog } from "./CommissionDeleteDialog";
 import { CommissionPreview } from "./CommissionPreview";
 import {
   CommissionRuleDialog,
@@ -19,6 +25,7 @@ import { CommissionRulesTable } from "./CommissionRulesTable";
 import { CommissionSummary } from "./CommissionSummary";
 import { CommissionTabs } from "./CommissionTabs";
 import { useCommissionRules } from "./CommissionRulesContext";
+import { demoAppliedCommissionRuleIds } from "./commissionMockData";
 
 type DialogState = {
   mode: CommissionDialogMode;
@@ -30,23 +37,56 @@ export function CommissionsPage() {
     useState<CommissionOperationType>("deposito");
   const { rules, setRules } = useCommissionRules();
   const [dialogState, setDialogState] = useState<DialogState>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<CommissionRule | null>(null);
+  const lastTriggerRef = useRef<HTMLElement | null>(null);
+
+  const rulesWithUsage = useMemo(
+    () =>
+      rules.map((rule) => ({
+        ...rule,
+        hasBeenApplied:
+          hasCommissionRuleBeenApplied(rule.id, mockOperations) ||
+          demoAppliedCommissionRuleIds.has(rule.id),
+      })),
+    [rules],
+  );
 
   const scopedRules = useMemo(
-    () => rules.filter((rule) => rule.operationType === operationType),
-    [rules, operationType],
+    () => rulesWithUsage.filter((rule) => rule.operationType === operationType),
+    [rulesWithUsage, operationType],
   );
 
   const validation = useMemo(() => validateCommissionRules(rules), [rules]);
 
   function closeDialog() {
     setDialogState(null);
+    lastTriggerRef.current?.focus();
+  }
+
+  function openDialog(nextDialogState: Exclude<DialogState, null>) {
+    lastTriggerRef.current = document.activeElement as HTMLElement | null;
+    setDialogState(nextDialogState);
+  }
+
+  function openDeleteDialog(rule: CommissionRule) {
+    lastTriggerRef.current = document.activeElement as HTMLElement | null;
+    setRuleToDelete(rule);
+  }
+
+  function closeDeleteDialog() {
+    setRuleToDelete(null);
+    lastTriggerRef.current?.focus();
   }
 
   function saveRule(result: CommissionRuleFormResult) {
     const currentRule = dialogState?.rule;
     const now = new Date().toISOString();
 
-    if (dialogState?.mode === "edit" && currentRule && !currentRule.hasBeenApplied) {
+    if (
+      dialogState?.mode === "edit" &&
+      currentRule &&
+      !currentRule.hasBeenApplied
+    ) {
       setRules((currentRules) =>
         currentRules.map((rule) =>
           rule.id === currentRule.id
@@ -130,14 +170,42 @@ export function CommissionsPage() {
     );
   }
 
-  function deleteRule(ruleToDelete: CommissionRule) {
-    if (ruleToDelete.hasBeenApplied) {
+  function activateRule(ruleToActivate: CommissionRule) {
+    const validationResult = validateCommissionRuleCandidate(
+      {
+        id: ruleToActivate.id,
+        operationType: ruleToActivate.operationType,
+        minAmountCents: ruleToActivate.minAmountCents,
+        maxAmountCents: ruleToActivate.maxAmountCents,
+        calculationType: "fixed",
+        fixedAmountCents: ruleToActivate.fixedAmountCents,
+        status: "active",
+      },
+      rules,
+    );
+
+    if (validationResult.errors.length > 0) {
+      return;
+    }
+
+    setRules((currentRules) =>
+      currentRules.map((rule) =>
+        rule.id === ruleToActivate.id
+          ? { ...rule, status: "active", validTo: undefined, updatedBy: "Owner" }
+          : rule,
+      ),
+    );
+  }
+
+  function confirmDeleteRule() {
+    if (!ruleToDelete || ruleToDelete.hasBeenApplied || ruleToDelete.replacedByRuleId) {
       return;
     }
 
     setRules((currentRules) =>
       currentRules.filter((rule) => rule.id !== ruleToDelete.id),
     );
+    closeDeleteDialog();
   }
 
   return (
@@ -148,8 +216,8 @@ export function CommissionsPage() {
         action={
           <button
             type="button"
-            onClick={() => setDialogState({ mode: "add", rule: null })}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#1E40AF] px-4 text-sm font-semibold text-white transition hover:bg-[#1D4ED8]"
+            onClick={() => openDialog({ mode: "add", rule: null })}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white transition hover:bg-[#1D4ED8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD] focus-visible:ring-offset-2"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Agregar rango
@@ -179,16 +247,17 @@ export function CommissionsPage() {
 
         <CommissionRulesTable
           rules={scopedRules}
-          onView={(rule) => setDialogState({ mode: "view", rule })}
+          onView={(rule) => openDialog({ mode: "view", rule })}
           onEdit={(rule) =>
-            setDialogState({
+            openDialog({
               mode: rule.hasBeenApplied ? "replace" : "edit",
               rule,
             })
           }
-          onReplace={(rule) => setDialogState({ mode: "replace", rule })}
+          onReplace={(rule) => openDialog({ mode: "replace", rule })}
           onDeactivate={deactivateRule}
-          onDelete={deleteRule}
+          onActivate={activateRule}
+          onDelete={openDeleteDialog}
         />
 
         <CommissionPreview rules={rules} />
@@ -207,6 +276,14 @@ export function CommissionsPage() {
           existingRules={rules}
           onClose={closeDialog}
           onSave={saveRule}
+        />
+      )}
+
+      {ruleToDelete && (
+        <CommissionDeleteDialog
+          rule={ruleToDelete}
+          onCancel={closeDeleteDialog}
+          onConfirm={confirmDeleteRule}
         />
       )}
     </div>

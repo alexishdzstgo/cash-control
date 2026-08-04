@@ -16,9 +16,9 @@ export function CommissionTabs({ value, onChange }: CommissionTabsProps) {
           key={tab.value}
           type="button"
           onClick={() => onChange(tab.value)}
-          className={`min-h-9 rounded-lg px-4 text-sm font-semibold transition ${
+          className={`min-h-9 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD] focus-visible:ring-offset-2 ${
             value === tab.value
-              ? "bg-[#1E40AF] text-white"
+              ? "bg-[#2563EB] text-white"
               : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
           }`}
         >

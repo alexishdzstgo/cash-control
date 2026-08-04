@@ -3,6 +3,7 @@ import type {
   CommissionOperationType,
   CommissionRule,
 } from "@/types/commission";
+import type { Operation } from "@/types/operation";
 
 export const NO_COMMISSION_RULE_MESSAGE =
   "No hay una comisión configurada para este monto. Solicita al dueño agregar el rango correspondiente.";
@@ -222,6 +223,15 @@ export function validateCommissionRuleCandidate(
   }
 
   return result;
+}
+
+export function hasCommissionRuleBeenApplied(
+  ruleId: string,
+  operations: Operation[],
+): boolean {
+  return operations.some(
+    (operation) => operation.appliedCommissionSnapshot?.ruleId === ruleId,
+  );
 }
 
 export function pesosToCents(value: number): number {

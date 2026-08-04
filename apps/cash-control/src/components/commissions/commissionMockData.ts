@@ -26,6 +26,11 @@ const approvedRanges = [
 export const commissionCoverageNotice =
   "Actualmente no hay comisión configurada para montos menores a $15.00 ni mayores a $25,000.00.";
 
+export const demoAppliedCommissionRuleIds = new Set<string>([
+  "deposito-commission-v1-1",
+  "retiro-commission-v1-1",
+]);
+
 export function createInitialCommissionRules(): CommissionRule[] {
   return [
     ...createRulesForOperationType("deposito"),
@@ -47,6 +52,5 @@ function createRulesForOperationType(
     version: 1,
     validFrom: "2026-08-04T00:00:00.000Z",
     createdBy: "Sistema",
-    hasBeenApplied: index < 3,
   }));
 }
