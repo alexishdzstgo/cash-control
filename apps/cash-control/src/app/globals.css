@@ -47,7 +47,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Operación: Retiro — neutral (solo es un movimiento, no implica juicio) */
+  /* Operación: Retiro — neutro (solo es un movimiento, no implica juicio) */
   --color-withdrawal-50: var(--withdrawal-50);
   --color-withdrawal-100: var(--withdrawal-100);
   --color-withdrawal-200: var(--withdrawal-200);
@@ -98,7 +98,7 @@
   --color-pending-hover: var(--pending-hover);
   --color-pending-ring: var(--pending-ring);
 
-  /* Marca Xolobit — morado corporativo */
+  /* Marca Xolobit — morado corporativo (solo identidad) */
   --color-brand-primary: var(--brand-primary);
   --color-brand-primary-hover: var(--brand-primary-hover);
   --color-brand-primary-soft: var(--brand-primary-soft);
@@ -114,43 +114,51 @@
   --color-brand-support: var(--brand-support);
   --color-brand-support-soft: var(--brand-support-soft);
   --color-brand-support-border: var(--brand-support-border);
+
+  /* Azul principal del producto — identidad corporativa */
+  --color-primary-blue: #2563eb;
+  --color-primary-blue-hover: #1d4ed8;
+  --color-primary-blue-strong: #1e40af;
+  --color-primary-blue-soft: #eff6ff;
+  --color-primary-blue-muted: #dbeafe;
+  --color-primary-blue-ring: #93c5fd;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  --destructive: #ef4444;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #93c5fd;
+  --chart-1: #2563eb;
+  --chart-2: #64748b;
+  --chart-3: #94a3b8;
+  --chart-4: #475569;
+  --chart-5: #1e40af;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f8fafc;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f8fafc;
+  --sidebar-border: #334155;
+  --sidebar-ring: #93c5fd;
 
-  /* Retiros: neutral — dinero que sale, sin connotación emocional */
+  /* Retiros: neutro — dinero que sale, sin connotación emocional */
   --withdrawal-50: #f8fafc;
   --withdrawal-100: #f1f5f9;
   --withdrawal-200: #e2e8f0;
@@ -205,20 +213,20 @@
   --pending-hover: #b45309;
   --pending-ring: #fef3c7;
 
-  /* Marca Xolobit — morado */
-  --brand-primary: #6d28d9;
-  --brand-primary-hover: #5b21b6;
+  /* Marca Xolobit — morado (solo identidad de marca) */
+  --brand-primary: #7c3aed;
+  --brand-primary-hover: #6d28d9;
   --brand-primary-soft: #f5f3ff;
-  --brand-primary-ring: #c4b5fd;
-  --brand-surface: #fafaf9;
-  --brand-border: #e7e5e4;
-  --brand-text: #1c1917;
-  --brand-text-muted: #78716c;
+  --brand-primary-ring: #ddd6fe;
+  --brand-surface: #f8fafc;
+  --brand-border: #e2e8f0;
+  --brand-text: #0f172a;
+  --brand-text-muted: #64748b;
   --brand-responsible: #059669;
   --brand-responsible-soft: #ecfdf5;
   --brand-responsible-border: #a7f3d0;
 
-  --brand-support: #6d28d9;
+  --brand-support: #7c3aed;
   --brand-support-soft: #f5f3ff;
   --brand-support-border: #ddd6fe;
 }
@@ -230,8 +238,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -290,6 +298,182 @@
   [class*="text-5xl"] {
     font-variant-numeric: tabular-nums;
   }
+
+  ::selection {
+    background-color: var(--primary-blue-muted);
+    color: var(--foreground);
+  }
+}
+
+/* ============================================================
+   SISTEMA DE DISEÑO — Cash Control
+   Identidad fría, corporativa, tecnológica, limpia, elegante.
+   ============================================================ */
+
+/*
+  Escala tipográfica principal
+  Título principal:  30–32px
+  Título sección:    20px
+  Título card:       17px
+  Texto normal:      16px
+  Texto secundario:  15px
+  Texto auxiliar:    14px
+  Sidebar:           15px
+*/
+
+/* Fondo corporativo del dashboard con degradado muy ligero y frío */
+.app-dashboard-bg {
+  background:
+    radial-gradient(
+      1200px 480px at 15% -10%,
+      rgba(37, 99, 235, 0.05),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 420px at 90% 0%,
+      rgba(124, 58, 237, 0.035),
+      transparent 55%
+    ),
+    linear-gradient(to bottom, #f8fafc 0%, #ffffff 40%, #f8fafc 100%);
+}
+
+/* Fondo estándar de la aplicación */
+.app-surface {
+  background-color: #f8fafc;
+}
+
+/* Monto principal del hero — 40–48px */
+.amount-hero {
+  font-size: clamp(2.5rem, 2rem + 1.6vw, 3rem);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* Monto secundario — 22–26px */
+.amount-secondary {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* Input estándar — lenguaje visual único para todos los inputs */
+.field-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.field-input::placeholder {
+  color: #64748b;
+}
+
+.field-input:hover:not(:disabled):not(:focus) {
+  border-color: #cbd5e1;
+}
+
+.field-input:focus {
+  border-color: var(--primary-blue);
+  background-color: var(--card);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.field-input:disabled {
+  cursor: not-allowed;
+  border-color: var(--border);
+  background-color: #f8fafc;
+  color: #94a3b8;
+}
+
+/* Tarjeta estándar — borde + sombra muy suave (priorizar borde) */
+.card-standard {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* Superficie suave */
+.surface-soft {
+  background-color: var(--secondary);
+}
+
+/* Botón primario — azul */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  background-color: #2563eb;
+  color: #ffffff;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Botón secundario — contorno */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background-color: var(--card);
+  color: #334155;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-secondary:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Accesibilidad: foco visible consistente */
+:focus-visible {
+  outline: 2px solid var(--primary-blue-ring);
+  outline-offset: 2px;
 }
 
 /* Animaciones suaves y profesionales */

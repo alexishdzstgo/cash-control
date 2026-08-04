@@ -24,11 +24,9 @@ export function SuccessDialog({
         onClose();
       }
     }
-
     if (isOpen) {
       window.addEventListener("keydown", handleKeyDown);
     }
-
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
@@ -47,7 +45,7 @@ export function SuccessDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="success-dialog-title"
-        className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-md rounded-xl bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
@@ -55,21 +53,13 @@ export function SuccessDialog({
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-6 w-6" />
             </div>
-
             <div>
-              <h2
-                id="success-dialog-title"
-                className="font-semibold text-slate-900"
-              >
+              <h2 id="success-dialog-title" className="font-semibold text-slate-900">
                 {title}
               </h2>
-
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                {description}
-              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
             </div>
           </div>
-
           <button
             type="button"
             title="Cerrar"
@@ -79,12 +69,11 @@ export function SuccessDialog({
             <X className="h-5 w-5" />
           </button>
         </div>
-
         <div className="flex justify-end p-5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-primary-hover"
+            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1D4ED8]"
           >
             {buttonLabel}
           </button>

@@ -38,7 +38,9 @@ const quickActions = [
 
 export function QuickActions() {
   const { hasActiveParticipation, authenticatedUser } = useMockSession();
-  const userHasActiveParticipation = authenticatedUser ? hasActiveParticipation(authenticatedUser.userId) : false;
+  const userHasActiveParticipation = authenticatedUser
+    ? hasActiveParticipation(authenticatedUser.userId)
+    : false;
 
   if (!userHasActiveParticipation) {
     return (
@@ -51,7 +53,7 @@ export function QuickActions() {
             Accede a las operaciones más utilizadas del sistema.
           </p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
           <Lock className="mx-auto h-12 w-12 text-slate-400" />
           <p className="mt-3 font-medium text-slate-600">
             Acceso restringido
@@ -84,9 +86,9 @@ export function QuickActions() {
             <Link
               key={action.href}
               href={action.href}
-              className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
+              className="group flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-brand-primary-soft group-hover:text-brand-primary">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
                 <Icon className="h-5 w-5" />
               </div>
 

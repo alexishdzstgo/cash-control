@@ -16,15 +16,15 @@ const MAX_RECENT_OPERATIONS = 3;
 const operationTypeConfig = {
   deposito: {
     icon: ArrowDownToLine,
-    accent: "bg-deposit-600",
-    iconBg: "bg-deposit-100",
-    iconText: "text-deposit-700",
+    accent: "bg-[#2563EB]",
+    iconBg: "bg-[#EFF6FF]",
+    iconText: "text-[#1D4ED8]",
   },
   retiro: {
     icon: ArrowUpFromLine,
-    accent: "bg-withdrawal-600",
-    iconBg: "bg-withdrawal-100",
-    iconText: "text-withdrawal-700",
+    accent: "bg-slate-500",
+    iconBg: "bg-slate-100",
+    iconText: "text-slate-600",
   },
 } as const;
 
@@ -55,7 +55,7 @@ export function ActivityFeed() {
 
         <Link
           href="/history"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-primary transition-colors hover:text-brand-primary-hover focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary-ring"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
         >
           Ver historial completo
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -113,7 +113,7 @@ export function ActivityFeed() {
                 <button
                   type="button"
                   onClick={() => setSelectedOperation(operation)}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-brand-primary transition-colors hover:text-brand-primary-hover focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary-ring"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
                 >
                   Ver detalle
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />

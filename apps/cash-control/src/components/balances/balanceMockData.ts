@@ -48,6 +48,9 @@ export const bankAccounts: BankAccountBalance[] = [
       },
     ],
     status: "available",
+    visibleMovementLimit: 60,
+    visibleMovementsUsed: 52,
+    movementWarningThreshold: 0.8,
   },
   {
     id: "bank-bbva",

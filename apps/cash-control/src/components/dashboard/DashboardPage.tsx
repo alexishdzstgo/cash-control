@@ -24,7 +24,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="app-dashboard-bg space-y-8">
       <DashboardGreeting />
 
       <CashHero />

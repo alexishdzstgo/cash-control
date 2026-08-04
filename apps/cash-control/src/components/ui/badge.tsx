@@ -11,7 +11,7 @@ const badgeVariants = cva(
         alert: "bg-amber-50 text-amber-700 border border-amber-200",
         error: "bg-red-50 text-red-700 border border-red-200",
         neutral: "bg-slate-100 text-slate-700 border border-slate-200",
-        brand: "bg-brand-primary-soft text-brand-primary border border-brand-primary-ring",
+        brand: "bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]",
       },
     },
     defaultVariants: {

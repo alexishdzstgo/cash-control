@@ -24,6 +24,12 @@ export type BankAccountBalance = {
   realBalance: number;
   reservedOperations: ReservedOperation[];
   status: BalanceStatus;
+  /** Límite de movimientos visibles permitidos por el banco */
+  visibleMovementLimit?: number;
+  /** Movimientos visibles utilizados en el mes */
+  visibleMovementsUsed?: number;
+  /** Umbral (0-1) para alertar cuando se acerca al límite */
+  movementWarningThreshold?: number;
 };
 
 export type CashBalance = {

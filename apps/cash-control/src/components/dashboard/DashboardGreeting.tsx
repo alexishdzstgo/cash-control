@@ -18,18 +18,15 @@ export function DashboardGreeting() {
 
   return (
     <section>
-      <p className="mb-2 text-sm font-medium text-brand-primary">
+      <p className="mb-2 text-sm font-medium text-[#2563EB]">
         Cash Control
       </p>
-
       <h1 className="text-3xl font-bold tracking-tight text-slate-950">
         {greeting}, Alex
       </h1>
-
       <p className="mt-2 max-w-2xl text-slate-600">
-        Todo listo para comenzar la operación.
+        ¿Cómo va tu negocio hoy?
       </p>
-
       <p className="mt-3 text-sm text-slate-500 capitalize">
         {formattedDate} · {formattedTime}
       </p>

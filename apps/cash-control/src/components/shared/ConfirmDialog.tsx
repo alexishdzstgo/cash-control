@@ -28,11 +28,9 @@ export function ConfirmDialog({
         onCancel();
       }
     }
-
     if (isOpen) {
       window.addEventListener("keydown", handleKeyDown);
     }
-
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
@@ -51,7 +49,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-md rounded-xl bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
@@ -59,21 +57,13 @@ export function ConfirmDialog({
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
               <AlertCircle className="h-5 w-5" />
             </div>
-
             <div>
-              <h2
-                id="confirm-dialog-title"
-                className="font-semibold text-slate-900"
-              >
+              <h2 id="confirm-dialog-title" className="font-semibold text-slate-900">
                 {title}
               </h2>
-
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                {description}
-              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
             </div>
           </div>
-
           <button
             type="button"
             title="Cerrar"
@@ -83,20 +73,18 @@ export function ConfirmDialog({
             <X className="h-5 w-5" />
           </button>
         </div>
-
         <div className="flex justify-end gap-3 p-5">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
           >
             {cancelLabel}
           </button>
-
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-brand-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-primary-hover"
+            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1D4ED8]"
           >
             {confirmLabel}
           </button>

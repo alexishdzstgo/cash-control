@@ -16,7 +16,7 @@ type AmountFieldProps = {
 };
 
 const inputBase =
-  "w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-8 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
+  "field-input pl-8";
 
 export function AmountField({
   id,
