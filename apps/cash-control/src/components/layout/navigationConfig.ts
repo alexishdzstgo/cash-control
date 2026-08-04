@@ -1,0 +1,177 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  BadgeDollarSign,
+  BellRing,
+  Calculator,
+  ChartColumn,
+  Clock3,
+  FileSearch,
+  History,
+  Landmark,
+  LayoutDashboard,
+  Settings,
+  UserRoundCheck,
+  Users,
+} from "lucide-react";
+import type { SystemRole } from "@/components/workstation/types";
+
+export type NavigationItem = {
+  label: string;
+  href?: string;
+  icon: LucideIcon;
+  enabled: boolean;
+  roles: SystemRole[];
+};
+
+export type NavigationGroup = {
+  label?: string;
+  items: NavigationItem[];
+};
+
+/**
+ * Configuración única de navegación del Sidebar.
+ * Se filtra por rol en tiempo de render.
+ * No duplicar arrays por rol: definir una vez y filtrar.
+ */
+export const navigationGroups: NavigationGroup[] = [
+  {
+    items: [
+      {
+        label: "Centro de Control",
+        href: "/",
+        icon: LayoutDashboard,
+        enabled: true,
+        roles: ["owner"],
+      },
+      {
+        label: "Inicio",
+        href: "/",
+        icon: LayoutDashboard,
+        enabled: true,
+        roles: ["employee"],
+      },
+    ],
+  },
+  {
+    label: "Operaciones",
+    items: [
+      {
+        label: "Depósitos",
+        href: "/deposits",
+        icon: ArrowDownToLine,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+      {
+        label: "Retiros",
+        href: "/withdrawals",
+        icon: ArrowUpFromLine,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+      {
+        label: "Retiros pendientes",
+        href: "/pending-withdrawals",
+        icon: Clock3,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+      {
+        label: "Historial",
+        href: "/history",
+        icon: History,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+    ],
+  },
+  {
+    label: "Control del negocio",
+    items: [
+      {
+        label: "Caja y bancos",
+        href: "/balances",
+        icon: Landmark,
+        enabled: true,
+        roles: ["owner"],
+      },
+      {
+        label: "Ganancias y reportes",
+        icon: ChartColumn,
+        enabled: false,
+        roles: ["owner"],
+      },
+      {
+        label: "Auditoría",
+        icon: FileSearch,
+        enabled: false,
+        roles: ["owner"],
+      },
+      {
+        label: "Personal",
+        icon: Users,
+        enabled: false,
+        roles: ["owner"],
+      },
+    ],
+  },
+  {
+    label: "Turno",
+    items: [
+      {
+        label: "Turno actual",
+        href: "/shifts",
+        icon: UserRoundCheck,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+      {
+        label: "Corte de caja",
+        href: "/cash-closing",
+        icon: Calculator,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+    ],
+  },
+  {
+    label: "Administración",
+    items: [
+      {
+        label: "Comisiones",
+        icon: BadgeDollarSign,
+        enabled: false,
+        roles: ["owner"],
+      },
+      {
+        label: "Bancos y alertas",
+        icon: BellRing,
+        enabled: false,
+        roles: ["owner"],
+      },
+      {
+        label: "Configuración",
+        icon: Settings,
+        enabled: false,
+        roles: ["owner"],
+      },
+    ],
+  },
+];
+
+/**
+ * Filtra la navegación por rol, conservando el orden y la estructura de grupos.
+ * Un grupo sin items visibles para el rol se omite completamente.
+ */
+export function getNavigationForRole(role: SystemRole): NavigationGroup[] {
+  const groups: NavigationGroup[] = [];
+  for (const group of navigationGroups) {
+    const items = group.items.filter((item) => item.roles.includes(role));
+    if (items.length > 0) {
+      groups.push({ label: group.label, items });
+    }
+  }
+  return groups;
+}
