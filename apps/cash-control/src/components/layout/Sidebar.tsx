@@ -47,14 +47,14 @@ export function Sidebar() {
       }`}
       style={{ borderRight: "1px solid #334155" }}
     >
-      {/* Encabezado: monograma + título + botón de contraer */}
+      {/* Encabezado: monograma + título + botón de contraer (siempre en una fila) */}
       <div
-        className={`flex items-center border-b border-slate-800 px-4 py-4 ${
-          collapsed ? "flex-col gap-3" : "gap-3"
+        className={`flex min-h-[64px] flex-nowrap items-center justify-between border-b border-slate-800 ${
+          collapsed ? "gap-1 px-2 py-4" : "gap-3 px-4 py-4"
         }`}
       >
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1E40AF]"
+          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg border border-[#3B82F6] bg-[#1E40AF]"
           title={collapsed ? "Control de efectivo" : undefined}
         >
           <span className="text-sm font-bold text-white">CE</span>
@@ -73,7 +73,7 @@ export function Sidebar() {
           onClick={toggleCollapsed}
           title={collapsed ? "Expandir menú" : "Contraer menú"}
           aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 bg-slate-800 text-[#93C5FD] transition-colors hover:border-slate-600 hover:bg-slate-700 hover:text-[#DBEAFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60A5FA] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F172A]"
         >
           {collapsed ? (
             <PanelLeftOpen className="h-4 w-4" />
@@ -84,7 +84,7 @@ export function Sidebar() {
       </div>
 
       {/* Navegación */}
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <nav className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-3 py-4 pb-5">
         <ul className="space-y-6">
           {groups.map((group, groupIndex) => (
             <li key={groupIndex}>
