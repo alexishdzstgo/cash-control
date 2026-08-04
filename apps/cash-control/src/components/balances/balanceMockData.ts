@@ -60,7 +60,8 @@ export const bankAccounts: BankAccountBalance[] = [
     id: "bank-bbva",
     bankName: "BBVA",
     accountName: "Cuenta principal",
-    realBalance: 12000,
+    // Demostrativo: saldo bajo para verificar estado warning por saldo
+    realBalance: 2500,
     reservedOperations: [],
     status: "available",
     lowBalanceThreshold: 3000,

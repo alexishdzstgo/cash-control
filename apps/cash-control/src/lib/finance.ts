@@ -12,6 +12,14 @@ export type BalanceHealth = {
   isCritical: boolean;
 };
 
+export type FinancialResourceStatus = "normal" | "warning" | "critical";
+
+export type AttentionReason =
+  | "low_balance"
+  | "critical_balance"
+  | "movement_limit_warning"
+  | "movement_limit_reached";
+
 export type BankBreakdownItem = {
   bankId: string;
   bankName: string;
@@ -23,6 +31,10 @@ export type BankBreakdownItem = {
   balanceStatus: BalanceHealthStatus;
   isLow: boolean;
   isCritical: boolean;
+  /** Estado visual combinado (saldo + movimientos) */
+  resourceStatus: FinancialResourceStatus;
+  /** Motivos de atención visual */
+  attentionReasons: AttentionReason[];
 };
 
 export type FinancialTotals = {
@@ -75,6 +87,44 @@ export function computeFinancialTotals(): FinancialTotals {
       lowBalanceThreshold: bank.lowBalanceThreshold,
       criticalBalanceThreshold: bank.criticalBalanceThreshold,
     });
+
+    // Movement limit state
+    const limit = bank.visibleMovementLimit;
+    const used = bank.visibleMovementsUsed;
+    let movementStatus: FinancialResourceStatus = "normal";
+    let movementReason: AttentionReason | null = null;
+    if (limit !== undefined && used !== undefined) {
+      const remaining = Math.max(0, limit - used);
+      const ratio = limit > 0 ? used / limit : 0;
+      if (remaining <= 0) {
+        movementStatus = "critical";
+        movementReason = "movement_limit_reached";
+      } else if (ratio >= (bank.movementWarningThreshold ?? 0.8)) {
+        movementStatus = "warning";
+        movementReason = "movement_limit_warning";
+      }
+    }
+
+    // Combined status: critical > warning > normal
+    const attentionReasons: AttentionReason[] = [];
+    let resourceStatus: FinancialResourceStatus = "normal";
+
+    if (health.isCritical) {
+      resourceStatus = "critical";
+      attentionReasons.push("critical_balance");
+    } else if (health.isLow) {
+      resourceStatus = "warning";
+      attentionReasons.push("low_balance");
+    }
+
+    if (movementStatus === "critical") {
+      resourceStatus = "critical";
+      if (movementReason) attentionReasons.push(movementReason);
+    } else if (movementStatus === "warning") {
+      if (resourceStatus !== "critical") resourceStatus = "warning";
+      if (movementReason) attentionReasons.push(movementReason);
+    }
+
     return {
       bankId: bank.id,
       bankName: bank.bankName,
@@ -86,6 +136,8 @@ export function computeFinancialTotals(): FinancialTotals {
       balanceStatus: health.status,
       isLow: health.isLow,
       isCritical: health.isCritical,
+      resourceStatus,
+      attentionReasons,
     };
   });
 

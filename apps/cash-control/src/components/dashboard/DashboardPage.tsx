@@ -7,6 +7,7 @@ import { CashHero } from "./CashHero";
 import { DashboardGreeting } from "./DashboardGreeting";
 import { HealthAlerts } from "./HealthAlerts";
 import { QuickActions } from "./QuickActions";
+import { OwnerControlCenter } from "./owner/OwnerControlCenter";
 import { useMockSession } from "@/components/session/MockSessionContext";
 
 export function DashboardPage() {
@@ -25,13 +26,17 @@ export function DashboardPage() {
 
   const isOwner = authenticatedUser.systemRole === "owner";
 
+  // ── Owner: Centro de Control ejecutivo ──
+  if (isOwner) {
+    return <OwnerControlCenter />;
+  }
+
+  // ── Employee: Dashboard operativo conservado ──
   return (
     <div className="app-dashboard-bg space-y-8">
       <DashboardGreeting />
 
       <QuickActions />
-
-      {isOwner && <CashHero />}
 
       <HealthAlerts />
 
