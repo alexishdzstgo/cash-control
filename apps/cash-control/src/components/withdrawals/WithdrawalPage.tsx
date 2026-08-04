@@ -13,10 +13,16 @@ import {
 import { WithdrawalForm } from "./WithdrawalForm";
 import type { FolioStatus } from "@/types/folio";
 import { WithdrawalSummary } from "./WithdrawalSummary";
-import { calculateCommission } from "@/lib/commission";
+import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import {
+  calculateCommission,
+  centsToPesos,
+  parseCurrencyToCents,
+} from "@/lib/commission";
 import { PageHeader } from "@/components/shared/PageHeader";
 
 export function WithdrawalPage() {
+  const { rules: commissionRules } = useCommissionRules();
   const [mode, setMode] = useState<WithdrawalMode>("delivered");
 
   const [formData, setFormData] = useState<WithdrawalFormData>(
@@ -33,13 +39,26 @@ export function WithdrawalPage() {
   const [successType, setSuccessType] = useState<WithdrawalMode>("delivered");
 
   const isPendingMode = mode === "pending";
-  const amount = Number(formData.amount) || 0;
+  const amountCents = parseCurrencyToCents(formData.amount) ?? 0;
+  const amount = centsToPesos(amountCents);
 
-  const commission = calculateCommission(amount);
+  const commissionCalculation =
+    amountCents > 0
+      ? calculateCommission({
+          amountCents,
+          operationType: "retiro",
+          rules: commissionRules,
+        })
+      : null;
+  const commission =
+    commissionCalculation === null
+      ? null
+      : centsToPesos(commissionCalculation.commissionAmountCents);
 
   const hasRequiredCommonFields =
     folioStatus === "available" &&
     amount > 0 &&
+    commissionCalculation !== null &&
     formData.senderName.trim() !== "" &&
     formData.bank !== "";
 
@@ -79,7 +98,8 @@ export function WithdrawalPage() {
       ...formData,
       amount,
       commission,
-      total: amount + commission,
+      total: amount + (commission ?? 0),
+      commissionStatus: "pending_location" as const,
       type: "retiro" as const,
       status: "entregado" as const,
     };
@@ -97,7 +117,8 @@ export function WithdrawalPage() {
       receiverName: "",
       amount,
       commission,
-      total: amount + commission,
+      total: amount + (commission ?? 0),
+      commissionStatus: "pending_location" as const,
       type: "retiro" as const,
       status: "pendiente" as const,
     };
@@ -160,6 +181,7 @@ export function WithdrawalPage() {
             formData={formData}
             amount={amount}
             commission={commission}
+            hasCommissionRule={commissionCalculation !== null}
             isReadyToRegister={isReadyToRegister}
             onRegister={handleRegister}
           />

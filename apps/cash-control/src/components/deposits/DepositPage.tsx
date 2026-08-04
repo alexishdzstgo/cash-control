@@ -1,7 +1,12 @@
 "use client";
 
 import { ArrowLeft, Clock3 } from "lucide-react";
-import { calculateCommission } from "@/lib/commission";
+import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import {
+  calculateCommission,
+  centsToPesos,
+  parseCurrencyToCents,
+} from "@/lib/commission";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
@@ -17,6 +22,7 @@ import { DepositSummary } from "./DepositSummary";
 import { PageHeader } from "@/components/shared/PageHeader";
 
 export function DepositPage() {
+  const { rules: commissionRules } = useCommissionRules();
   const [mode, setMode] = useState<DepositMode>("completed");
 
   const [formData, setFormData] = useState<DepositFormData>(
@@ -33,13 +39,26 @@ export function DepositPage() {
   const [successMode, setSuccessMode] = useState<DepositMode>("completed");
 
   const isPendingMode = mode === "pending";
-  const amount = Number(formData.amount) || 0;
+  const amountCents = parseCurrencyToCents(formData.amount) ?? 0;
+  const amount = centsToPesos(amountCents);
 
-  const commission = calculateCommission(amount);
+  const commissionCalculation =
+    amountCents > 0
+      ? calculateCommission({
+          amountCents,
+          operationType: "deposito",
+          rules: commissionRules,
+        })
+      : null;
+  const commission =
+    commissionCalculation === null
+      ? null
+      : centsToPesos(commissionCalculation.commissionAmountCents);
 
   const hasRequiredCommonFields =
     folioStatus === "available" &&
     amount > 0 &&
+    commissionCalculation !== null &&
     formData.senderName.trim() !== "" &&
     formData.receiverName.trim() !== "" &&
     formData.destinationBank !== "" &&
@@ -81,7 +100,22 @@ export function DepositPage() {
       bankFolio: formData.bankFolio,
       amount,
       commission,
-      total: amount + commission,
+      total: amount + (commission ?? 0),
+      appliedCommissionSnapshot: commissionCalculation
+        ? {
+            operationAmountCents: amountCents,
+            calculatedCommissionCents:
+              commissionCalculation.commissionAmountCents,
+            finalCommissionCents: commissionCalculation.commissionAmountCents,
+            ruleId: commissionCalculation.ruleId,
+            ruleVersion: commissionCalculation.ruleVersion,
+            calculationType: commissionCalculation.calculationType,
+            location: "cash" as const,
+            appliedAt: new Date().toISOString(),
+          }
+        : undefined,
+      commissionLocation: "cash" as const,
+      commissionStatus: "realized" as const,
       senderName: formData.senderName,
       receiverName: formData.receiverName,
       bankTo: formData.destinationBank,
@@ -104,7 +138,22 @@ export function DepositPage() {
       bankFolio: formData.bankFolio,
       amount,
       commission,
-      total: amount + commission,
+      total: amount + (commission ?? 0),
+      appliedCommissionSnapshot: commissionCalculation
+        ? {
+            operationAmountCents: amountCents,
+            calculatedCommissionCents:
+              commissionCalculation.commissionAmountCents,
+            finalCommissionCents: commissionCalculation.commissionAmountCents,
+            ruleId: commissionCalculation.ruleId,
+            ruleVersion: commissionCalculation.ruleVersion,
+            calculationType: commissionCalculation.calculationType,
+            location: "cash" as const,
+            appliedAt: new Date().toISOString(),
+          }
+        : undefined,
+      commissionLocation: "cash" as const,
+      commissionStatus: "reserved" as const,
       senderName: formData.senderName,
       receiverName: formData.receiverName,
       bankTo: formData.destinationBank,
@@ -173,6 +222,7 @@ export function DepositPage() {
             formData={formData}
             amount={amount}
             commission={commission}
+            hasCommissionRule={commissionCalculation !== null}
             isReadyToRegister={isReadyToRegister}
             onRegister={handleRegister}
           />

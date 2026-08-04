@@ -1,3 +1,9 @@
+import type {
+  AppliedCommissionSnapshot,
+  CommissionLocation,
+  CommissionStatus,
+} from "@/types/commission";
+
 export type OperationType =
   | "deposito"
   | "retiro";
@@ -17,6 +23,9 @@ export type Operation = {
   amount: number;
   commission: number;
   total: number;
+  appliedCommissionSnapshot?: AppliedCommissionSnapshot;
+  commissionLocation?: CommissionLocation;
+  commissionStatus?: CommissionStatus;
 
   senderName: string;
   receiverName: string;

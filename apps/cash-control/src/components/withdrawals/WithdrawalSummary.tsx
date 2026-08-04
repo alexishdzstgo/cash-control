@@ -1,6 +1,7 @@
 "use client";
 
 import { CheckCircle2, Clock3 } from "lucide-react";
+import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
 import { getBankLabel } from "@/config/banks";
 import type {
@@ -12,7 +13,8 @@ interface WithdrawalSummaryProps {
   mode: WithdrawalMode;
   formData: WithdrawalFormData;
   amount: number;
-  commission: number;
+  commission: number | null;
+  hasCommissionRule: boolean;
   isReadyToRegister: boolean;
   onRegister: () => void;
 }
@@ -30,11 +32,12 @@ export function WithdrawalSummary({
   formData,
   amount,
   commission,
+  hasCommissionRule,
   isReadyToRegister,
   onRegister,
 }: WithdrawalSummaryProps) {
   const isPendingMode = mode === "pending";
-  const total = amount + commission;
+  const total = amount + (commission ?? 0);
 
   return (
     <aside className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -123,7 +126,7 @@ export function WithdrawalSummary({
 
           <AmountRow
             label="Comisión"
-            value={formatCurrency(commission)}
+            value={commission === null ? "Sin regla" : formatCurrency(commission)}
           />
 
           <div className="border-t border-slate-100 pt-4">
@@ -134,6 +137,12 @@ export function WithdrawalSummary({
             />
           </div>
         </div>
+
+        {!hasCommissionRule && amount > 0 && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {NO_COMMISSION_RULE_MESSAGE}
+          </div>
+        )}
 
         <button
           type="button"

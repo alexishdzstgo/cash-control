@@ -105,14 +105,16 @@ export const navigationGroups: NavigationGroup[] = [
       },
       {
         label: "Auditoría",
+        href: "/audit",
         icon: FileSearch,
-        enabled: false,
+        enabled: true,
         roles: ["owner"],
       },
       {
         label: "Personal",
+        href: "/staff",
         icon: Users,
-        enabled: false,
+        enabled: true,
         roles: ["owner"],
       },
     ],
@@ -141,14 +143,16 @@ export const navigationGroups: NavigationGroup[] = [
     items: [
       {
         label: "Comisiones",
+        href: "/commissions",
         icon: BadgeDollarSign,
-        enabled: false,
+        enabled: true,
         roles: ["owner"],
       },
       {
         label: "Bancos y alertas",
+        href: "/bank-alerts",
         icon: BellRing,
-        enabled: false,
+        enabled: true,
         roles: ["owner"],
       },
       {

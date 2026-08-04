@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock3,
 } from "lucide-react";
+import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
 import { getBankLabel } from "@/config/banks";
 import type {
@@ -15,7 +16,8 @@ type DepositSummaryProps = {
   mode: DepositMode;
   formData: DepositFormData;
   amount: number;
-  commission: number;
+  commission: number | null;
+  hasCommissionRule: boolean;
   isReadyToRegister: boolean;
   onRegister: () => void;
 };
@@ -49,6 +51,7 @@ export function DepositSummary({
   formData,
   amount,
   commission,
+  hasCommissionRule,
   isReadyToRegister,
   onRegister,
 }: DepositSummaryProps) {
@@ -58,7 +61,7 @@ export function DepositSummary({
    * El cliente entrega el monto y además
    * paga la comisión.
    */
-  const totalReceived = amount + commission;
+  const totalReceived = amount + (commission ?? 0);
 
   return (
     <aside className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -166,7 +169,7 @@ export function DepositSummary({
 
           <AmountRow
             label="Comisión"
-            value={formatCurrency(commission)}
+            value={commission === null ? "Sin regla" : formatCurrency(commission)}
           />
 
           <div className="border-t border-slate-100 pt-4">
@@ -179,6 +182,12 @@ export function DepositSummary({
             />
           </div>
         </div>
+
+        {!hasCommissionRule && amount > 0 && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+            {NO_COMMISSION_RULE_MESSAGE}
+          </div>
+        )}
 
         <button
           type="button"
