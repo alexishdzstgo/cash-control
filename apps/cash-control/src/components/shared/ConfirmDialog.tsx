@@ -9,6 +9,7 @@ type ConfirmDialogProps = {
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  isConfirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -19,6 +20,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
+  isConfirmDisabled = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -41,16 +43,18 @@ export function ConfirmDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4"
-      onClick={onCancel}
-    >
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 p-4">
+      <button
+        type="button"
+        aria-label="Cerrar confirmación"
+        className="absolute inset-0 cursor-default"
+        onClick={onCancel}
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-md rounded-xl bg-white shadow-xl"
-        onClick={(event) => event.stopPropagation()}
+        className="relative z-10 w-full max-w-md rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div className="flex gap-3">
@@ -58,10 +62,15 @@ export function ConfirmDialog({
               <AlertCircle className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="confirm-dialog-title" className="font-semibold text-slate-900">
+              <h2
+                id="confirm-dialog-title"
+                className="font-semibold text-slate-900"
+              >
                 {title}
               </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                {description}
+              </p>
             </div>
           </div>
           <button
@@ -84,7 +93,8 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1D4ED8]"
+            disabled={isConfirmDisabled}
+            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {confirmLabel}
           </button>

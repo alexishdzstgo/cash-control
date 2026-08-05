@@ -15,6 +15,19 @@ export function centsToPesos(value: number): number {
   return value / 100;
 }
 
+export function parseCurrencyToCents(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (trimmedValue === "") return null;
+
+  const normalizedValue = trimmedValue.replaceAll(",", "");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalizedValue)) return null;
+
+  const numericValue = Number(normalizedValue);
+  if (!Number.isFinite(numericValue)) return null;
+
+  return Math.round(numericValue * 100);
+}
+
 export function getAdministrativeResources(
   cash: CashBalance,
   banks: BankAccountBalance[],
@@ -121,7 +134,7 @@ export function validateAdministrativeWithdrawal({
   amountCents: number;
 }): string | null {
   if (amountCents <= 0) {
-    return "Ingresa un monto válido.";
+    return "El monto debe ser mayor que cero.";
   }
 
   if (movementType === "withdrawal" && amountCents > resource.availableCents) {
