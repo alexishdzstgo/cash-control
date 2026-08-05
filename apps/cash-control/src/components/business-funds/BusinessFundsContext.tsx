@@ -52,10 +52,12 @@ type BusinessFundsContextValue = {
   resources: ReturnType<typeof getAdministrativeResources>;
   registerMovement: (input: RegisterAdministrativeMovementInput) => {
     success: boolean;
+    movement?: AdministrativeMovement;
     error?: string;
   };
   correctMovement: (input: CorrectAdministrativeMovementInput) => {
     success: boolean;
+    movement?: AdministrativeMovement;
     error?: string;
   };
 };
@@ -78,6 +80,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
   function registerMovement(input: RegisterAdministrativeMovementInput): {
     success: boolean;
+    movement?: AdministrativeMovement;
     error?: string;
   } {
     const resource = resources.find((item) => item.id === input.resourceId);
@@ -118,11 +121,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setCash(nextBalances.cash);
     setBanks(nextBalances.banks);
     setMovements((current) => [movement, ...current]);
-    return { success: true };
+    return { success: true, movement };
   }
 
   function correctMovement(input: CorrectAdministrativeMovementInput): {
     success: boolean;
+    movement?: AdministrativeMovement;
     error?: string;
   } {
     if (!input.editReason.trim()) {
@@ -199,7 +203,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         movement.id === original.id ? corrected : movement,
       ),
     );
-    return { success: true };
+    return { success: true, movement: corrected };
   }
 
   return (

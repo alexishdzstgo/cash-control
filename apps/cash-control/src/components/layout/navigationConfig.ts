@@ -170,8 +170,9 @@ export const navigationGroups: NavigationGroup[] = [
       },
       {
         label: "Configuración",
+        href: "/settings",
         icon: Settings,
-        enabled: false,
+        enabled: true,
         roles: ["owner"],
       },
     ],

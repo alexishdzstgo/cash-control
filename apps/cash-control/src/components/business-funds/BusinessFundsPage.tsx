@@ -5,11 +5,13 @@ import { useMemo, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import {
   centsToPesos,
   filterAdministrativeMovements,
   getAdministrativeMovementsSummary,
   getMovementTypeLabel,
+  parseCurrencyToCents,
   validateAdministrativeWithdrawal,
 } from "@/lib/administrativeMovements";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
@@ -47,7 +49,9 @@ export function BusinessFundsPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [detail, setDetail] = useState<AdministrativeMovement | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const summary = useMemo(
     () => getAdministrativeMovementsSummary(movements),
@@ -64,16 +68,17 @@ export function BusinessFundsPage() {
   const selectedResource = form
     ? resources.find((resource) => resource.id === form.resourceId)
     : undefined;
-  const amountCents = form ? Math.round(Number(form.amount || 0) * 100) : 0;
+  const amountCents = form ? parseCurrencyToCents(form.amount) : null;
   const balanceAfterCents =
-    selectedResource && form
+    selectedResource && form && amountCents !== null
       ? selectedResource.realBalanceCents +
         (form.movementType === "income" ? amountCents : -amountCents)
       : 0;
 
   function openCreateForm() {
-    setMessage(null);
+    setFormError(null);
     setConfirming(false);
+    setIsSubmitting(false);
     setForm({
       mode: "create",
       movementType: "income",
@@ -85,8 +90,9 @@ export function BusinessFundsPage() {
   }
 
   function openEditForm(movement: AdministrativeMovement) {
-    setMessage(null);
+    setFormError(null);
     setConfirming(false);
+    setIsSubmitting(false);
     setForm({
       mode: "edit",
       movementId: movement.id,
@@ -100,25 +106,42 @@ export function BusinessFundsPage() {
 
   function requestConfirm() {
     if (!form || !selectedResource) return;
+    const parsedAmountCents = parseCurrencyToCents(form.amount);
+    if (form.amount.trim() === "") {
+      setFormError("El monto es obligatorio.");
+      return;
+    }
+    if (parsedAmountCents === null) {
+      setFormError("Ingresa un monto válido.");
+      return;
+    }
     const validation = validateAdministrativeWithdrawal({
       movementType: form.movementType,
       resource: selectedResource,
-      amountCents,
+      amountCents: parsedAmountCents,
     });
     if (validation) {
-      setMessage(validation);
+      setFormError(validation);
       return;
     }
     if (form.mode === "edit" && !form.editReason.trim()) {
-      setMessage("El motivo de corrección es obligatorio.");
+      setFormError("El motivo de corrección es obligatorio.");
       return;
     }
-    setMessage(null);
+    setFormError(null);
     setConfirming(true);
   }
 
   function submitMovement() {
-    if (!form || !selectedResource || !authenticatedUser) return;
+    if (isSubmitting || !form || !selectedResource || !authenticatedUser)
+      return;
+    const parsedAmountCents = parseCurrencyToCents(form.amount);
+    if (parsedAmountCents === null) {
+      setFormError("Ingresa un monto válido.");
+      setConfirming(false);
+      return;
+    }
+    setIsSubmitting(true);
     const actor = {
       userId: authenticatedUser.userId,
       userName: authenticatedUser.userName,
@@ -128,7 +151,7 @@ export function BusinessFundsPage() {
         ? registerMovement({
             movementType: form.movementType,
             resourceId: form.resourceId,
-            amountCents,
+            amountCents: parsedAmountCents,
             explanation: form.explanation,
             createdByUserId: actor.userId,
             createdByUserName: actor.userName,
@@ -140,7 +163,7 @@ export function BusinessFundsPage() {
             movementId: form.movementId ?? "",
             movementType: form.movementType,
             resourceId: form.resourceId,
-            amountCents,
+            amountCents: parsedAmountCents,
             explanation: form.explanation,
             editReason: form.editReason,
             editedByUserId: actor.userId,
@@ -148,14 +171,21 @@ export function BusinessFundsPage() {
           });
 
     if (!result.success) {
-      setMessage(result.error ?? "No fue posible registrar el movimiento.");
+      setFormError(result.error ?? "No fue posible registrar el movimiento.");
       setConfirming(false);
+      setIsSubmitting(false);
       return;
     }
 
     setForm(null);
     setConfirming(false);
-    setMessage(null);
+    setFormError(null);
+    setIsSubmitting(false);
+    setSuccessMessage(
+      form.mode === "create"
+        ? "Movimiento registrado correctamente."
+        : "Movimiento corregido correctamente.",
+    );
   }
 
   return (
@@ -176,12 +206,6 @@ export function BusinessFundsPage() {
       />
 
       <div className="space-y-6">
-        {message && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-            {message}
-          </div>
-        )}
-
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             label="Ingresos de hoy"
@@ -340,14 +364,16 @@ export function BusinessFundsPage() {
         </p>
       </div>
 
-      {form && selectedResource && (
+      {form && selectedResource && !confirming && (
         <MovementForm
           form={form}
+          formError={formError}
           resourceAvailable={selectedResource.availableCents}
           onChange={(updates) =>
-            setForm((current) =>
-              current ? { ...current, ...updates } : current,
-            )
+            setForm((current) => {
+              setFormError(null);
+              return current ? { ...current, ...updates } : current;
+            })
           }
           resources={resources}
           onClose={() => setForm(null)}
@@ -363,19 +389,31 @@ export function BusinessFundsPage() {
             : "Registrar retiro"
         }
         description={
-          form && selectedResource
-            ? `${form.movementType === "income" ? "Se agregarán" : "Se retirarán"} ${formatCents(amountCents)} ${form.movementType === "income" ? "a" : "de"} ${selectedResource.name}. Saldo antes: ${formatCents(selectedResource.realBalanceCents)}. Saldo después: ${formatCents(balanceAfterCents)}.`
+          form && selectedResource && amountCents !== null
+            ? `${form.movementType === "income" ? "Se agregarán" : "Se retirarán"} ${formatCents(amountCents)} ${form.movementType === "income" ? "a" : "de"} ${selectedResource.name}. Saldo antes: ${formatCents(selectedResource.realBalanceCents)}. Saldo después: ${formatCents(balanceAfterCents)}.${form.explanation.trim() ? ` Explicación: ${form.explanation.trim()}.` : ""}`
             : ""
         }
         confirmLabel="Confirmar movimiento"
         cancelLabel="Volver"
         onConfirm={submitMovement}
-        onCancel={() => setConfirming(false)}
+        onCancel={() => {
+          setConfirming(false);
+          setIsSubmitting(false);
+        }}
+        isConfirmDisabled={isSubmitting}
       />
 
       {detail && (
         <MovementDetail movement={detail} onClose={() => setDetail(null)} />
       )}
+
+      <SuccessDialog
+        isOpen={successMessage !== null}
+        title="Fondos del negocio"
+        description={successMessage ?? ""}
+        buttonLabel="Continuar"
+        onClose={() => setSuccessMessage(null)}
+      />
     </div>
   );
 }
@@ -477,6 +515,7 @@ function MovementCard(props: {
 
 function MovementForm({
   form,
+  formError,
   resources,
   resourceAvailable,
   onChange,
@@ -484,6 +523,7 @@ function MovementForm({
   onSubmit,
 }: {
   form: FormState;
+  formError: string | null;
   resources: Array<{ id: string; name: string; availableCents: number }>;
   resourceAvailable: number;
   onChange: (updates: Partial<FormState>) => void;
@@ -593,6 +633,11 @@ function MovementForm({
               </label>
             )}
           </div>
+          {formError && (
+            <div className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700">
+              {formError}
+            </div>
+          )}
           <footer className="flex justify-end gap-3 border-t border-slate-100 p-5">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
