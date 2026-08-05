@@ -1,5 +1,11 @@
 import type { Operation } from "@/types/operation";
-import type { ReceiptData, ReceiptStatus } from "@/types/receipt";
+import type {
+  ReceiptData,
+  ReceiptFieldVisibility,
+  ReceiptOperationType,
+  ReceiptPreferences,
+  ReceiptStatus,
+} from "@/types/receipt";
 
 export function buildReceiptData({
   operation,
@@ -30,11 +36,11 @@ export function buildReceiptData({
     amount: operation.amount,
     commission: operation.commission,
     total: operation.total,
-    bankName: bankName || "No disponible",
-    senderName: operation.senderName || "No disponible",
-    receiverName: operation.receiverName || "No disponible",
+    bankName,
+    senderName: operation.senderName || undefined,
+    receiverName: operation.receiverName || undefined,
     beneficiaryName:
-      operation.receiverName || operation.senderName || "No disponible",
+      operation.receiverName || operation.senderName || undefined,
     registeredBy: registeredUser ?? operation.createdBy ?? "No disponible",
     deliveredBy:
       deliveredBy ??
@@ -45,6 +51,48 @@ export function buildReceiptData({
     observations: operation.observations,
     hasReceiptSnapshot: false,
   };
+}
+
+export function getReceiptFieldVisibility(
+  preferences: ReceiptPreferences,
+  operationType?: ReceiptOperationType,
+): ReceiptFieldVisibility {
+  if (!operationType) {
+    return preferences.fieldVisibility;
+  }
+
+  return {
+    ...preferences.fieldVisibility,
+    ...preferences.operationTypeOverrides?.[operationType],
+  };
+}
+
+export function getReceiptConfigurationWarnings(
+  visibility: ReceiptFieldVisibility,
+): string[] {
+  const warnings: string[] = [];
+
+  if (!visibility.showFolio && !visibility.showOperationId) {
+    warnings.push(
+      "Este comprobante podría ser difícil de localizar posteriormente porque no contiene un folio ni un identificador.",
+    );
+  }
+
+  if (!visibility.showAmount) {
+    warnings.push("El comprobante no mostrará la cantidad de la operación.");
+  }
+
+  if (!visibility.showDate) {
+    warnings.push("El comprobante no mostrará cuándo se realizó la operación.");
+  }
+
+  if (!visibility.showBusinessName) {
+    warnings.push(
+      "El comprobante se imprimirá sin identificar el establecimiento.",
+    );
+  }
+
+  return warnings;
 }
 
 function mapReceiptStatus(operation: Operation): ReceiptStatus {

@@ -1,18 +1,16 @@
 "use client";
 
 import {
+  ArrowDownToLine,
   ArrowRight,
   ArrowUpFromLine,
-  ArrowDownToLine,
   Clock3,
   History,
-  Lock,
-  ShieldCheck,
-  UserCog,
-  Settings,
   Landmark,
-  PlusCircle,
-  MinusCircle,
+  Lock,
+  Settings,
+  ShieldCheck,
+  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { useMockSession } from "@/components/session/MockSessionContext";
@@ -53,18 +51,11 @@ const adminActions = [
     enabled: true,
   },
   {
-    title: "Registrar ingreso administrativo",
-    description: "Se habilitará en la siguiente fase",
-    href: null as string | null,
-    icon: PlusCircle,
-    enabled: false,
-  },
-  {
-    title: "Registrar retiro administrativo",
-    description: "Se habilitará en la siguiente fase",
-    href: null as string | null,
-    icon: MinusCircle,
-    enabled: false,
+    title: "Nuevo movimiento de fondos",
+    description: "Ingreso o retiro del negocio",
+    href: "/business-funds",
+    icon: WalletCards,
+    enabled: true,
   },
   {
     title: "Configurar comisiones",
@@ -151,11 +142,11 @@ export function OwnerQuickActions() {
           {adminActions.map((action) => {
             const Icon = action.icon;
 
-            if (action.enabled) {
+            if (action.enabled && action.href) {
               return (
                 <Link
                   key={action.title}
-                  href={action.href!}
+                  href={action.href}
                   className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
                 >
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#EFF6FF] text-[#2563EB] transition-colors group-hover:bg-[#DBEAFE]">

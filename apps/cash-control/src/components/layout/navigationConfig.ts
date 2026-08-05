@@ -13,8 +13,10 @@ import {
   LayoutDashboard,
   ReceiptText,
   Settings,
+  UserCog,
   UserRoundCheck,
   Users,
+  WalletCards,
 } from "lucide-react";
 import type { SystemRole } from "@/components/workstation/types";
 
@@ -56,7 +58,7 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    label: "Operaciones",
+    label: "Operación",
     items: [
       {
         label: "Depósitos",
@@ -89,7 +91,7 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    label: "Control del negocio",
+    label: "Control",
     items: [
       {
         label: "Caja y bancos",
@@ -99,10 +101,25 @@ export const navigationGroups: NavigationGroup[] = [
         roles: ["owner"],
       },
       {
-        label: "Ganancias y reportes",
-        icon: ChartColumn,
-        enabled: false,
+        label: "Bancos y alertas",
+        href: "/bank-alerts",
+        icon: BellRing,
+        enabled: true,
         roles: ["owner"],
+      },
+      {
+        label: "Turno actual",
+        href: "/shifts",
+        icon: UserRoundCheck,
+        enabled: true,
+        roles: ["owner", "employee"],
+      },
+      {
+        label: "Corte de caja",
+        href: "/cash-closing",
+        icon: Calculator,
+        enabled: true,
+        roles: ["owner", "employee"],
       },
       {
         label: "Auditoría",
@@ -121,38 +138,26 @@ export const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    label: "Turno",
-    items: [
-      {
-        label: "Turno actual",
-        href: "/shifts",
-        icon: UserRoundCheck,
-        enabled: true,
-        roles: ["owner", "employee"],
-      },
-      {
-        label: "Corte de caja",
-        href: "/cash-closing",
-        icon: Calculator,
-        enabled: true,
-        roles: ["owner", "employee"],
-      },
-    ],
-  },
-  {
     label: "Administración",
     items: [
       {
-        label: "Comisiones",
-        href: "/commissions",
-        icon: BadgeDollarSign,
+        label: "Usuarios",
+        href: "/users",
+        icon: UserCog,
         enabled: true,
         roles: ["owner"],
       },
       {
-        label: "Bancos y alertas",
-        href: "/bank-alerts",
-        icon: BellRing,
+        label: "Fondos del negocio",
+        href: "/business-funds",
+        icon: WalletCards,
+        enabled: true,
+        roles: ["owner"],
+      },
+      {
+        label: "Comisiones",
+        href: "/commissions",
+        icon: BadgeDollarSign,
         enabled: true,
         roles: ["owner"],
       },
@@ -166,6 +171,17 @@ export const navigationGroups: NavigationGroup[] = [
       {
         label: "Configuración",
         icon: Settings,
+        enabled: false,
+        roles: ["owner"],
+      },
+    ],
+  },
+  {
+    label: "Inteligencia",
+    items: [
+      {
+        label: "Ganancias y reportes",
+        icon: ChartColumn,
         enabled: false,
         roles: ["owner"],
       },

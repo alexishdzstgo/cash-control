@@ -1,8 +1,8 @@
 import {
-  cashBalance,
   bankAccounts,
+  cashBalance,
 } from "@/components/balances/balanceMockData";
-import type { BankAccountBalance } from "@/types/balance";
+import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 export type BalanceHealthStatus = "normal" | "warning" | "critical";
 
@@ -64,19 +64,32 @@ export type BankMovementAlert = {
 };
 
 export function computeFinancialTotals(): FinancialTotals {
-  const cashPhysical = cashBalance.physicalBalance;
-  const cashReserved = cashBalance.reservedOperations.reduce(
+  return computeFinancialTotalsFromBalances({
+    cash: cashBalance,
+    banks: bankAccounts,
+  });
+}
+
+export function computeFinancialTotalsFromBalances({
+  cash,
+  banks,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+}): FinancialTotals {
+  const cashPhysical = cash.physicalBalance;
+  const cashReserved = cash.reservedOperations.reduce(
     (sum, op) => sum + op.amount,
     0,
   );
   const cashAvailable = cashPhysical - cashReserved;
   const cashHealth = getBalanceHealth({
     available: cashAvailable,
-    lowBalanceThreshold: cashBalance.lowBalanceThreshold,
-    criticalBalanceThreshold: cashBalance.criticalBalanceThreshold,
+    lowBalanceThreshold: cash.lowBalanceThreshold,
+    criticalBalanceThreshold: cash.criticalBalanceThreshold,
   });
 
-  const bankBreakdown: BankBreakdownItem[] = bankAccounts.map((bank) => {
+  const bankBreakdown: BankBreakdownItem[] = banks.map((bank) => {
     const reserved = bank.reservedOperations.reduce(
       (ops, op) => ops + op.amount,
       0,
@@ -141,8 +154,14 @@ export function computeFinancialTotals(): FinancialTotals {
     };
   });
 
-  const banksReal = bankBreakdown.reduce((sum, bank) => sum + bank.realBalance, 0);
-  const banksReserved = bankBreakdown.reduce((sum, bank) => sum + bank.reserved, 0);
+  const banksReal = bankBreakdown.reduce(
+    (sum, bank) => sum + bank.realBalance,
+    0,
+  );
+  const banksReserved = bankBreakdown.reduce(
+    (sum, bank) => sum + bank.reserved,
+    0,
+  );
 
   const totalControlled = cashPhysical + banksReal;
   const totalReserved = cashReserved + banksReserved;
@@ -182,10 +201,7 @@ export function getBalanceHealth({
   ) {
     return { status: "critical", isLow: true, isCritical: true };
   }
-  if (
-    lowBalanceThreshold !== undefined &&
-    available <= lowBalanceThreshold
-  ) {
+  if (lowBalanceThreshold !== undefined && available <= lowBalanceThreshold) {
     return { status: "warning", isLow: true, isCritical: false };
   }
   return { status: "normal", isLow: false, isCritical: false };
@@ -193,7 +209,13 @@ export function getBalanceHealth({
 
 /** Calcula alertas de límite de movimientos visibles por banco */
 export function computeBankMovementAlerts(): BankMovementAlert[] {
-  return bankAccounts.flatMap((bank: BankAccountBalance) => {
+  return computeBankMovementAlertsFromBanks(bankAccounts);
+}
+
+export function computeBankMovementAlertsFromBanks(
+  banks: BankAccountBalance[],
+): BankMovementAlert[] {
+  return banks.flatMap((bank: BankAccountBalance) => {
     const limit = bank.visibleMovementLimit;
     const used = bank.visibleMovementsUsed;
 
@@ -211,8 +233,7 @@ export function computeBankMovementAlerts(): BankMovementAlert[] {
         remainingVisibleMovements: remaining,
         isAtLimit: remaining <= 0,
         isNearLimit:
-          remaining > 0 &&
-          ratio >= (bank.movementWarningThreshold ?? 0.8),
+          remaining > 0 && ratio >= (bank.movementWarningThreshold ?? 0.8),
       },
     ];
   });

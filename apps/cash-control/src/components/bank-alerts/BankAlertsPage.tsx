@@ -1,23 +1,26 @@
-import Link from "next/link";
+"use client";
+
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { computeBankMovementAlerts, computeFinancialTotals } from "@/lib/finance";
-import { getFinancialAlertsOverview } from "@/lib/financialAlerts";
 import {
-  bankAccounts,
-  cashBalance,
-} from "@/components/balances/balanceMockData";
+  computeBankMovementAlertsFromBanks,
+  computeFinancialTotalsFromBalances,
+} from "@/lib/finance";
+import { getFinancialAlertsOverview } from "@/lib/financialAlerts";
 import { AlertConfigurationSummary } from "./AlertConfigurationSummary";
 import { BankAlertCard } from "./BankAlertCard";
 import { FinancialAlertsSummary } from "./FinancialAlertsSummary";
 import { MovementVisibilityPanel } from "./MovementVisibilityPanel";
 
 export function BankAlertsPage() {
-  const totals = computeFinancialTotals();
-  const movementAlerts = computeBankMovementAlerts();
+  const { cash, banks } = useBusinessFunds();
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
+  const movementAlerts = computeBankMovementAlertsFromBanks(banks);
   const overview = getFinancialAlertsOverview({
-    cash: cashBalance,
-    banks: bankAccounts,
+    cash,
+    banks,
     totals,
     movementAlerts,
   });

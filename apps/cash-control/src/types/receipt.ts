@@ -12,23 +12,45 @@ export type ReceiptBusinessIdentity = {
   logoUrl?: string;
 };
 
+export type ReceiptFieldVisibility = {
+  showBusinessName: boolean;
+  showOperationType: boolean;
+  showDate: boolean;
+  showTime: boolean;
+  showAmount: boolean;
+  showCommission: boolean;
+  showTotal: boolean;
+  showFolio: boolean;
+  showOperationId: boolean;
+  showBank: boolean;
+  showSender: boolean;
+  showReceiver: boolean;
+  showBeneficiary: boolean;
+  showRegisteredBy: boolean;
+  showDeliveredBy: boolean;
+  showResponsibleUser: boolean;
+  showStatus: boolean;
+  showEditedIndicator: boolean;
+  showObservations: boolean;
+  showSignatureSpace: boolean;
+  showPhone: boolean;
+  showAddress: boolean;
+  showHeaderMessage: boolean;
+  showFooterMessage: boolean;
+  showClarificationMessage: boolean;
+};
+
 export type ReceiptPreferences = {
   paperSize: ReceiptPaperSize;
   copies: number;
   autoOpenAfterRegister: boolean;
-  showBusinessLogo: boolean;
-  showPhone: boolean;
-  showAddress: boolean;
-  showSender: boolean;
-  showReceiver: boolean;
-  showBank: boolean;
-  showResponsibleUser: boolean;
-  showSignatureSpace: boolean;
-  showObservations: boolean;
+  fieldVisibility: ReceiptFieldVisibility;
+  operationTypeOverrides?: Partial<
+    Record<ReceiptOperationType, Partial<ReceiptFieldVisibility>>
+  >;
   headerMessage?: string;
   footerMessage?: string;
   clarificationMessage?: string;
-  showCorrectionReason?: boolean;
 };
 
 export type ReceiptData = {

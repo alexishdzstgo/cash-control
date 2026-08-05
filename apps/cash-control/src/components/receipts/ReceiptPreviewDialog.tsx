@@ -50,18 +50,20 @@ export function ReceiptPreviewDialog({
   const previewPreferences = { ...preferences, paperSize };
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4 no-print"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4">
+      <button
+        type="button"
+        aria-label="Cerrar vista previa"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="receipt-preview-title"
-        className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
-        onClick={(event) => event.stopPropagation()}
+        className="relative z-10 flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <header className="no-print flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div>
             <p className="text-sm font-medium text-[#2563EB]">Comprobante</p>
             <h2
@@ -84,7 +86,7 @@ export function ReceiptPreviewDialog({
         </header>
 
         <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto bg-slate-100 p-5">
-          <div className="mb-4 flex flex-wrap gap-2">
+          <div className="no-print mb-4 flex flex-wrap gap-2">
             {(["58mm", "80mm", "digital"] as const).map((size) => (
               <button
                 key={size}
@@ -111,7 +113,7 @@ export function ReceiptPreviewDialog({
           </div>
         </div>
 
-        <footer className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+        <footer className="no-print flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}

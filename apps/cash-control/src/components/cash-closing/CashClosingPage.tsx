@@ -1,17 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { ShiftClosingHeader } from "./ShiftClosingHeader";
-import { ExpectedCashSummary } from "./ExpectedCashSummary";
-import { CashMovementBreakdown } from "./CashMovementBreakdown";
-import { PhysicalCashCount } from "./PhysicalCashCount";
-import { CashDifferenceCard } from "./CashDifferenceCard";
+import { getAdministrativeMovementsSummary } from "@/lib/administrativeMovements";
+import { formatCurrency } from "@/lib/formatters";
+import type {
+  CashClosingStatus,
+  CashMovementCategory,
+} from "@/types/cash-closing";
 import { CashClosingConfirmation } from "./CashClosingConfirmation";
 import { CashClosingResult } from "./CashClosingResult";
-import { MovementDetailsModal } from "./MovementDetailsModal";
+import { CashDifferenceCard } from "./CashDifferenceCard";
+import { CashMovementBreakdown } from "./CashMovementBreakdown";
 import { mockCashClosingData } from "./cashClosingMockData";
-import type { CashClosingStatus, CashMovementCategory } from "@/types/cash-closing";
+import { ExpectedCashSummary } from "./ExpectedCashSummary";
+import { MovementDetailsModal } from "./MovementDetailsModal";
+import { PhysicalCashCount } from "./PhysicalCashCount";
+import { ShiftClosingHeader } from "./ShiftClosingHeader";
 
 type CashClosingPageState = {
   status: CashClosingStatus;
@@ -28,9 +34,11 @@ const INITIAL_STATE: CashClosingPageState = {
 };
 
 export function CashClosingPage() {
+  const { movements: administrativeMovements } = useBusinessFunds();
   const [state, setState] = useState<CashClosingPageState>(INITIAL_STATE);
 
-  const { shift, openingBalance, movements, reservedCash } = mockCashClosingData;
+  const { shift, openingBalance, movements, reservedCash } =
+    mockCashClosingData;
 
   const totalEntries = useMemo(
     () =>
@@ -50,9 +58,15 @@ export function CashClosingPage() {
 
   const expectedCash = openingBalance + totalEntries - totalOutputs;
   const availableCash = expectedCash - reservedCash;
+  const administrativeSummary = useMemo(
+    () => getAdministrativeMovementsSummary(administrativeMovements),
+    [administrativeMovements],
+  );
 
-  const countedNumeric = state.countedCash === "" ? NaN : Number(state.countedCash);
-  const hasCountedValue = state.countedCash !== "" && !Number.isNaN(countedNumeric);
+  const countedNumeric =
+    state.countedCash === "" ? NaN : Number(state.countedCash);
+  const hasCountedValue =
+    state.countedCash !== "" && !Number.isNaN(countedNumeric);
   const difference = hasCountedValue ? countedNumeric - expectedCash : NaN;
 
   const handleStartCount = () => {
@@ -61,10 +75,6 @@ export function CashClosingPage() {
 
   const handleCountedCashChange = (value: string) => {
     setState((prev) => ({ ...prev, countedCash: value }));
-  };
-
-  const handleObservationsChange = (value: string) => {
-    setState((prev) => ({ ...prev, observations: value }));
   };
 
   const handleViewCategory = (category: CashMovementCategory) => {
@@ -141,10 +151,31 @@ export function CashClosingPage() {
             onViewCategory={handleViewCategory}
           />
 
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-400">
+              Movimientos administrativos
+            </h3>
+            <div className="grid gap-3 md:grid-cols-3">
+              <AdminSummaryItem
+                label="Ingresos administrativos"
+                value={administrativeSummary.incomeTodayCents}
+              />
+              <AdminSummaryItem
+                label="Retiros administrativos"
+                value={administrativeSummary.withdrawalTodayCents}
+              />
+              <AdminSummaryItem
+                label="Balance neto administrativo"
+                value={administrativeSummary.netTodayCents}
+              />
+            </div>
+          </div>
+
           {state.status === "pending" && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 text-center">
               <p className="text-sm text-slate-600">
-                Inicia el conteo físico para capturar el efectivo presente en caja.
+                Inicia el conteo físico para capturar el efectivo presente en
+                caja.
               </p>
               <button
                 type="button"
@@ -186,6 +217,17 @@ export function CashClosingPage() {
         category={state.activeCategory ?? "cash_deposit"}
         movements={activeCategoryMovements}
       />
+    </div>
+  );
+}
+
+function AdminSummaryItem({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className="mt-2 text-lg font-bold text-slate-950">
+        {formatCurrency(value / 100)}
+      </p>
     </div>
   );
 }

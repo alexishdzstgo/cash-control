@@ -1,20 +1,26 @@
 "use client";
 
 import { Landmark } from "lucide-react";
-import { FinancialStatusItem } from "./FinancialStatusItem";
-import { FinancialAlertsPopover, attentionReasonToDetail, type FinancialAlert } from "./FinancialAlertsPopover";
-import { FinancialSummaryPopover } from "./FinancialSummaryPopover";
-import { FinancialPopover } from "./FinancialPopover";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import {
+  type BankBreakdownItem,
+  computeBankMovementAlertsFromBanks,
+  computeFinancialTotalsFromBalances,
+} from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  computeBankMovementAlerts,
-  computeFinancialTotals,
-  type BankBreakdownItem,
-} from "@/lib/finance";
+  attentionReasonToDetail,
+  type FinancialAlert,
+  FinancialAlertsPopover,
+} from "./FinancialAlertsPopover";
+import { FinancialPopover } from "./FinancialPopover";
+import { FinancialStatusItem } from "./FinancialStatusItem";
+import { FinancialSummaryPopover } from "./FinancialSummaryPopover";
 
 export function GlobalFinancialStatus() {
-  const totals = computeFinancialTotals();
-  const bankAlerts = computeBankMovementAlerts().filter(
+  const { cash, banks } = useBusinessFunds();
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
+  const bankAlerts = computeBankMovementAlertsFromBanks(banks).filter(
     (alert) => alert.isAtLimit || alert.isNearLimit,
   );
 
@@ -164,7 +170,9 @@ function BanksPopover({ bankItems }: { bankItems: BankBreakdownItem[] }) {
                     {bank.bankName}
                   </p>
                   {labelText && (
-                    <span className={`text-[10px] font-medium ${style.labelClass}`}>
+                    <span
+                      className={`text-[10px] font-medium ${style.labelClass}`}
+                    >
                       {labelText}
                     </span>
                   )}
@@ -175,7 +183,9 @@ function BanksPopover({ bankItems }: { bankItems: BankBreakdownItem[] }) {
                   </p>
                 )}
               </div>
-              <p className={`text-sm font-semibold tabular-nums ${style.valueClass}`}>
+              <p
+                className={`text-sm font-semibold tabular-nums ${style.valueClass}`}
+              >
                 {formatCurrency(bank.available)}
               </p>
             </div>
@@ -186,7 +196,10 @@ function BanksPopover({ bankItems }: { bankItems: BankBreakdownItem[] }) {
   );
 }
 
-const STATUS_STYLES: Record<string, { labelClass: string; valueClass: string; dotClass: string; bgClass?: string }> = {
+const STATUS_STYLES: Record<
+  string,
+  { labelClass: string; valueClass: string; dotClass: string; bgClass?: string }
+> = {
   normal: {
     labelClass: "text-slate-500",
     valueClass: "text-slate-800",

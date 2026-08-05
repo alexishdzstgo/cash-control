@@ -1,20 +1,27 @@
 "use client";
 
-import { Landmark, Lock, Wallet, ArrowRight } from "lucide-react";
+import { ArrowRight, Landmark, Lock, Wallet } from "lucide-react";
 import Link from "next/link";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { computeFinancialTotalsFromBalances } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
-import { computeFinancialTotals } from "@/lib/finance";
 
 export function OwnerFinancialOverview() {
-  const totals = computeFinancialTotals();
+  const { cash, banks } = useBusinessFunds();
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
 
   return (
     <section className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="absolute inset-y-0 left-0 w-1 bg-[#2563EB]" aria-hidden="true" />
+      <div
+        className="absolute inset-y-0 left-0 w-1 bg-[#2563EB]"
+        aria-hidden="true"
+      />
       <div className="p-6 md:p-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500">Disponible para operar</p>
+            <p className="text-sm font-medium text-slate-500">
+              Disponible para operar
+            </p>
             <p className="mt-2 amount-hero text-slate-900">
               {formatCurrency(totals.totalAvailable)}
             </p>
