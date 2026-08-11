@@ -1,17 +1,10 @@
-"use client";
+﻿"use client";
 
 import {
   ChevronDown,
   Circle,
-
   LogOut,
   ShieldCheck,
-
-  KeyRound,
-  LogOut,
-  ShieldCheck,
-  SlidersHorizontal,
-
   UserCheck,
   UserPlus,
   UserRound,
@@ -20,10 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
-
 import { UserAvatar } from "@/components/shared/UserAvatar";
-
-
 import { EndParticipationModal } from "./EndParticipationModal";
 import { TransferResponsibilityModal } from "./TransferResponsibilityModal";
 import { useResponsibilityTransfer } from "./useResponsibilityTransfer";
@@ -107,9 +97,9 @@ export function UserParticipationMenu() {
     : null;
 
   const getStatusText = () => {
-    if (!activeParticipation) return "Sin participación";
+    if (!activeParticipation) return "Sin participaciÃ³n";
     if (isResponsible) return "Responsable del turno";
-    return "Participación activa";
+    return "ParticipaciÃ³n activa";
   };
 
   const getStatusIcon = () => {
@@ -154,18 +144,18 @@ export function UserParticipationMenu() {
     if (result.success) {
       setShowEndModal(false);
       addActivityEvent(
-        `${authenticatedUser.userName} finalizó su participación`,
+        `${authenticatedUser.userName} finalizÃ³ su participaciÃ³n`,
       );
       setIsOpen(false);
     } else if (result.isResponsible) {
       setShowEndModal(false);
       if (result.isOnlyParticipant) {
         alert(
-          "No puedes finalizar tu participación siendo el único participante activo. Debes iniciar a otro participante o cerrar la estación.",
+          "No puedes finalizar tu participaciÃ³n siendo el Ãºnico participante activo. Debes iniciar a otro participante o cerrar la estaciÃ³n.",
         );
       } else {
         alert(
-          "No puedes finalizar tu participación mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
+          "No puedes finalizar tu participaciÃ³n mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
         );
       }
     }
@@ -261,7 +251,7 @@ export function UserParticipationMenu() {
           </span>
         )}
         {!activeParticipation && (
-          <span className="hidden lg:inline text-slate-500">•</span>
+          <span className="hidden lg:inline text-slate-500">â€¢</span>
         )}
         {!activeParticipation && (
           <span className="hidden lg:inline text-slate-600">
@@ -344,7 +334,7 @@ export function UserParticipationMenu() {
                 role="menuitem"
               >
                 <UserCheck className="h-4 w-4 text-emerald-600" />
-                Activar participación
+                Activar participaciÃ³n
               </button>
             ) : canEndOwnParticipation() ? (
               <button
@@ -357,7 +347,7 @@ export function UserParticipationMenu() {
                 role="menuitem"
               >
                 <UserX className="h-4 w-4 text-red-600" />
-                Finalizar participación
+                Finalizar participaciÃ³n
               </button>
             ) : otherActiveParticipants.length > 0 ? (
               <div className="space-y-1">
@@ -407,28 +397,6 @@ export function UserParticipationMenu() {
               Mi perfil
             </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                handleProfileNavigation("/profile?section=security")
-              }
-              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-            >
-              <KeyRound className="h-4 w-4" />
-              Cambiar contraseña
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleProfileNavigation("/profile?section=preferences")
-              }
-              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Preferencias
-            </button>
 
           </div>
 
@@ -440,7 +408,7 @@ export function UserParticipationMenu() {
               role="menuitem"
             >
               <LogOut className="h-4 w-4" />
-              Cerrar sesión
+              Cerrar sesiÃ³n
             </button>
           </div>
         </div>

@@ -1,6 +1,5 @@
-"use client";
+﻿"use client";
 
-<<<<<<< HEAD
 import { Check, Clock3, KeyRound, Pencil, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,19 +12,6 @@ import { areSameAvatar, generateAvatarOptions } from "@/lib/avatar";
 import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
 import type { ProfilePreferences } from "@/types/profile";
 import type { UserAccount, UserAvatar as UserAvatarModel } from "@/types/user";
-=======
-import { Clock3, KeyRound, Pencil } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { UserInitialsAvatar } from "@/components/shared/UserInitialsAvatar";
-import { initialUserAccounts } from "@/components/users/userMockData";
-import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
-import type { ProfilePreferences } from "@/types/profile";
-import type { UserAccount } from "@/types/user";
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 import { initialProfilePreferences } from "./profileMockData";
 
 type PasswordForm = {
@@ -42,10 +28,10 @@ const emptyPasswordForm: PasswordForm = {
 
 const pendingAuthItems = [
   "PIN",
-  "Autenticación en dos pasos",
+  "AutenticaciÃ³n en dos pasos",
   "Sesiones activas",
   "Dispositivos autorizados",
-  "Correo electrónico",
+  "Correo electrÃ³nico",
 ] as const;
 
 export function ProfilePage() {
@@ -54,16 +40,11 @@ export function ProfilePage() {
   const {
     authenticatedUser,
     getActiveParticipation,
-<<<<<<< HEAD
     getUserAvatar,
     isCurrentUserResponsible,
     updateUserAvatar,
   } = useMockSession();
   const chooseAvatarButtonRef = useRef<HTMLButtonElement>(null);
-=======
-    isCurrentUserResponsible,
-  } = useMockSession();
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
   const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>(emptyPasswordForm);
@@ -74,14 +55,11 @@ export function ProfilePage() {
     initialProfilePreferences,
   );
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
-<<<<<<< HEAD
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
   const [avatarDraft, setAvatarDraft] = useState<UserAvatarModel>({
     type: "initials",
   });
-  const [successTitle, setSuccessTitle] = useState<string>("Acción registrada");
-=======
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
+  const [successTitle, setSuccessTitle] = useState<string>("AcciÃ³n registrada");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -116,7 +94,6 @@ export function ProfilePage() {
   }
 
   const profile = buildProfileView(authenticatedUser, account);
-<<<<<<< HEAD
   const authenticatedUserId = authenticatedUser.userId;
   const activeParticipation = getActiveParticipation(authenticatedUser.userId);
   const isResponsible = isCurrentUserResponsible();
@@ -141,33 +118,23 @@ export function ProfilePage() {
     chooseAvatarButtonRef.current?.focus();
     setSuccessTitle("Avatar actualizado correctamente.");
     setSuccessMessage(
-      "Este cambio se conservará permanentemente cuando el sistema esté conectado a la base de datos.",
+      "Este cambio se conservarÃ¡ permanentemente cuando el sistema estÃ© conectado a la base de datos.",
     );
   }
-=======
-  const activeParticipation = getActiveParticipation(authenticatedUser.userId);
-  const isResponsible = isCurrentUserResponsible();
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 
   function savePassword() {
     setPasswordForm(emptyPasswordForm);
     setIsPasswordFormOpen(false);
-<<<<<<< HEAD
-    setSuccessTitle("Acción registrada");
-=======
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
+    setSuccessTitle("AcciÃ³n registrada");
     setSuccessMessage(
-      "Esta funcionalidad estará disponible cuando el sistema utilice autenticación real.",
+      "Esta funcionalidad estarÃ¡ disponible cuando el sistema utilice autenticaciÃ³n real.",
     );
   }
 
   function savePreferences() {
     setPreferences(preferencesDraft);
     setIsEditingPreferences(false);
-<<<<<<< HEAD
-    setSuccessTitle("Acción registrada");
-=======
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
+    setSuccessTitle("AcciÃ³n registrada");
     setSuccessMessage("Preferencias mock actualizadas correctamente.");
   }
 
@@ -175,15 +142,14 @@ export function ProfilePage() {
     <>
       <PageHeader
         title="Mi perfil"
-        description="Consulta la información de tu cuenta y personaliza tus preferencias."
+        description="Consulta la informaciÃ³n de tu cuenta y personaliza tus preferencias."
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <ProfileCard
-            title="Información personal"
+            title="InformaciÃ³n personal"
             description="Datos visibles de la cuenta autenticada."
-<<<<<<< HEAD
             action={
               <button
                 ref={chooseAvatarButtonRef}
@@ -200,13 +166,6 @@ export function ProfilePage() {
               <UserAvatar
                 name={profile.displayName}
                 avatar={currentAvatar}
-=======
-          >
-            <div className="flex items-start gap-4">
-              <UserInitialsAvatar
-                name={profile.displayName}
-                imageUrl={profile.avatar}
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
                 size="lg"
               />
               <div className="min-w-0">
@@ -229,12 +188,12 @@ export function ProfilePage() {
 
           <ProfileCard
             title="Estado"
-            description="Información derivada de la participación actual."
+            description="InformaciÃ³n derivada de la participaciÃ³n actual."
           >
             <ProfileRows
               rows={[
-                ["Participación", activeParticipation ? "Activa" : "Inactiva"],
-                ["Responsable actual", isResponsible ? "Sí" : "No"],
+                ["ParticipaciÃ³n", activeParticipation ? "Activa" : "Inactiva"],
+                ["Responsable actual", isResponsible ? "SÃ­" : "No"],
                 ["Turno", activeParticipation ? "Turno actual" : "Sin turno"],
               ]}
             />
@@ -242,13 +201,13 @@ export function ProfilePage() {
 
           <ProfileCard
             title="Actividad"
-            description="Estado de actividad disponible en la sesión mock."
+            description="Estado de actividad disponible en la sesiÃ³n mock."
           >
             {activeParticipation ? (
               <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <Clock3 className="h-4 w-4 text-[#2563EB]" />
-                  Participación iniciada
+                  ParticipaciÃ³n iniciada
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Inicio registrado a las {activeParticipation.startedAt}.
@@ -256,7 +215,7 @@ export function ProfilePage() {
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-                Sin participación activa en este momento.
+                Sin participaciÃ³n activa en este momento.
               </p>
             )}
           </ProfileCard>
@@ -273,20 +232,20 @@ export function ProfilePage() {
                 onClick={() => setIsPasswordFormOpen((current) => !current)}
               >
                 <KeyRound className="h-4 w-4" />
-                Cambiar contraseña
+                Cambiar contraseÃ±a
               </button>
             }
           >
             <ProfileRows
               rows={[
-                ["Contraseña", "••••••••"],
-                ["Último cambio", "Pendiente"],
+                ["ContraseÃ±a", "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"],
+                ["Ãšltimo cambio", "Pendiente"],
               ]}
             />
             {isPasswordFormOpen && (
               <div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <PasswordField
-                  label="Contraseña actual"
+                  label="ContraseÃ±a actual"
                   value={passwordForm.currentPassword}
                   onChange={(currentPassword) =>
                     setPasswordForm((current) => ({
@@ -296,7 +255,7 @@ export function ProfilePage() {
                   }
                 />
                 <PasswordField
-                  label="Nueva contraseña"
+                  label="Nueva contraseÃ±a"
                   value={passwordForm.newPassword}
                   onChange={(newPassword) =>
                     setPasswordForm((current) => ({
@@ -306,7 +265,7 @@ export function ProfilePage() {
                   }
                 />
                 <PasswordField
-                  label="Confirmar contraseña"
+                  label="Confirmar contraseÃ±a"
                   value={passwordForm.confirmPassword}
                   onChange={(confirmPassword) =>
                     setPasswordForm((current) => ({
@@ -358,14 +317,14 @@ export function ProfilePage() {
           </ProfileCard>
 
           <ProfileCard
-            title="Información de cuenta"
+            title="InformaciÃ³n de cuenta"
             description="Datos no editables asociados a la cuenta actual."
           >
             <ProfileRows
               rows={[
                 ["Cuenta creada", profile.createdAtLabel],
-                ["Último acceso", profile.lastLoginLabel],
-                ["Versión del sistema", "0.9.0 Demo"],
+                ["Ãšltimo acceso", profile.lastLoginLabel],
+                ["VersiÃ³n del sistema", "0.9.0 Demo"],
                 ["Entorno", "Mock"],
                 ["Rol", getUserRoleLabel(profile.systemRole)],
               ]}
@@ -373,8 +332,8 @@ export function ProfilePage() {
           </ProfileCard>
 
           <ProfileCard
-            title="Próximamente"
-            description="Funciones reservadas para autenticación real."
+            title="PrÃ³ximamente"
+            description="Funciones reservadas para autenticaciÃ³n real."
             muted
           >
             <div className="space-y-3">
@@ -387,7 +346,7 @@ export function ProfilePage() {
                     {item}
                   </span>
                   <span className="text-right text-sm text-slate-500">
-                    Pendiente de autenticación.
+                    Pendiente de autenticaciÃ³n.
                   </span>
                 </div>
               ))}
@@ -396,7 +355,6 @@ export function ProfilePage() {
         </div>
       </div>
 
-<<<<<<< HEAD
       <AvatarPickerDialog
         isOpen={isAvatarDialogOpen}
         name={profile.displayName}
@@ -411,11 +369,6 @@ export function ProfilePage() {
       <SuccessDialog
         isOpen={successMessage !== null}
         title={successTitle}
-=======
-      <SuccessDialog
-        isOpen={successMessage !== null}
-        title="Acción registrada"
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
         description={successMessage ?? ""}
         onClose={() => setSuccessMessage(null)}
       />
@@ -423,7 +376,6 @@ export function ProfilePage() {
   );
 }
 
-<<<<<<< HEAD
 function AvatarPickerDialog({
   isOpen,
   name,
@@ -513,7 +465,7 @@ function AvatarPickerDialog({
               <p className="mt-4 text-center text-sm font-medium text-slate-700">
                 {areSameAvatar(selectedAvatar, currentAvatar)
                   ? "Avatar actual"
-                  : "Nueva selección"}
+                  : "Nueva selecciÃ³n"}
               </p>
             </aside>
 
@@ -588,8 +540,6 @@ function AvatarOptionButton({
   );
 }
 
-=======
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 function ProfileCard({
   title,
   description,
@@ -771,11 +721,7 @@ function buildProfileView(
     createdAtLabel: account ? formatDate(account.createdAt) : "Pendiente",
     lastLoginLabel: account
       ? getLastLoginLabel(account.lastLogin)
-      : "Sesión actual",
-<<<<<<< HEAD
-=======
-    avatar: account?.avatar,
->>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
+      : "SesiÃ³n actual",
   };
 }
 
