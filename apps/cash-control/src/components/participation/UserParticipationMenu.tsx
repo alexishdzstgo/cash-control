@@ -3,8 +3,15 @@
 import {
   ChevronDown,
   Circle,
+
   LogOut,
   ShieldCheck,
+
+  KeyRound,
+  LogOut,
+  ShieldCheck,
+  SlidersHorizontal,
+
   UserCheck,
   UserPlus,
   UserRound,
@@ -13,7 +20,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+
 import { UserAvatar } from "@/components/shared/UserAvatar";
+
+
 import { EndParticipationModal } from "./EndParticipationModal";
 import { TransferResponsibilityModal } from "./TransferResponsibilityModal";
 import { useResponsibilityTransfer } from "./useResponsibilityTransfer";
@@ -219,6 +229,7 @@ export function UserParticipationMenu() {
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
+
         <UserAvatar
           name={authenticatedUser.userName}
           avatar={currentUserAvatar}
@@ -229,6 +240,17 @@ export function UserParticipationMenu() {
               : "ring-2 ring-brand-primary-soft"
           }
         />
+
+        <div
+          className={`flex h-7 w-7 items-center justify-center rounded-full ${
+            activeParticipation
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-brand-primary-soft text-brand-primary"
+          }`}
+        >
+          <UserRound className="h-4 w-4" />
+        </div>
+
         <span className="hidden md:inline">{authenticatedUser.userName}</span>
         {activeParticipation && (
           <span className="hidden lg:inline-flex items-center gap-1.5">
@@ -384,6 +406,30 @@ export function UserParticipationMenu() {
               <UserRound className="h-4 w-4" />
               Mi perfil
             </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                handleProfileNavigation("/profile?section=security")
+              }
+              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              role="menuitem"
+            >
+              <KeyRound className="h-4 w-4" />
+              Cambiar contraseña
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleProfileNavigation("/profile?section=preferences")
+              }
+              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              role="menuitem"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Preferencias
+            </button>
+
           </div>
 
           <div className="border-t border-slate-100 p-2">

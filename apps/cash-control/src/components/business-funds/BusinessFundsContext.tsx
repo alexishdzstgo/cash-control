@@ -135,6 +135,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setBanks(nextBalances.banks);
     setMovements((current) => [movement, ...current]);
     return { success: true, movement };
+
   }
 
   function registerClientOperation(operation: Operation): {
@@ -160,6 +161,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setOperations((current) => [operation, ...current]);
 
     return { success: true, operation };
+
   }
 
   function correctMovement(input: CorrectAdministrativeMovementInput): {

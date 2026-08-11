@@ -1,5 +1,6 @@
 "use client";
 
+<<<<<<< HEAD
 import { Check, Clock3, KeyRound, Pencil, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +13,19 @@ import { areSameAvatar, generateAvatarOptions } from "@/lib/avatar";
 import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
 import type { ProfilePreferences } from "@/types/profile";
 import type { UserAccount, UserAvatar as UserAvatarModel } from "@/types/user";
+=======
+import { Clock3, KeyRound, Pencil } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useMockSession } from "@/components/session/MockSessionContext";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { UserInitialsAvatar } from "@/components/shared/UserInitialsAvatar";
+import { initialUserAccounts } from "@/components/users/userMockData";
+import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
+import type { ProfilePreferences } from "@/types/profile";
+import type { UserAccount } from "@/types/user";
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 import { initialProfilePreferences } from "./profileMockData";
 
 type PasswordForm = {
@@ -40,11 +54,16 @@ export function ProfilePage() {
   const {
     authenticatedUser,
     getActiveParticipation,
+<<<<<<< HEAD
     getUserAvatar,
     isCurrentUserResponsible,
     updateUserAvatar,
   } = useMockSession();
   const chooseAvatarButtonRef = useRef<HTMLButtonElement>(null);
+=======
+    isCurrentUserResponsible,
+  } = useMockSession();
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
   const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>(emptyPasswordForm);
@@ -55,11 +74,14 @@ export function ProfilePage() {
     initialProfilePreferences,
   );
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
+<<<<<<< HEAD
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
   const [avatarDraft, setAvatarDraft] = useState<UserAvatarModel>({
     type: "initials",
   });
   const [successTitle, setSuccessTitle] = useState<string>("Acción registrada");
+=======
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,6 +116,7 @@ export function ProfilePage() {
   }
 
   const profile = buildProfileView(authenticatedUser, account);
+<<<<<<< HEAD
   const authenticatedUserId = authenticatedUser.userId;
   const activeParticipation = getActiveParticipation(authenticatedUser.userId);
   const isResponsible = isCurrentUserResponsible();
@@ -121,11 +144,18 @@ export function ProfilePage() {
       "Este cambio se conservará permanentemente cuando el sistema esté conectado a la base de datos.",
     );
   }
+=======
+  const activeParticipation = getActiveParticipation(authenticatedUser.userId);
+  const isResponsible = isCurrentUserResponsible();
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 
   function savePassword() {
     setPasswordForm(emptyPasswordForm);
     setIsPasswordFormOpen(false);
+<<<<<<< HEAD
     setSuccessTitle("Acción registrada");
+=======
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
     setSuccessMessage(
       "Esta funcionalidad estará disponible cuando el sistema utilice autenticación real.",
     );
@@ -134,7 +164,10 @@ export function ProfilePage() {
   function savePreferences() {
     setPreferences(preferencesDraft);
     setIsEditingPreferences(false);
+<<<<<<< HEAD
     setSuccessTitle("Acción registrada");
+=======
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
     setSuccessMessage("Preferencias mock actualizadas correctamente.");
   }
 
@@ -150,6 +183,7 @@ export function ProfilePage() {
           <ProfileCard
             title="Información personal"
             description="Datos visibles de la cuenta autenticada."
+<<<<<<< HEAD
             action={
               <button
                 ref={chooseAvatarButtonRef}
@@ -166,6 +200,13 @@ export function ProfilePage() {
               <UserAvatar
                 name={profile.displayName}
                 avatar={currentAvatar}
+=======
+          >
+            <div className="flex items-start gap-4">
+              <UserInitialsAvatar
+                name={profile.displayName}
+                imageUrl={profile.avatar}
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
                 size="lg"
               />
               <div className="min-w-0">
@@ -355,6 +396,7 @@ export function ProfilePage() {
         </div>
       </div>
 
+<<<<<<< HEAD
       <AvatarPickerDialog
         isOpen={isAvatarDialogOpen}
         name={profile.displayName}
@@ -369,6 +411,11 @@ export function ProfilePage() {
       <SuccessDialog
         isOpen={successMessage !== null}
         title={successTitle}
+=======
+      <SuccessDialog
+        isOpen={successMessage !== null}
+        title="Acción registrada"
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
         description={successMessage ?? ""}
         onClose={() => setSuccessMessage(null)}
       />
@@ -376,6 +423,7 @@ export function ProfilePage() {
   );
 }
 
+<<<<<<< HEAD
 function AvatarPickerDialog({
   isOpen,
   name,
@@ -540,6 +588,8 @@ function AvatarOptionButton({
   );
 }
 
+=======
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
 function ProfileCard({
   title,
   description,
@@ -722,6 +772,10 @@ function buildProfileView(
     lastLoginLabel: account
       ? getLastLoginLabel(account.lastLogin)
       : "Sesión actual",
+<<<<<<< HEAD
+=======
+    avatar: account?.avatar,
+>>>>>>> 133d5ad47323e1deb1d3e17dcde0d85996f24f4e
   };
 }
 
