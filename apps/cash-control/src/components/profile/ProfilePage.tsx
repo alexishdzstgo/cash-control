@@ -1,16 +1,17 @@
 "use client";
 
-import { Clock3, KeyRound, Pencil } from "lucide-react";
+import { Check, Clock3, KeyRound, Pencil, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { UserInitialsAvatar } from "@/components/shared/UserInitialsAvatar";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { initialUserAccounts } from "@/components/users/userMockData";
+import { areSameAvatar, generateAvatarOptions } from "@/lib/avatar";
 import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
 import type { ProfilePreferences } from "@/types/profile";
-import type { UserAccount } from "@/types/user";
+import type { UserAccount, UserAvatar as UserAvatarModel } from "@/types/user";
 import { initialProfilePreferences } from "./profileMockData";
 
 type PasswordForm = {
@@ -39,8 +40,11 @@ export function ProfilePage() {
   const {
     authenticatedUser,
     getActiveParticipation,
+    getUserAvatar,
     isCurrentUserResponsible,
+    updateUserAvatar,
   } = useMockSession();
+  const chooseAvatarButtonRef = useRef<HTMLButtonElement>(null);
   const [isPasswordFormOpen, setIsPasswordFormOpen] = useState(false);
   const [passwordForm, setPasswordForm] =
     useState<PasswordForm>(emptyPasswordForm);
@@ -51,6 +55,11 @@ export function ProfilePage() {
     initialProfilePreferences,
   );
   const [isEditingPreferences, setIsEditingPreferences] = useState(false);
+  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+  const [avatarDraft, setAvatarDraft] = useState<UserAvatarModel>({
+    type: "initials",
+  });
+  const [successTitle, setSuccessTitle] = useState<string>("Acción registrada");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,12 +94,38 @@ export function ProfilePage() {
   }
 
   const profile = buildProfileView(authenticatedUser, account);
+  const authenticatedUserId = authenticatedUser.userId;
   const activeParticipation = getActiveParticipation(authenticatedUser.userId);
   const isResponsible = isCurrentUserResponsible();
+  const currentAvatar = getUserAvatar(authenticatedUserId);
+  const avatarOptions = generateAvatarOptions({
+    userId: authenticatedUserId,
+  });
+
+  function openAvatarDialog() {
+    setAvatarDraft(currentAvatar ?? { type: "initials" });
+    setIsAvatarDialogOpen(true);
+  }
+
+  function closeAvatarDialog() {
+    setIsAvatarDialogOpen(false);
+    chooseAvatarButtonRef.current?.focus();
+  }
+
+  function saveAvatar() {
+    updateUserAvatar(authenticatedUserId, avatarDraft);
+    setIsAvatarDialogOpen(false);
+    chooseAvatarButtonRef.current?.focus();
+    setSuccessTitle("Avatar actualizado correctamente.");
+    setSuccessMessage(
+      "Este cambio se conservará permanentemente cuando el sistema esté conectado a la base de datos.",
+    );
+  }
 
   function savePassword() {
     setPasswordForm(emptyPasswordForm);
     setIsPasswordFormOpen(false);
+    setSuccessTitle("Acción registrada");
     setSuccessMessage(
       "Esta funcionalidad estará disponible cuando el sistema utilice autenticación real.",
     );
@@ -99,6 +134,7 @@ export function ProfilePage() {
   function savePreferences() {
     setPreferences(preferencesDraft);
     setIsEditingPreferences(false);
+    setSuccessTitle("Acción registrada");
     setSuccessMessage("Preferencias mock actualizadas correctamente.");
   }
 
@@ -114,11 +150,22 @@ export function ProfilePage() {
           <ProfileCard
             title="Información personal"
             description="Datos visibles de la cuenta autenticada."
+            action={
+              <button
+                ref={chooseAvatarButtonRef}
+                type="button"
+                className="btn-secondary"
+                onClick={openAvatarDialog}
+              >
+                <Pencil className="h-4 w-4" />
+                Elegir avatar
+              </button>
+            }
           >
             <div className="flex items-start gap-4">
-              <UserInitialsAvatar
+              <UserAvatar
                 name={profile.displayName}
-                imageUrl={profile.avatar}
+                avatar={currentAvatar}
                 size="lg"
               />
               <div className="min-w-0">
@@ -308,13 +355,188 @@ export function ProfilePage() {
         </div>
       </div>
 
+      <AvatarPickerDialog
+        isOpen={isAvatarDialogOpen}
+        name={profile.displayName}
+        currentAvatar={currentAvatar}
+        selectedAvatar={avatarDraft}
+        options={avatarOptions}
+        onSelect={setAvatarDraft}
+        onClose={closeAvatarDialog}
+        onSave={saveAvatar}
+      />
+
       <SuccessDialog
         isOpen={successMessage !== null}
-        title="Acción registrada"
+        title={successTitle}
         description={successMessage ?? ""}
         onClose={() => setSuccessMessage(null)}
       />
     </>
+  );
+}
+
+function AvatarPickerDialog({
+  isOpen,
+  name,
+  currentAvatar,
+  selectedAvatar,
+  options,
+  onSelect,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean;
+  name: string;
+  currentAvatar: UserAvatarModel | undefined;
+  selectedAvatar: UserAvatarModel;
+  options: UserAvatarModel[];
+  onSelect: (avatar: UserAvatarModel) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    titleRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const initialsAvatar: UserAvatarModel = { type: "initials" };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-3 sm:p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="avatar-dialog-title"
+        className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+          <div>
+            <h2
+              id="avatar-dialog-title"
+              ref={titleRef}
+              tabIndex={-1}
+              className="text-lg font-bold text-slate-950 outline-none"
+            >
+              Elige tu avatar
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Selecciona una imagen para identificar tu cuenta dentro del
+              sistema.
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Cerrar selector de avatar"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+
+        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <aside className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">
+                Vista previa
+              </p>
+              <div className="mt-4 flex justify-center">
+                <UserAvatar
+                  name={name}
+                  avatar={selectedAvatar}
+                  size="xl"
+                  className="ring-4 ring-white"
+                />
+              </div>
+              <p className="mt-4 text-center text-sm font-medium text-slate-700">
+                {areSameAvatar(selectedAvatar, currentAvatar)
+                  ? "Avatar actual"
+                  : "Nueva selección"}
+              </p>
+            </aside>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <AvatarOptionButton
+                label="Usar iniciales como avatar"
+                name={name}
+                avatar={initialsAvatar}
+                selected={areSameAvatar(selectedAvatar, initialsAvatar)}
+                onSelect={() => onSelect(initialsAvatar)}
+              />
+              {options.map((avatar, index) => (
+                <AvatarOptionButton
+                  key={avatar.type === "generated" ? avatar.seed : "initials"}
+                  label={`Seleccionar avatar ${index + 1}`}
+                  name={name}
+                  avatar={avatar}
+                  selected={areSameAvatar(selectedAvatar, avatar)}
+                  onSelect={() => onSelect(avatar)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Volver
+          </button>
+          <button type="button" className="btn-primary" onClick={onSave}>
+            Guardar avatar
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function AvatarOptionButton({
+  label,
+  name,
+  avatar,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  name: string;
+  avatar: UserAvatarModel;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={`group rounded-lg border p-3 text-center transition focus:outline-none focus:ring-2 focus:ring-[#2563EB] ${
+        selected
+          ? "border-[#2563EB] bg-[#EFF6FF] ring-2 ring-blue-100"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <div className="flex justify-center">
+        <UserAvatar name={name} avatar={avatar} size="lg" />
+      </div>
+      <div className="mt-2 flex min-h-5 items-center justify-center gap-1 text-xs font-semibold text-slate-600">
+        {selected && <Check className="h-3.5 w-3.5 text-[#2563EB]" />}
+        <span>{selected ? "Seleccionado" : "Elegir"}</span>
+      </div>
+    </button>
   );
 }
 
@@ -500,7 +722,6 @@ function buildProfileView(
     lastLoginLabel: account
       ? getLastLoginLabel(account.lastLogin)
       : "Sesión actual",
-    avatar: account?.avatar,
   };
 }
 

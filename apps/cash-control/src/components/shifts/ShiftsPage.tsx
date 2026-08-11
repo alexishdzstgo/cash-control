@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { ActiveShiftCard } from "./ActiveShiftCard";
-import { ShiftParticipants } from "./ShiftParticipants";
-import { ShiftActivityTimeline } from "./ShiftActivityTimeline";
-import { ShiftHistory } from "./ShiftHistory";
-import { AddParticipantModal } from "./AddParticipantModal";
-import { RemoveParticipantDialog } from "./RemoveParticipantDialog";
-import { ShiftDetailsModal } from "./ShiftDetailsModal";
+import { useMemo, useState } from "react";
+import { TransferResponsibilityModal } from "@/components/participation/TransferResponsibilityModal";
+import { useResponsibilityTransfer } from "@/components/participation/useResponsibilityTransfer";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { mockRegisteredUsers } from "@/components/workstation/mockData";
 import type { Participant } from "@/components/workstation/types";
-import { useResponsibilityTransfer } from "@/components/participation/useResponsibilityTransfer";
-import { TransferResponsibilityModal } from "@/components/participation/TransferResponsibilityModal";
-import { mockShifts } from "./shiftsMockData";
 import type { Shift, ShiftParticipant } from "@/types/shift";
+import { ActiveShiftCard } from "./ActiveShiftCard";
+import { AddParticipantModal } from "./AddParticipantModal";
+import { RemoveParticipantDialog } from "./RemoveParticipantDialog";
+import { ShiftActivityTimeline } from "./ShiftActivityTimeline";
+import { ShiftDetailsModal } from "./ShiftDetailsModal";
+import { ShiftHistory } from "./ShiftHistory";
+import { ShiftParticipants } from "./ShiftParticipants";
+import { mockShifts } from "./shiftsMockData";
 
 /**
  * Maps a systemRole from the workstation types to the shift types.
@@ -31,15 +31,20 @@ const systemRoleToShiftRole = (role: string): "owner" | "employee" => {
  * Transforms a context Participant (workstation/types) into a ShiftParticipant (types/shift)
  * for rendering in the shift UI.
  */
-function participantToShiftParticipant(p: Participant): ShiftParticipant {
+function participantToShiftParticipant(
+  p: Participant,
+  getUserAvatar: (userId: string) => ShiftParticipant["avatar"],
+): ShiftParticipant {
   return {
     id: p.id,
     userId: p.userId,
     name: p.userName,
     systemRole: systemRoleToShiftRole(
-      mockRegisteredUsers.find((u) => u.userId === p.userId)?.systemRole ?? "employee"
+      mockRegisteredUsers.find((u) => u.userId === p.userId)?.systemRole ??
+        "employee",
     ),
-    shiftRole: p.participationType === "responsible" ? "shift_responsible" : "operator",
+    shiftRole:
+      p.participationType === "responsible" ? "shift_responsible" : "operator",
     joinedAt: (() => {
       const now = new Date();
       const [hours, minutes] = p.startedAt.split(":").map(Number);
@@ -47,6 +52,7 @@ function participantToShiftParticipant(p: Participant): ShiftParticipant {
       return now.toISOString();
     })(),
     status: p.status === "active" ? "active" : "left",
+    avatar: getUserAvatar(p.userId),
   };
 }
 
@@ -58,7 +64,7 @@ function getAvailableUsers(contextParticipants: Participant[]) {
   const activeUserIds = new Set(
     contextParticipants
       .filter((p) => p.status === "active")
-      .map((p) => p.userId)
+      .map((p) => p.userId),
   );
   return mockRegisteredUsers
     .filter((u) => !activeUserIds.has(u.userId))
@@ -66,19 +72,30 @@ function getAvailableUsers(contextParticipants: Participant[]) {
       userId: u.userId,
       name: u.userName,
       systemRole: systemRoleToShiftRole(u.systemRole),
+      avatar: undefined,
     }));
 }
 
 export function ShiftsPage() {
   const [shift, setShift] = useState<Shift>(mockShifts.active);
-  const [closedShifts, setClosedShifts] = useState<Shift[]>(mockShifts.closed);
+  const [closedShifts] = useState<Shift[]>(mockShifts.closed);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [selectedParticipant, setSelectedParticipant] = useState<ShiftParticipant | null>(null);
+  const [selectedParticipant, setSelectedParticipant] =
+    useState<ShiftParticipant | null>(null);
 
-  const { authenticatedUser, participants: contextParticipants, addParticipant, removeParticipant, canAddParticipant, canRemoveParticipant, canTransferResponsibility, isCurrentUserResponsible, getContextResponsibleUserId } = useMockSession();
+  const {
+    getUserAvatar,
+    participants: contextParticipants,
+    addParticipant,
+    removeParticipant,
+    canAddParticipant,
+    canRemoveParticipant,
+    isCurrentUserResponsible,
+    getContextResponsibleUserId,
+  } = useMockSession();
   const {
     showTransferModal,
     selectedTransferUser,
@@ -95,21 +112,29 @@ export function ShiftsPage() {
 
   const activeContextParticipants = useMemo(
     () => contextParticipants.filter((p) => p.status === "active"),
-    [contextParticipants]
+    [contextParticipants],
   );
 
   const displayParticipants = useMemo(
-    () => activeContextParticipants.map(participantToShiftParticipant),
-    [activeContextParticipants]
+    () =>
+      activeContextParticipants.map((participant) =>
+        participantToShiftParticipant(participant, getUserAvatar),
+      ),
+    [activeContextParticipants, getUserAvatar],
   );
 
-  const contextResponsibleUserId = getContextResponsibleUserId() ?? shift.responsibleUserId;
+  const contextResponsibleUserId =
+    getContextResponsibleUserId() ?? shift.responsibleUserId;
 
   // ── Derived available users (computed from context, no local state) ──
 
   const availableUsers = useMemo(
-    () => getAvailableUsers(contextParticipants),
-    [contextParticipants]
+    () =>
+      getAvailableUsers(contextParticipants).map((user) => ({
+        ...user,
+        avatar: getUserAvatar(user.userId),
+      })),
+    [contextParticipants, getUserAvatar],
   );
 
   // ── Derived shift for child components ──
@@ -120,14 +145,18 @@ export function ShiftsPage() {
       participants: displayParticipants,
       responsibleUserId: contextResponsibleUserId,
     }),
-    [shift, displayParticipants, contextResponsibleUserId]
+    [shift, displayParticipants, contextResponsibleUserId],
   );
 
   // ── Permissions (delegated to domain capabilities) ──
 
   // ── Handlers ──
 
-  const handleAddParticipant = (user: { userId: string; name: string; systemRole: "owner" | "employee" }) => {
+  const handleAddParticipant = (user: {
+    userId: string;
+    name: string;
+    systemRole: "owner" | "employee";
+  }) => {
     if (!canAddParticipant()) return;
 
     addParticipant(user.userId);
@@ -148,7 +177,9 @@ export function ShiftsPage() {
   };
 
   const handleRemoveParticipant = (participantId: string) => {
-    const participant = derivedShift.participants.find((p) => p.id === participantId);
+    const participant = derivedShift.participants.find(
+      (p) => p.id === participantId,
+    );
     if (!participant) return;
 
     if (!canRemoveParticipant(participant.userId)) return;
@@ -178,14 +209,6 @@ export function ShiftsPage() {
     }
   };
 
-  const handleRemoveFromCard = (participantId: string) => {
-    const participant = derivedShift.participants.find((p) => p.id === participantId);
-    if (participant) {
-      setSelectedParticipant(participant);
-      setIsRemoveDialogOpen(true);
-    }
-  };
-
   const handleStartClosing = () => {
     window.location.href = "/cash-closing";
   };
@@ -202,7 +225,9 @@ export function ShiftsPage() {
           shift={derivedShift}
           onViewDetails={() => setIsDetailsModalOpen(true)}
           onManageParticipants={() => {
-            const participantsSection = document.getElementById("participants-section");
+            const participantsSection = document.getElementById(
+              "participants-section",
+            );
             participantsSection?.scrollIntoView({ behavior: "smooth" });
           }}
           onTransferResponsibility={() => {
@@ -216,7 +241,10 @@ export function ShiftsPage() {
           onStartClosing={handleStartClosing}
         />
 
-        <div id="participants-section" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div
+          id="participants-section"
+          className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+        >
           <ShiftParticipants
             shift={derivedShift}
             canAddParticipants={canAddParticipant()}

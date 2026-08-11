@@ -1,13 +1,16 @@
 "use client";
 
-import type { Shift } from "@/types/shift";
 import { Badge } from "@/components/ui/badge";
+import type { Shift } from "@/types/shift";
 
 interface ShiftHistoryProps {
   shifts: Shift[];
 }
 
-const statusLabels: Record<string, { label: string; variant: "neutral" | "alert" }> = {
+const statusLabels: Record<
+  string,
+  { label: string; variant: "neutral" | "alert" }
+> = {
   closed: {
     label: "Cerrado",
     variant: "neutral",
@@ -28,9 +31,13 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
   if (shifts.length === 0) {
     return (
       <div className="rounded-xl border border-brand-border bg-white p-6">
-        <h3 className="text-lg font-semibold text-slate-900">Historial de turnos</h3>
+        <h3 className="text-lg font-semibold text-slate-900">
+          Historial de turnos
+        </h3>
         <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-8 text-center">
-          <p className="text-sm text-slate-500">Todavía no hay turnos anteriores.</p>
+          <p className="text-sm text-slate-500">
+            Todavía no hay turnos anteriores.
+          </p>
         </div>
       </div>
     );
@@ -38,7 +45,9 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
 
   return (
     <div className="rounded-xl border border-brand-border bg-white p-6">
-      <h3 className="text-lg font-semibold text-slate-900">Historial de turnos</h3>
+      <h3 className="text-lg font-semibold text-slate-900">
+        Historial de turnos
+      </h3>
 
       {/* Desktop table */}
       <div className="mt-4 hidden md:block overflow-x-auto">
@@ -56,18 +65,25 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
           </thead>
           <tbody className="divide-y divide-slate-200">
             {shifts.map((shift) => {
-              const responsible = shift.participants.find((p) => p.userId === shift.responsibleUserId);
-              const statusInfo = statusLabels[shift.status] ?? statusLabels.closed;
+              const responsible = shift.participants.find(
+                (p) => p.userId === shift.responsibleUserId,
+              );
+              const statusInfo =
+                statusLabels[shift.status] ?? statusLabels.closed;
               const resultText = shift.closingResult
                 ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de $${Math.abs(shift.closingDifference).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : ""}`
                 : "—";
 
               return (
                 <tr key={shift.id} className="text-slate-600">
-                  <td className="py-3 font-medium text-slate-900">{shift.name}</td>
+                  <td className="py-3 font-medium text-slate-900">
+                    {shift.name}
+                  </td>
                   <td className="py-3">
                     <div>
-                      <p className="text-slate-900">{responsible?.name ?? "Sin asignar"}</p>
+                      <p className="text-slate-900">
+                        {responsible?.name ?? "Sin asignar"}
+                      </p>
                       {responsible && responsible.systemRole === "owner" && (
                         <p className="text-xs text-slate-500">Dueño</p>
                       )}
@@ -93,10 +109,14 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
                         })
                       : "—"}
                   </td>
-                  <td className="py-3 text-slate-600">{shift.currentDuration ?? "—"}</td>
+                  <td className="py-3 text-slate-600">
+                    {shift.currentDuration ?? "—"}
+                  </td>
                   <td className="py-3 text-slate-600">{resultText}</td>
                   <td className="py-3">
-                    <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                    <Badge variant={statusInfo.variant}>
+                      {statusInfo.label}
+                    </Badge>
                   </td>
                 </tr>
               );
@@ -108,14 +128,19 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
       {/* Mobile cards */}
       <div className="mt-4 space-y-3 md:hidden">
         {shifts.map((shift) => {
-          const responsible = shift.participants.find((p) => p.userId === shift.responsibleUserId);
+          const responsible = shift.participants.find(
+            (p) => p.userId === shift.responsibleUserId,
+          );
           const statusInfo = statusLabels[shift.status] ?? statusLabels.closed;
           const resultText = shift.closingResult
             ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de $${Math.abs(shift.closingDifference).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : ""}`
             : "—";
 
           return (
-            <div key={shift.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+            <div
+              key={shift.id}
+              className="rounded-lg border border-slate-200 bg-slate-50/50 p-4"
+            >
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium text-slate-900">{shift.name}</p>
@@ -153,7 +178,9 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
                 </div>
                 <div>
                   <p className="text-slate-400">Duración</p>
-                  <p className="text-slate-700">{shift.currentDuration ?? "—"}</p>
+                  <p className="text-slate-700">
+                    {shift.currentDuration ?? "—"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-400">Resultado</p>

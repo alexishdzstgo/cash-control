@@ -3,6 +3,7 @@ import type {
   CommissionLocation,
   CommissionStatus,
 } from "@/types/commission";
+import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 
 export type OperationType =
   | "deposito"
@@ -32,11 +33,14 @@ export type Operation = {
 
   bankFrom?: string;
   bankTo?: string;
+  bankResourceId?: string;
 
   destinationReference?: string;
-  deliveryMethod?:
-    | "bank-transfer"
-    | "cash-deposit";
+  destinationAccountLast4?: string;
+  deliveryMethod?: "bank-transfer" | "cash-deposit";
+  withdrawalCommissionMode?: WithdrawalCommissionMode;
+  customerCashReceived?: number;
+  bankMovementAmount?: number;
 
   pendingReason?: string;
   pendingReasonDetails?: string;

@@ -11,12 +11,12 @@ type AmountFieldProps = {
   min?: number;
   step?: number;
   className?: string;
+  error?: string;
   /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
 };
 
-const inputBase =
-  "field-input pl-8";
+const inputBase = "field-input";
 
 export function AmountField({
   id,
@@ -29,6 +29,7 @@ export function AmountField({
   min = 0,
   step = 0.01,
   className = "",
+  error,
 }: AmountFieldProps) {
   return (
     <div className={className}>
@@ -55,8 +56,17 @@ export function AmountField({
           min={min}
           step={step}
           className={inputBase}
+          style={{ paddingLeft: "2.75rem" }}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
         />
       </div>
+
+      {error && (
+        <p id={`${id}-error`} className="mt-2 text-sm font-medium text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

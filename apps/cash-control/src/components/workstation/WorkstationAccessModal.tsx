@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
-import { UserSelectionStep } from "./UserSelectionStep";
-import { UserPinStep } from "./UserPinStep";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useMockSession } from "@/components/session/MockSessionContext";
 import type { RegisteredUser } from "./types";
+import { UserPinStep } from "./UserPinStep";
+import { UserSelectionStep } from "./UserSelectionStep";
 
 type ModalStep = "selection" | "pin";
 
@@ -29,6 +30,7 @@ export function WorkstationAccessModal({
   onJoin,
   onCancel,
 }: WorkstationAccessModalProps) {
+  const { getUserAvatar } = useMockSession();
   const [step, setStep] = useState<ModalStep>("selection");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -84,7 +86,7 @@ export function WorkstationAccessModal({
     } else {
       onJoin(selectedUserId);
     }
-    
+
     // Reset state after confirmation
     setSelectedUserId(null);
     setStep("selection");
@@ -118,15 +120,11 @@ export function WorkstationAccessModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in"
-      onClick={handleCancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="workstation-access-title"
     >
-      <div
-        className="relative mx-auto w-full max-w-lg rounded-2xl bg-white shadow-2xl animate-scale-in"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative mx-auto w-full max-w-lg rounded-2xl bg-white shadow-2xl animate-scale-in">
         <div className="flex items-center justify-between border-b border-brand-border px-6 py-4">
           <h2
             id="workstation-access-title"
@@ -160,6 +158,7 @@ export function WorkstationAccessModal({
             selectedUser && (
               <UserPinStep
                 selectedUserName={selectedUser.userName}
+                selectedUserAvatar={getUserAvatar(selectedUser.userId)}
                 onBack={handleBack}
                 onConfirm={handleConfirm}
               />

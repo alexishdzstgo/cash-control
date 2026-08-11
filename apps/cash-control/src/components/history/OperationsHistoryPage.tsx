@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useOperationsHistory } from "@/hooks/useOperationsHistory";
 import type { Operation } from "@/types/operation";
 import { HistoryFilters } from "./HistoryFilters";
-import { mockOperations } from "./mockOperations";
 import { OperationDetailsModal } from "./OperationDetailsModal";
 import { OperationsTable } from "./OperationsTable";
 
 export function OperationsHistoryPage() {
   const [operationToDeliver, setOperationToDeliver] = useState<Operation | null>(null);
+  const { operations } = useBusinessFunds();
 
   const {
     search,
@@ -33,7 +34,7 @@ export function OperationsHistoryPage() {
     updateTypeFilter,
     clearFilters,
     markAsDelivered,
-  } = useOperationsHistory(mockOperations);
+  } = useOperationsHistory(operations);
 
   return (
     <div className="space-y-6">

@@ -366,7 +366,7 @@
   width: 100%;
   border-radius: 0.5rem;
   border: 1px solid var(--border);
-  background-color: var(--secondary);
+  background-color: var(--card);
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   color: var(--foreground);
@@ -378,7 +378,7 @@
 }
 
 .field-input::placeholder {
-  color: #64748b;
+  color: #94a3b8;
 }
 
 .field-input:hover:not(:disabled):not(:focus) {
@@ -396,6 +396,10 @@
   border-color: var(--border);
   background-color: #f8fafc;
   color: #94a3b8;
+}
+
+.field-input:read-only {
+  background-color: #f8fafc;
 }
 
 /* Tarjeta estándar — borde + sombra muy suave (priorizar borde) */

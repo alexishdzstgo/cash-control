@@ -1,47 +1,48 @@
 "use client";
 
-import { ArrowLeft, Clock3 } from "lucide-react";
 import { useState } from "react";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { formatCurrency } from "@/lib/formatters";
-import {
-  initialWithdrawalFormData,
-  type WithdrawalFormData,
-  type WithdrawalMode,
-} from "@/types/withdrawal";
-import { WithdrawalForm } from "./WithdrawalForm";
-import type { FolioStatus } from "@/types/folio";
-import { WithdrawalSummary } from "./WithdrawalSummary";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import { ReceiptPreviewDialog } from "@/components/receipts/ReceiptPreviewDialog";
+import { useReceiptPreferences } from "@/components/receipts/ReceiptPreferencesContext";
+import { useMockSession } from "@/components/session/MockSessionContext";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { getBankLabel } from "@/config/banks";
 import {
   calculateCommission,
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
-import { PageHeader } from "@/components/shared/PageHeader";
+import { buildReceiptData } from "@/lib/receipt";
+import type { Operation } from "@/types/operation";
+import {
+  initialWithdrawalFormData,
+  type WithdrawalCommissionMode,
+  type WithdrawalFormData,
+} from "@/types/withdrawal";
+import { WithdrawalForm } from "./WithdrawalForm";
+import { WithdrawalSummary } from "./WithdrawalSummary";
 
 export function WithdrawalPage() {
   const { rules: commissionRules } = useCommissionRules();
-  const [mode, setMode] = useState<WithdrawalMode>("delivered");
-
-  const [formData, setFormData] = useState<WithdrawalFormData>(
+  const { registerClientOperation } = useBusinessFunds();
+  const { authenticatedUser } = useMockSession();
+  const { businessIdentity, preferences } = useReceiptPreferences();
+  const [formData, setFormData] = useState<WithdrawalFormData>(() =>
     initialWithdrawalFormData,
   );
-
-  const [folioStatus, setFolioStatus] = useState<FolioStatus>("empty");
-
-  const [isPendingConfirmationOpen, setIsPendingConfirmationOpen] =
-    useState(false);
-
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [receiptOperation, setReceiptOperation] = useState<Operation | null>(
+    null,
+  );
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
-  const [successType, setSuccessType] = useState<WithdrawalMode>("delivered");
-
-  const isPendingMode = mode === "pending";
+  const deliveredBy = authenticatedUser?.userName ?? "Usuario no disponible";
   const amountCents = parseCurrencyToCents(formData.amount) ?? 0;
   const amount = centsToPesos(amountCents);
-
   const commissionCalculation =
     amountCents > 0
       ? calculateCommission({
@@ -54,79 +55,95 @@ export function WithdrawalPage() {
     commissionCalculation === null
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
-
-  const hasRequiredCommonFields =
-    folioStatus === "available" &&
+  const commissionAmount = commission ?? 0;
+  const hasCommissionMode = isWithdrawalCommissionMode(
+    formData.commissionMode,
+  );
+  const bankMovementAmount =
+    formData.commissionMode === "deposited"
+      ? amount + commissionAmount
+      : amount;
+  const cashDeliveredToCustomer =
+    formData.commissionMode === "deducted"
+      ? Math.max(0, amount - commissionAmount)
+      : amount;
+  const isReadyToRegister =
     amount > 0 &&
     commissionCalculation !== null &&
-    formData.senderName.trim() !== "" &&
-    formData.bank !== "";
-
-  const hasRequiredDeliveryFields =
-    formData.receiverName.trim() !== "";
-
-  const hasValidPendingReason =
-    formData.pendingReason !== "" &&
-    (formData.pendingReason !== "other" ||
-      formData.pendingReasonDetails.trim() !== "");
-
-  const isReadyToRegister = isPendingMode
-    ? hasRequiredCommonFields && hasValidPendingReason
-    : hasRequiredCommonFields && hasRequiredDeliveryFields;
+    formData.bankFolio.trim() !== "" &&
+    formData.bank !== "" &&
+    formData.receiverName.trim() !== "" &&
+    hasCommissionMode &&
+    authenticatedUser !== null;
+  const validationErrors = showValidationErrors
+    ? getWithdrawalValidationErrors({
+        formData,
+        amount,
+        hasCommissionRule: commissionCalculation !== null,
+      })
+    : {};
 
   function resetForm() {
     setFormData(initialWithdrawalFormData);
-    setFolioStatus("empty");
-  }
-
-  function changeMode(nextMode: WithdrawalMode) {
-    setMode(nextMode);
-    resetForm();
+    setOperationError(null);
+    setShowValidationErrors(false);
   }
 
   function handleRegister() {
-    if (!isReadyToRegister) {
+    if (
+      !isReadyToRegister ||
+      commissionCalculation === null ||
+      !isWithdrawalCommissionMode(formData.commissionMode)
+    ) {
+      setShowValidationErrors(true);
       return;
     }
 
-    if (isPendingMode) {
-      setIsPendingConfirmationOpen(true);
+    const now = new Date().toISOString();
+    const bankLabel = getBankLabel(formData.bank);
+    const commissionMode = formData.commissionMode;
+    const operation: Operation = {
+      id: `operation-withdrawal-${Date.now()}`,
+      type: "retiro",
+      status: "entregado",
+      bankFolio: formData.bankFolio,
+      amount,
+      commission: commissionAmount,
+      total: bankMovementAmount,
+      appliedCommissionSnapshot: {
+        operationAmountCents: amountCents,
+        calculatedCommissionCents: commissionCalculation.commissionAmountCents,
+        finalCommissionCents: commissionCalculation.commissionAmountCents,
+        ruleId: commissionCalculation.ruleId,
+        ruleVersion: commissionCalculation.ruleVersion,
+        calculationType: commissionCalculation.calculationType,
+        location: commissionMode === "deposited" ? "bank" : "cash",
+        appliedAt: now,
+      },
+      commissionLocation:
+        commissionMode === "deposited" ? "bank" : "cash",
+      commissionStatus: "realized",
+      senderName: formData.receiverName.trim(),
+      receiverName: formData.receiverName.trim(),
+      bankFrom: bankLabel,
+      bankTo: "Caja fisica",
+      bankResourceId: formData.bank,
+      withdrawalCommissionMode: commissionMode,
+      customerCashReceived: cashDeliveredToCustomer,
+      bankMovementAmount,
+      observations: formData.observations.trim() || undefined,
+      createdAt: now,
+      createdBy: deliveredBy,
+      isEdited: false,
+    };
+
+    const result = registerClientOperation(operation);
+    if (!result.success) {
+      setOperationError(result.error ?? "No se pudo registrar el retiro.");
       return;
     }
 
-    const operation = {
-      ...formData,
-      amount,
-      commission,
-      total: amount + (commission ?? 0),
-      commissionStatus: "pending_location" as const,
-      type: "retiro" as const,
-      status: "entregado" as const,
-    };
-
-    console.log("Registrar retiro entregado:", operation);
-
-    setSuccessType("delivered");
-    setIsSuccessOpen(true);
-    resetForm();
-  }
-
-  function confirmPendingWithdrawal() {
-    const operation = {
-      ...formData,
-      receiverName: "",
-      amount,
-      commission,
-      total: amount + (commission ?? 0),
-      commissionStatus: "pending_location" as const,
-      type: "retiro" as const,
-      status: "pendiente" as const,
-    };
-
-    console.log("Registrar retiro pendiente:", operation);
-
-    setIsPendingConfirmationOpen(false);
-    setSuccessType("pending");
+    setReceiptOperation(operation);
     setIsSuccessOpen(true);
     resetForm();
   }
@@ -135,83 +152,94 @@ export function WithdrawalPage() {
     <>
       <div>
         <PageHeader
-          title={
-            isPendingMode
-              ? "Nuevo retiro pendiente"
-              : "Nuevo retiro"
-          }
-          description={
-            isPendingMode
-              ? "Registra un retiro cuyo efectivo todavía no ha sido entregado al cliente."
-              : "Registra la entrega de efectivo correspondiente a un movimiento validado en la aplicación bancaria."
-          }
-          action={
-            isPendingMode ? (
-              <button
-                type="button"
-                onClick={() => changeMode("delivered")}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Volver a registrar entrega
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => changeMode("pending")}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2"
-              >
-                <Clock3 className="h-4 w-4" aria-hidden="true" />
-                Registrar retiro sin entregar
-              </button>
-            )
-          }
+          title="Nuevo retiro"
+          description="Registra el deposito recibido en el banco del negocio y el efectivo entregado al cliente."
         />
 
         <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <WithdrawalForm
-            mode={mode}
             formData={formData}
-            onFormDataChange={setFormData}
-            onFolioStatusChange={setFolioStatus}
+            errors={validationErrors}
+            onFormDataChange={(nextFormData) => {
+              setOperationError(null);
+              setFormData(nextFormData);
+            }}
           />
 
           <WithdrawalSummary
-            mode={mode}
             formData={formData}
+            deliveredBy={deliveredBy}
             amount={amount}
             commission={commission}
+            cashDeliveredToCustomer={cashDeliveredToCustomer}
             hasCommissionRule={commissionCalculation !== null}
             isReadyToRegister={isReadyToRegister}
+            errorMessage={operationError}
             onRegister={handleRegister}
           />
         </div>
       </div>
 
-      <ConfirmDialog
-        isOpen={isPendingConfirmationOpen}
-        title="Registrar retiro pendiente de entrega"
-        description={`El retiro con folio ${formData.bankFolio} y monto de ${formatCurrency(amount)} quedará pendiente de entrega. Aparecerá en retiros pendientes y se considerará durante el corte.`}
-        confirmLabel="Registrar como pendiente"
-        onCancel={() => setIsPendingConfirmationOpen(false)}
-        onConfirm={confirmPendingWithdrawal}
-      />
-
       <SuccessDialog
         isOpen={isSuccessOpen}
-        title={
-          successType === "pending"
-            ? "Retiro pendiente registrado"
-            : "Retiro entregado correctamente"
+        title="Retiro registrado correctamente"
+        description="El banco de recepcion, la caja y la comision se actualizaron con las reglas actuales."
+        buttonLabel="Ver ticket"
+        onClose={() => {
+          setIsSuccessOpen(false);
+          setIsReceiptOpen(true);
+        }}
+      />
+
+      <ReceiptPreviewDialog
+        isOpen={isReceiptOpen}
+        receiptData={
+          receiptOperation
+            ? buildReceiptData({
+                operation: receiptOperation,
+                deliveredBy,
+              })
+            : null
         }
-        description={
-          successType === "pending"
-            ? "El retiro quedó registrado como pendiente de entrega y se incluirá en el corte."
-            : "La entrega de efectivo fue registrada correctamente."
-        }
-        buttonLabel="Registrar otro retiro"
-        onClose={() => setIsSuccessOpen(false)}
+        businessIdentity={businessIdentity}
+        preferences={preferences}
+        onClose={() => setIsReceiptOpen(false)}
       />
     </>
   );
+}
+
+function getWithdrawalValidationErrors({
+  formData,
+  amount,
+  hasCommissionRule,
+}: {
+  formData: WithdrawalFormData;
+  amount: number;
+  hasCommissionRule: boolean;
+}): Partial<Record<keyof WithdrawalFormData, string>> {
+  return {
+    ...(formData.bankFolio.trim() === ""
+      ? { bankFolio: "Captura el folio bancario." }
+      : {}),
+    ...(amount <= 0 ? { amount: "Captura el monto a retirar." } : {}),
+    ...(!hasCommissionRule && amount > 0
+      ? { amount: "No hay una regla de comision para este monto." }
+      : {}),
+    ...(formData.bank === ""
+      ? { bank: "Selecciona el banco de recepcion." }
+      : {}),
+    ...(formData.receiverName.trim() === ""
+      ? { receiverName: "Captura el nombre de quien recibe." }
+      : {}),
+    ...(!isWithdrawalCommissionMode(formData.commissionMode)
+      ? { commissionMode: "Selecciona cómo se recibió la comisión." }
+      : {}),
+  };
+}
+
+function isWithdrawalCommissionMode(
+  value: WithdrawalFormData["commissionMode"],
+): value is WithdrawalCommissionMode {
+  return value === "deposited" || value === "cash" || value === "deducted";
 }

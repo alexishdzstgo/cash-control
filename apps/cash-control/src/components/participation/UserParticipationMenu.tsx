@@ -3,10 +3,8 @@
 import {
   ChevronDown,
   Circle,
-  KeyRound,
   LogOut,
   ShieldCheck,
-  SlidersHorizontal,
   UserCheck,
   UserPlus,
   UserRound,
@@ -15,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { EndParticipationModal } from "./EndParticipationModal";
 import { TransferResponsibilityModal } from "./TransferResponsibilityModal";
 import { useResponsibilityTransfer } from "./useResponsibilityTransfer";
@@ -23,6 +22,7 @@ export function UserParticipationMenu() {
   const router = useRouter();
   const {
     authenticatedUser,
+    getUserAvatar,
     participants,
     startParticipation,
     endParticipation,
@@ -109,6 +109,7 @@ export function UserParticipationMenu() {
   };
 
   const StatusIcon = getStatusIcon();
+  const currentUserAvatar = getUserAvatar(authenticatedUser?.userId ?? "");
 
   const handleStartParticipation = useCallback(() => {
     if (authenticatedUser) {
@@ -218,15 +219,16 @@ export function UserParticipationMenu() {
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
-        <div
-          className={`flex h-7 w-7 items-center justify-center rounded-full ${
+        <UserAvatar
+          name={authenticatedUser.userName}
+          avatar={currentUserAvatar}
+          size="sm"
+          className={
             activeParticipation
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-brand-primary-soft text-brand-primary"
-          }`}
-        >
-          <UserRound className="h-4 w-4" />
-        </div>
+              ? "ring-2 ring-emerald-100"
+              : "ring-2 ring-brand-primary-soft"
+          }
+        />
         <span className="hidden md:inline">{authenticatedUser.userName}</span>
         {activeParticipation && (
           <span className="hidden lg:inline-flex items-center gap-1.5">
@@ -255,9 +257,11 @@ export function UserParticipationMenu() {
           {/* Header */}
           <div className="border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary-soft text-brand-primary">
-                <UserRound className="h-5 w-5" />
-              </div>
+              <UserAvatar
+                name={authenticatedUser.userName}
+                avatar={currentUserAvatar}
+                size="md"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">
                   {authenticatedUser.userName}
@@ -379,28 +383,6 @@ export function UserParticipationMenu() {
             >
               <UserRound className="h-4 w-4" />
               Mi perfil
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleProfileNavigation("/profile?section=security")
-              }
-              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-            >
-              <KeyRound className="h-4 w-4" />
-              Cambiar contraseña
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleProfileNavigation("/profile?section=preferences")
-              }
-              className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              role="menuitem"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Preferencias
             </button>
           </div>
 

@@ -1,11 +1,41 @@
-import type { WorkstationData, ActivityEvent, RegisteredUser, Participant } from "./types";
+import type {
+  ActivityEvent,
+  Participant,
+  RegisteredUser,
+  WorkstationData,
+} from "./types";
 
 export const mockRegisteredUsers: RegisteredUser[] = [
-  { userId: "maria-lopez", userName: "María López", pin: "1234", systemRole: "owner" },
-  { userId: "juan-perez", userName: "Juan Pérez", pin: "1234", systemRole: "employee" },
-  { userId: "alexis-hernandez", userName: "Alexis Hernández", pin: "1234", systemRole: "employee" },
-  { userId: "pedro-ramirez", userName: "Pedro Ramírez", pin: "1234", systemRole: "employee" },
-  { userId: "carlos-martinez", userName: "Carlos Martínez", pin: "123456", systemRole: "owner" },
+  {
+    userId: "maria-lopez",
+    userName: "María López",
+    pin: "1234",
+    systemRole: "owner",
+  },
+  {
+    userId: "juan-perez",
+    userName: "Juan Pérez",
+    pin: "1234",
+    systemRole: "employee",
+  },
+  {
+    userId: "alexis-hernandez",
+    userName: "Alexis Hernández",
+    pin: "1234",
+    systemRole: "employee",
+  },
+  {
+    userId: "pedro-ramirez",
+    userName: "Pedro Ramírez",
+    pin: "1234",
+    systemRole: "employee",
+  },
+  {
+    userId: "carlos-martinez",
+    userName: "Carlos Martínez",
+    pin: "123456",
+    systemRole: "owner",
+  },
 ];
 
 export const mockParticipants: Participant[] = [

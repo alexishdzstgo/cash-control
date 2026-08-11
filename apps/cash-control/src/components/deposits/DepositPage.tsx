@@ -1,47 +1,50 @@
 "use client";
 
-import { ArrowLeft, Clock3 } from "lucide-react";
+import { useState } from "react";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { useMockSession } from "@/components/session/MockSessionContext";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { getBankLabel } from "@/config/banks";
 import {
   calculateCommission,
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
-import { useState } from "react";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
-import { formatCurrency } from "@/lib/formatters";
-import {
-  initialDepositFormData,
-  type DepositFormData,
-  type DepositMode,
-} from "@/types/deposit";
+import type { Operation } from "@/types/operation";
+import { initialDepositFormData, type DepositFormData } from "@/types/deposit";
 import { DepositForm } from "./DepositForm";
-import type { FolioStatus } from "@/types/folio";
 import { DepositSummary } from "./DepositSummary";
-import { PageHeader } from "@/components/shared/PageHeader";
+
+const FIRST_DEPOSIT_FOLIO = 1;
+
+function buildDepositFolio(number: number): string {
+  return `DEP-${number.toString().padStart(6, "0")}`;
+}
+
+function buildInitialForm(number: number): DepositFormData {
+  return {
+    ...initialDepositFormData,
+    bankFolio: buildDepositFolio(number),
+  };
+}
 
 export function DepositPage() {
   const { rules: commissionRules } = useCommissionRules();
-  const [mode, setMode] = useState<DepositMode>("completed");
-
-  const [formData, setFormData] = useState<DepositFormData>(
-    initialDepositFormData,
+  const { registerClientOperation } = useBusinessFunds();
+  const { authenticatedUser } = useMockSession();
+  const [nextFolioNumber, setNextFolioNumber] = useState(FIRST_DEPOSIT_FOLIO);
+  const [formData, setFormData] = useState<DepositFormData>(() =>
+    buildInitialForm(FIRST_DEPOSIT_FOLIO),
   );
-
-  const [folioStatus, setFolioStatus] = useState<FolioStatus>("empty");
-
-  const [isPendingConfirmationOpen, setIsPendingConfirmationOpen] =
-    useState(false);
-
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
-  const [successMode, setSuccessMode] = useState<DepositMode>("completed");
-
-  const isPendingMode = mode === "pending";
+  const receivedBy = authenticatedUser?.userName ?? "Usuario no disponible";
   const amountCents = parseCurrencyToCents(formData.amount) ?? 0;
   const amount = centsToPesos(amountCents);
-
   const commissionCalculation =
     amountCents > 0
       ? calculateCommission({
@@ -55,119 +58,82 @@ export function DepositPage() {
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
 
-  const hasRequiredCommonFields =
-    folioStatus === "available" &&
+  const isAccountLast4Valid = /^\d{4}$/.test(
+    formData.destinationAccountLast4,
+  );
+  const isReadyToRegister =
     amount > 0 &&
     commissionCalculation !== null &&
-    formData.senderName.trim() !== "" &&
     formData.receiverName.trim() !== "" &&
-    formData.destinationBank !== "" &&
-    formData.deliveryMethod !== "" &&
-    formData.destinationReference.trim() !== "";
-
-  const hasValidPendingReason =
-    formData.pendingReason !== "" &&
-    (formData.pendingReason !== "other" ||
-      formData.pendingReasonDetails.trim() !== "");
-
-  const isReadyToRegister = isPendingMode
-    ? hasRequiredCommonFields && hasValidPendingReason
-    : hasRequiredCommonFields;
+    formData.emissionBank !== "" &&
+    isAccountLast4Valid &&
+    authenticatedUser !== null;
+  const validationErrors = showValidationErrors
+    ? getDepositValidationErrors({
+        formData,
+        amount,
+        hasCommissionRule: commissionCalculation !== null,
+      })
+    : {};
 
   function resetForm() {
-    setFormData(initialDepositFormData);
-    setFolioStatus("empty");
-  }
-
-  function changeMode(nextMode: DepositMode) {
-    setMode(nextMode);
-    resetForm();
+    setNextFolioNumber((current) => {
+      const next = current + 1;
+      setFormData(buildInitialForm(next));
+      return next;
+    });
+    setOperationError(null);
+    setShowValidationErrors(false);
   }
 
   function handleRegister() {
-    if (!isReadyToRegister) {
+    if (!isReadyToRegister || commissionCalculation === null) {
+      setShowValidationErrors(true);
       return;
     }
 
-    if (isPendingMode) {
-      setIsPendingConfirmationOpen(true);
+    const now = new Date().toISOString();
+    const bankLabel = getBankLabel(formData.emissionBank);
+    const commissionAmount = commission ?? 0;
+    const operation: Operation = {
+      id: `operation-deposit-${Date.now()}`,
+      type: "deposito",
+      status: "completado",
+      bankFolio: formData.bankFolio,
+      amount,
+      commission: commissionAmount,
+      total: amount + commissionAmount,
+      appliedCommissionSnapshot: {
+        operationAmountCents: amountCents,
+        calculatedCommissionCents: commissionCalculation.commissionAmountCents,
+        finalCommissionCents: commissionCalculation.commissionAmountCents,
+        ruleId: commissionCalculation.ruleId,
+        ruleVersion: commissionCalculation.ruleVersion,
+        calculationType: commissionCalculation.calculationType,
+        location: "cash",
+        appliedAt: now,
+      },
+      commissionLocation: "cash",
+      commissionStatus: "realized",
+      senderName: "Cliente en efectivo",
+      receiverName: formData.receiverName.trim(),
+      bankFrom: "Caja fisica",
+      bankTo: bankLabel,
+      bankResourceId: formData.emissionBank,
+      destinationReference: `**** ${formData.destinationAccountLast4}`,
+      destinationAccountLast4: formData.destinationAccountLast4,
+      observations: formData.observations.trim() || undefined,
+      createdAt: now,
+      createdBy: receivedBy,
+      isEdited: false,
+    };
+
+    const result = registerClientOperation(operation);
+    if (!result.success) {
+      setOperationError(result.error ?? "No se pudo registrar el deposito.");
       return;
     }
 
-    const operation = {
-      type: "deposito" as const,
-      status: "completado" as const,
-      bankFolio: formData.bankFolio,
-      amount,
-      commission,
-      total: amount + (commission ?? 0),
-      appliedCommissionSnapshot: commissionCalculation
-        ? {
-            operationAmountCents: amountCents,
-            calculatedCommissionCents:
-              commissionCalculation.commissionAmountCents,
-            finalCommissionCents: commissionCalculation.commissionAmountCents,
-            ruleId: commissionCalculation.ruleId,
-            ruleVersion: commissionCalculation.ruleVersion,
-            calculationType: commissionCalculation.calculationType,
-            location: "cash" as const,
-            appliedAt: new Date().toISOString(),
-          }
-        : undefined,
-      commissionLocation: "cash" as const,
-      commissionStatus: "realized" as const,
-      senderName: formData.senderName,
-      receiverName: formData.receiverName,
-      bankTo: formData.destinationBank,
-      destinationReference: formData.destinationReference,
-      deliveryMethod: formData.deliveryMethod,
-      observations: formData.observations,
-    };
-
-    console.log("Registrar depósito completado:", operation);
-
-    setSuccessMode("completed");
-    setIsSuccessOpen(true);
-    resetForm();
-  }
-
-  function confirmPendingDeposit() {
-    const operation = {
-      type: "deposito" as const,
-      status: "pendiente" as const,
-      bankFolio: formData.bankFolio,
-      amount,
-      commission,
-      total: amount + (commission ?? 0),
-      appliedCommissionSnapshot: commissionCalculation
-        ? {
-            operationAmountCents: amountCents,
-            calculatedCommissionCents:
-              commissionCalculation.commissionAmountCents,
-            finalCommissionCents: commissionCalculation.commissionAmountCents,
-            ruleId: commissionCalculation.ruleId,
-            ruleVersion: commissionCalculation.ruleVersion,
-            calculationType: commissionCalculation.calculationType,
-            location: "cash" as const,
-            appliedAt: new Date().toISOString(),
-          }
-        : undefined,
-      commissionLocation: "cash" as const,
-      commissionStatus: "reserved" as const,
-      senderName: formData.senderName,
-      receiverName: formData.receiverName,
-      bankTo: formData.destinationBank,
-      destinationReference: formData.destinationReference,
-      deliveryMethod: formData.deliveryMethod,
-      pendingReason: formData.pendingReason,
-      pendingReasonDetails: formData.pendingReasonDetails,
-      observations: formData.observations,
-    };
-
-    console.log("Registrar depósito pendiente:", operation);
-
-    setIsPendingConfirmationOpen(false);
-    setSuccessMode("pending");
     setIsSuccessOpen(true);
     resetForm();
   }
@@ -176,83 +142,69 @@ export function DepositPage() {
     <>
       <div>
         <PageHeader
-          title={
-            isPendingMode
-              ? "Nuevo depósito pendiente"
-              : "Nuevo depósito"
-          }
-          description={
-            isPendingMode
-              ? "Registra el efectivo recibido cuando la operación bancaria todavía no puede completarse."
-              : "Registra el efectivo entregado por el cliente y el envío realizado a la cuenta de destino."
-          }
-          action={
-            isPendingMode ? (
-              <button
-                type="button"
-                onClick={() => changeMode("completed")}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:ring-offset-2"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Volver a depósito completado
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => changeMode("pending")}
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2"
-              >
-                <Clock3 className="h-4 w-4" aria-hidden="true" />
-                Registrar sin completar
-              </button>
-            )
-          }
+          title="Nuevo deposito"
+          description="Registra el efectivo recibido del cliente y el banco desde donde se enviara el dinero."
         />
 
         <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <DepositForm
-            mode={mode}
             formData={formData}
-            onFormDataChange={setFormData}
-            onFolioStatusChange={setFolioStatus}
+            errors={validationErrors}
+            onFormDataChange={(nextFormData) => {
+              setOperationError(null);
+              setFormData(nextFormData);
+            }}
           />
 
           <DepositSummary
-            mode={mode}
             formData={formData}
+            receivedBy={receivedBy}
             amount={amount}
             commission={commission}
             hasCommissionRule={commissionCalculation !== null}
             isReadyToRegister={isReadyToRegister}
+            errorMessage={operationError}
             onRegister={handleRegister}
           />
         </div>
       </div>
 
-      <ConfirmDialog
-        isOpen={isPendingConfirmationOpen}
-        title="Registrar depósito pendiente"
-        description={`El depósito con folio ${formData.bankFolio} por ${formatCurrency(amount)} quedará pendiente de completar.`}
-        confirmLabel="Registrar como pendiente"
-        onCancel={() => setIsPendingConfirmationOpen(false)}
-        onConfirm={confirmPendingDeposit}
-      />
-
       <SuccessDialog
         isOpen={isSuccessOpen}
-        title={
-          successMode === "pending"
-            ? "Depósito pendiente registrado"
-            : "Depósito registrado correctamente"
-        }
-        description={
-          successMode === "pending"
-            ? "La operación quedó pendiente y podrá completarse posteriormente."
-            : "El depósito fue registrado correctamente y aparecerá en el historial."
-        }
-        buttonLabel="Registrar otro depósito"
+        title="Deposito registrado correctamente"
+        description="La caja y el banco de emision se actualizaron con las reglas actuales de comision."
+        buttonLabel="Registrar otro deposito"
         onClose={() => setIsSuccessOpen(false)}
       />
     </>
   );
+}
+
+function getDepositValidationErrors({
+  formData,
+  amount,
+  hasCommissionRule,
+}: {
+  formData: DepositFormData;
+  amount: number;
+  hasCommissionRule: boolean;
+}): Partial<Record<keyof DepositFormData, string>> {
+  return {
+    ...(amount <= 0 ? { amount: "Captura el monto a depositar." } : {}),
+    ...(!hasCommissionRule && amount > 0
+      ? { amount: "No hay una regla de comision para este monto." }
+      : {}),
+    ...(formData.receiverName.trim() === ""
+      ? { receiverName: "Captura el nombre del destinatario." }
+      : {}),
+    ...(formData.emissionBank === ""
+      ? { emissionBank: "Selecciona el banco de emision." }
+      : {}),
+    ...(!/^\d{4}$/.test(formData.destinationAccountLast4)
+      ? {
+          destinationAccountLast4:
+            "Captura exactamente los ultimos 4 digitos.",
+        }
+      : {}),
+  };
 }

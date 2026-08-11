@@ -1,10 +1,16 @@
+import type { UserAvatar } from "@/types/user";
+
 export type SystemRole = "owner" | "employee";
 
 export type ShiftParticipantRole = "shift_responsible" | "operator";
 
 export type ShiftParticipantStatus = "active" | "left";
 
-export type ShiftStatus = "active" | "closing" | "closed" | "closed_review_required";
+export type ShiftStatus =
+  | "active"
+  | "closing"
+  | "closed"
+  | "closed_review_required";
 
 export type ShiftActivityType =
   | "shift_started"
@@ -24,6 +30,7 @@ export type ShiftParticipant = {
   joinedAt: string;
   leftAt?: string;
   status: ShiftParticipantStatus;
+  avatar?: UserAvatar;
 };
 
 export type ShiftActivity = {

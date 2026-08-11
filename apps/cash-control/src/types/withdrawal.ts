@@ -1,23 +1,19 @@
-export type WithdrawalMode = "delivered" | "pending";
+export type WithdrawalCommissionMode = "deposited" | "cash" | "deducted";
 
 export type WithdrawalFormData = {
   bankFolio: string;
   amount: string;
   bank: string;
-  senderName: string;
   receiverName: string;
-  pendingReason: string;
-  pendingReasonDetails: string;
+  commissionMode: WithdrawalCommissionMode | "";
   observations: string;
 };
 
 export const initialWithdrawalFormData: WithdrawalFormData = {
   bankFolio: "",
   amount: "",
-  bank: "banco-azteca",
-  senderName: "",
+  bank: "",
   receiverName: "",
-  pendingReason: "bank-movement-limit",
-  pendingReasonDetails: "",
+  commissionMode: "",
   observations: "",
 };

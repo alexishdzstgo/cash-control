@@ -1,24 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
+import type { UserAvatar as UserAvatarModel } from "@/types/user";
 
 const VALID_PIN = "1234";
 
 interface UserPinStepProps {
   selectedUserName: string;
+  selectedUserAvatar?: UserAvatarModel;
   onBack: () => void;
   onConfirm: () => void;
 }
 
 export function UserPinStep({
   selectedUserName,
+  selectedUserAvatar,
   onBack,
   onConfirm,
 }: UserPinStepProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const pinInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    pinInputRef.current?.focus();
+  }, []);
 
   const handlePinChange = (value: string) => {
     if (/^\d*$/.test(value) && value.length <= 4) {
@@ -45,9 +53,7 @@ export function UserPinStep({
     <div className="space-y-6">
       <div className="rounded-xl border border-brand-border bg-brand-primary-soft/50 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary-soft text-brand-primary">
-            <UserRound className="h-5 w-5" />
-          </div>
+          <UserAvatar name={selectedUserName} avatar={selectedUserAvatar} />
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
               Usuario seleccionado
@@ -71,10 +77,10 @@ export function UserPinStep({
           type="password"
           inputMode="numeric"
           maxLength={4}
+          ref={pinInputRef}
           value={pin}
           onChange={(e) => handlePinChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          autoFocus
           aria-describedby={error ? "pin-error" : undefined}
           aria-invalid={error ? "true" : undefined}
           className={`block w-full max-w-[180px] rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] shadow-sm transition-colors placeholder:text-brand-text-muted focus:outline-none focus:ring-2 ${

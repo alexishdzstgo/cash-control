@@ -2,37 +2,53 @@
 
 import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
-import { FolioField } from "@/components/shared/FolioField";
 import { PersonNameField } from "@/components/shared/PersonNameField";
-import { SelectField } from "@/components/shared/SelectField";
-import { getFolioStatus } from "@/lib/folio";
-import type { FolioStatus } from "@/types/folio";
 import type {
+  WithdrawalCommissionMode,
   WithdrawalFormData,
-  WithdrawalMode,
 } from "@/types/withdrawal";
 
-interface WithdrawalFormProps {
-  mode: WithdrawalMode;
+type WithdrawalFormProps = {
   formData: WithdrawalFormData;
+  errors?: Partial<Record<keyof WithdrawalFormData, string>>;
   onFormDataChange: (data: WithdrawalFormData) => void;
-  onFolioStatusChange: (status: FolioStatus) => void;
-}
+};
+
+const inputClass =
+  "field-input px-4 py-3 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
+
+const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
+
+const commissionModeOptions: Array<{
+  value: WithdrawalCommissionMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "deposited",
+    label: "Comision depositada por el cliente",
+    description: "La comision se recibio en el banco de recepcion.",
+  },
+  {
+    value: "cash",
+    label: "Comision pagada en efectivo",
+    description: "La comision se recibio en caja fisica.",
+  },
+  {
+    value: "deducted",
+    label: "Comision descontada del retiro",
+    description: "La comision se descuenta del efectivo entregado.",
+  },
+];
 
 export function WithdrawalForm({
-  mode,
   formData,
+  errors = {},
   onFormDataChange,
-  onFolioStatusChange,
 }: WithdrawalFormProps) {
-  const isPendingMode = mode === "pending";
-
-  const isFormEnabled =
-    getFolioStatus(formData.bankFolio) === "available";
-
-  function updateField<K extends keyof WithdrawalFormData>(
-    field: K,
-    value: WithdrawalFormData[K],
+  function updateField<Key extends keyof WithdrawalFormData>(
+    field: Key,
+    value: WithdrawalFormData[Key],
   ) {
     onFormDataChange({
       ...formData,
@@ -43,194 +59,137 @@ export function WithdrawalForm({
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-slate-950">
-          {isPendingMode
-            ? "Datos del retiro pendiente"
-            : "Datos del retiro"}
+        <p className="text-sm font-semibold text-slate-500">
+          Informacion de la operacion
+        </p>
+        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+          Datos del retiro
         </h2>
-
         <p className="mt-1 text-sm text-slate-500">
-          {isPendingMode
-            ? "Captura la información del retiro cuyo efectivo todavía no será entregado."
-            : "Primero captura el folio bancario para verificar que el movimiento no haya sido registrado."}
+          Captura el folio visible en la app bancaria y los datos de entrega.
         </p>
       </div>
 
-      <form className="space-y-6">
-        <FolioField
-          id="withdrawal-bank-folio"
-          value={formData.bankFolio}
-          onChange={(value) => updateField("bankFolio", value)}
-          onStatusChange={onFolioStatusChange}
-          label="Folio bancario"
-          placeholder="Ej. 837291045"
-          colorVariant="withdrawal"
-          showStatusMessages
-        />
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label htmlFor="withdrawal-bank-folio" className={labelClass}>
+            Folio bancario
+            <span className="ml-1 text-red-500" aria-label="Campo obligatorio">
+              *
+            </span>
+          </label>
+          <input
+            id="withdrawal-bank-folio"
+            type="text"
+            value={formData.bankFolio}
+            onChange={(event) => updateField("bankFolio", event.target.value)}
+            placeholder="Escribe el folio"
+            className={inputClass}
+            aria-invalid={errors.bankFolio ? true : undefined}
+            aria-describedby={
+              errors.bankFolio ? "withdrawal-bank-folio-error" : undefined
+            }
+          />
+          {errors.bankFolio && (
+            <p
+              id="withdrawal-bank-folio-error"
+              className="mt-2 text-sm font-medium text-red-600"
+            >
+              {errors.bankFolio}
+            </p>
+          )}
+        </div>
 
         <AmountField
           id="withdrawal-amount"
           value={formData.amount}
           onChange={(value) => updateField("amount", value)}
-          label="Monto a entregar"
-          placeholder="$0.00"
+          label="Monto a retirar"
+          placeholder="0.00"
           required
-          disabled={!isFormEnabled}
           min={0}
           step={0.01}
           colorVariant="withdrawal"
+          error={errors.amount}
         />
 
         <BankSelect
           id="withdrawal-bank"
           value={formData.bank}
           onChange={(value) => updateField("bank", value)}
-          label="Banco de origen"
+          label="Banco de recepcion"
           colorVariant="withdrawal"
-          disabled={!isFormEnabled}
+          error={errors.bank}
         />
 
         <PersonNameField
-          id="withdrawal-sender"
-          value={formData.senderName}
-          onChange={(value) =>
-            updateField("senderName", value)
-          }
-          label="Nombre de quien envía"
+          id="withdrawal-receiver"
+          value={formData.receiverName}
+          onChange={(value) => updateField("receiverName", value)}
+          label="Nombre de quien recibe"
           placeholder="Nombre completo"
-          disabled={!isFormEnabled}
           required
           colorVariant="withdrawal"
+          error={errors.receiverName}
         />
 
-        {!isPendingMode && (
-          <PersonNameField
-            id="withdrawal-receiver"
-            value={formData.receiverName}
-            onChange={(value) =>
-              updateField("receiverName", value)
-            }
-            label="Nombre de quien recibe"
-            placeholder="Nombre completo"
-            disabled={!isFormEnabled}
-            required
-            colorVariant="withdrawal"
-          />
-        )}
+        <fieldset className="md:col-span-2">
+          <legend className={labelClass}>
+            Forma de cobrar la comision
+            <span className="ml-1 text-red-500" aria-label="Campo obligatorio">
+              *
+            </span>
+          </legend>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {commissionModeOptions.map((option) => {
+              const isSelected = formData.commissionMode === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`rounded-xl border p-4 text-sm transition ${
+                    isSelected
+                      ? "border-brand-primary bg-blue-50 text-slate-950"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="withdrawal-commission-mode"
+                    value={option.value}
+                    checked={isSelected}
+                    onChange={() => updateField("commissionMode", option.value)}
+                    className="sr-only"
+                  />
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="mt-1 block leading-5 text-slate-500">
+                    {option.description}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {errors.commissionMode && (
+            <p className="mt-2 text-sm font-medium text-red-600">
+              {errors.commissionMode}
+            </p>
+          )}
+        </fieldset>
 
-        {isPendingMode && (
-          <>
-            <Field
-              label="Motivo del retiro pendiente"
-              required
-              help="Indica por qué el efectivo todavía no ha sido entregado."
-            >
-              <SelectField
-                value={formData.pendingReason}
-                onChange={(value) => {
-                  onFormDataChange({
-                    ...formData,
-                    pendingReason: value,
-                    pendingReasonDetails:
-                      value === "other"
-                        ? formData.pendingReasonDetails
-                        : "",
-                  });
-                }}
-                disabled={!isFormEnabled}
-                options={[
-                  {
-                    value: "bank-movement-limit",
-                    label:
-                      "Límite de movimientos visibles en la aplicación bancaria",
-                  },
-                  {
-                    value: "customer-not-present",
-                    label: "El cliente no se encuentra presente",
-                  },
-                  {
-                    value: "other",
-                    label: "Otro motivo",
-                  },
-                ]}
-              />
-            </Field>
-
-            {formData.pendingReason === "other" && (
-              <Field
-                label="Especifica el motivo"
-                required
-                help="Describe brevemente por qué el retiro quedará pendiente."
-              >
-                <textarea
-                  className={`${inputClass} min-h-24 resize-none`}
-                  placeholder="Escribe el motivo"
-                  disabled={!isFormEnabled}
-                  value={formData.pendingReasonDetails}
-                  onChange={(event) =>
-                    updateField(
-                      "pendingReasonDetails",
-                      event.target.value,
-                    )
-                  }
-                />
-              </Field>
-            )}
-          </>
-        )}
-
-        <Field label="Observaciones">
+        <div className="md:col-span-2">
+          <label htmlFor="withdrawal-observations" className={labelClass}>
+            Observaciones
+            <span className="ml-1 font-normal text-slate-400">(opcional)</span>
+          </label>
           <textarea
-            className={`${inputClass} min-h-28 resize-none`}
-            placeholder="Opcional. No aparecerá en el ticket."
-            disabled={!isFormEnabled}
+            id="withdrawal-observations"
+            rows={3}
             value={formData.observations}
-            onChange={(event) =>
-              updateField("observations", event.target.value)
-            }
+            onChange={(event) => updateField("observations", event.target.value)}
+            placeholder="Agrega alguna nota interna"
+            className={inputClass}
           />
-        </Field>
-      </form>
+        </div>
+      </div>
     </section>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 font-sans text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-slate-400 focus:bg-white focus:ring-4 focus:ring-slate-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400";
-
-function Field({
-  label,
-  help,
-  required = false,
-  children,
-}: {
-  label: string;
-  help?: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-base font-semibold text-slate-800">
-        {label}
-
-        {required && (
-          <span
-            className="ml-1 text-red-500"
-            aria-label="Campo obligatorio"
-          >
-            *
-          </span>
-        )}
-      </label>
-
-      <div className="mt-2">{children}</div>
-
-      {help && (
-        <p className="mt-2 text-sm text-slate-500">
-          {help}
-        </p>
-      )}
-    </div>
   );
 }

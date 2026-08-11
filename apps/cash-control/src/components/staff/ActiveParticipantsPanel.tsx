@@ -1,12 +1,15 @@
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { ArrowRight, UserRoundCheck } from "lucide-react";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import type { StaffMemberView } from "@/lib/staff";
 
 type ActiveParticipantsPanelProps = {
   members: StaffMemberView[];
 };
 
-export function ActiveParticipantsPanel({ members }: ActiveParticipantsPanelProps) {
+export function ActiveParticipantsPanel({
+  members,
+}: ActiveParticipantsPanelProps) {
   const activeMembers = members.filter(
     (member) => member.participationStatus === "active",
   );
@@ -43,9 +46,12 @@ export function ActiveParticipantsPanel({ members }: ActiveParticipantsPanelProp
               className="flex items-center justify-between gap-4 px-6 py-4"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                  <UserRoundCheck className="h-4 w-4" aria-hidden="true" />
-                </div>
+                <UserAvatar
+                  name={member.userName}
+                  avatar={member.avatar}
+                  size="sm"
+                  className="ring-2 ring-emerald-50"
+                />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
                     {member.userName}

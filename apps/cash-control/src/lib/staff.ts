@@ -2,6 +2,7 @@ import type {
   Participant,
   RegisteredUser,
 } from "@/components/workstation/types";
+import type { UserAvatar } from "@/types/user";
 
 export type StaffMemberView = {
   userId: string;
@@ -11,6 +12,7 @@ export type StaffMemberView = {
   participationType?: "responsible" | "support";
   startedAt?: string;
   isResponsible: boolean;
+  avatar?: UserAvatar;
 };
 
 export type StaffSummary = {

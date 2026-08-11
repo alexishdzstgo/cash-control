@@ -16,12 +16,12 @@ import { mockOperations } from "@/components/history/mockOperations";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
   filterUsers,
   generateTemporaryPassword,
   getLastLoginLabel,
   getUserActivityEvents,
-  getUserInitials,
   getUserParticipation,
   getUserRoleLabel,
   getUserStats,
@@ -69,7 +69,7 @@ const filters: Array<{ value: UserFilter; label: string }> = [
 ];
 
 export function UsersPage() {
-  const { participants } = useMockSession();
+  const { getUserAvatar, participants } = useMockSession();
   const [users, setUsers] = useState<UserAccount[]>(initialUserAccounts);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
@@ -294,6 +294,7 @@ export function UsersPage() {
           <UsersList
             users={filteredUsers}
             selectedUserId={selectedUser?.id ?? null}
+            getUserAvatar={getUserAvatar}
             onSelect={(user) => {
               setSelectedUserId(user.id);
               setDetailTab("info");
@@ -310,6 +311,7 @@ export function UsersPage() {
             tab={detailTab}
             onTabChange={setDetailTab}
             participants={participants}
+            getUserAvatar={getUserAvatar}
             onEdit={openEditForm}
             onStatusChange={requestStatusChange}
             onResetPassword={(user) =>
@@ -387,6 +389,7 @@ function UserSummaryCards({
 function UsersList({
   users,
   selectedUserId,
+  getUserAvatar,
   onSelect,
   onEdit,
   onStatusChange,
@@ -394,6 +397,7 @@ function UsersList({
 }: {
   users: UserAccount[];
   selectedUserId: string | null;
+  getUserAvatar: ReturnType<typeof useMockSession>["getUserAvatar"];
   onSelect: (user: UserAccount) => void;
   onEdit: (user: UserAccount) => void;
   onStatusChange: (user: UserAccount) => void;
@@ -431,7 +435,10 @@ function UsersList({
                 }
               >
                 <td className="px-4 py-4">
-                  <UserAvatar user={user} />
+                  <UserAvatar
+                    name={user.displayName}
+                    avatar={getUserAvatar(user.id)}
+                  />
                 </td>
                 <td className="px-4 py-4 font-semibold text-slate-900">
                   {user.displayName}
@@ -467,7 +474,10 @@ function UsersList({
         {users.map((user) => (
           <div key={user.id} className="p-4">
             <div className="flex items-start gap-3">
-              <UserAvatar user={user} />
+              <UserAvatar
+                name={user.displayName}
+                avatar={getUserAvatar(user.id)}
+              />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-slate-950">
                   {user.displayName}
@@ -502,6 +512,7 @@ function UserDetails({
   tab,
   onTabChange,
   participants,
+  getUserAvatar,
   onEdit,
   onStatusChange,
   onResetPassword,
@@ -510,6 +521,7 @@ function UserDetails({
   tab: DetailTab;
   onTabChange: (tab: DetailTab) => void;
   participants: ReturnType<typeof useMockSession>["participants"];
+  getUserAvatar: ReturnType<typeof useMockSession>["getUserAvatar"];
   onEdit: (user: UserAccount) => void;
   onStatusChange: (user: UserAccount) => void;
   onResetPassword: (user: UserAccount) => void;
@@ -530,7 +542,11 @@ function UserDetails({
     <aside className="rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-6 xl:self-start">
       <div className="border-b border-slate-100 p-5">
         <div className="flex items-start gap-4">
-          <UserAvatar user={user} size="lg" />
+          <UserAvatar
+            name={user.displayName}
+            avatar={getUserAvatar(user.id)}
+            size="lg"
+          />
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-slate-950">
               {user.displayName}
@@ -869,24 +885,6 @@ function ActionButtons({
           <RotateCcw className="h-4 w-4" />
         )}
       </IconButton>
-    </div>
-  );
-}
-
-function UserAvatar({
-  user,
-  size = "md",
-}: {
-  user: UserAccount;
-  size?: "md" | "lg";
-}) {
-  const sizeClass = size === "lg" ? "h-14 w-14 text-base" : "h-10 w-10 text-sm";
-
-  return (
-    <div
-      className={`${sizeClass} flex shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] font-bold text-[#2563EB]`}
-    >
-      {getUserInitials(user)}
     </div>
   );
 }

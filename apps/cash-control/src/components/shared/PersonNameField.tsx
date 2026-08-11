@@ -10,6 +10,7 @@ type PersonNameFieldProps = {
   required?: boolean;
   autoComplete?: string;
   className?: string;
+  error?: string;
   /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
 };
@@ -27,6 +28,7 @@ export function PersonNameField({
   required = false,
   autoComplete = "name",
   className = "",
+  error,
 }: PersonNameFieldProps) {
   return (
     <div className={className}>
@@ -47,7 +49,15 @@ export function PersonNameField({
         required={required}
         autoComplete={autoComplete}
         className={baseInputClass}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
       />
+
+      {error && (
+        <p id={`${id}-error`} className="mt-2 text-sm font-medium text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

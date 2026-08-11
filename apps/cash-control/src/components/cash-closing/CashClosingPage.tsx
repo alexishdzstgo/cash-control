@@ -6,9 +6,11 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { getAdministrativeMovementsSummary } from "@/lib/administrativeMovements";
 import { formatCurrency } from "@/lib/formatters";
 import type {
+  CashMovement,
   CashClosingStatus,
   CashMovementCategory,
 } from "@/types/cash-closing";
+import type { Operation } from "@/types/operation";
 import { CashClosingConfirmation } from "./CashClosingConfirmation";
 import { CashClosingResult } from "./CashClosingResult";
 import { CashDifferenceCard } from "./CashDifferenceCard";
@@ -34,11 +36,18 @@ const INITIAL_STATE: CashClosingPageState = {
 };
 
 export function CashClosingPage() {
-  const { movements: administrativeMovements } = useBusinessFunds();
+  const {
+    movements: administrativeMovements,
+    operations,
+  } = useBusinessFunds();
   const [state, setState] = useState<CashClosingPageState>(INITIAL_STATE);
 
-  const { shift, openingBalance, movements, reservedCash } =
+  const { shift, openingBalance, movements: mockMovements, reservedCash } =
     mockCashClosingData;
+  const movements = useMemo(
+    () => [...operationCashMovements(operations), ...mockMovements],
+    [operations, mockMovements],
+  );
 
   const totalEntries = useMemo(
     () =>
@@ -230,4 +239,70 @@ function AdminSummaryItem({ label, value }: { label: string; value: number }) {
       </p>
     </div>
   );
+}
+
+function operationCashMovements(operations: Operation[]): CashMovement[] {
+  return operations
+    .filter((operation) => operation.id.startsWith("operation-"))
+    .flatMap<CashMovement>((operation) => {
+      if (operation.type === "deposito") {
+        const commission = operation.commission ?? 0;
+        return [
+          {
+            id: `${operation.id}-cash`,
+            folio: operation.bankFolio,
+            category: "cash_deposit" as const,
+            direction: "in" as const,
+            description: "Efectivo recibido por deposito",
+            amount: operation.amount,
+            registeredAt: operation.createdAt,
+            registeredBy: operation.createdBy,
+          },
+          ...(commission > 0
+            ? [
+                {
+                  id: `${operation.id}-commission`,
+                  folio: operation.bankFolio,
+                  category: "commission" as const,
+                  direction: "in" as const,
+                  description: "Comision cobrada en efectivo",
+                  amount: commission,
+                  registeredAt: operation.createdAt,
+                  registeredBy: operation.createdBy,
+                },
+              ]
+            : []),
+        ];
+      }
+
+      const cashDelivered =
+        operation.customerCashReceived ?? operation.amount;
+      const commission = operation.commission ?? 0;
+      return [
+        {
+          id: `${operation.id}-cash`,
+          folio: operation.bankFolio,
+          category: "delivered_withdrawal" as const,
+          direction: "out" as const,
+          description: "Retiro entregado al cliente",
+          amount: cashDelivered,
+          registeredAt: operation.createdAt,
+          registeredBy: operation.createdBy,
+        },
+        ...(operation.withdrawalCommissionMode === "cash" && commission > 0
+          ? [
+              {
+                id: `${operation.id}-commission`,
+                folio: operation.bankFolio,
+                category: "commission" as const,
+                direction: "in" as const,
+                description: "Comision cobrada en efectivo",
+                amount: commission,
+                registeredAt: operation.createdAt,
+                registeredBy: operation.createdBy,
+              },
+            ]
+          : []),
+      ];
+    });
 }

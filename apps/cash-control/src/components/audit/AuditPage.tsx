@@ -24,12 +24,13 @@ const defaultFilters: AuditFilterState = {
 };
 
 type AuditPageProps = {
-  operations: Operation[];
+  operations?: Operation[];
   initialUserFilter?: string;
 };
 
 export function AuditPage({ operations, initialUserFilter }: AuditPageProps) {
-  const { movements } = useBusinessFunds();
+  const { movements, operations: contextOperations } = useBusinessFunds();
+  const auditOperations = operations ?? contextOperations;
   const [filters, setFilters] = useState<AuditFilterState>({
     ...defaultFilters,
     user: initialUserFilter ?? "todos",
@@ -38,10 +39,13 @@ export function AuditPage({ operations, initialUserFilter }: AuditPageProps) {
     null,
   );
 
-  const summary = useMemo(() => getAuditSummary(operations), [operations]);
+  const summary = useMemo(
+    () => getAuditSummary(auditOperations),
+    [auditOperations],
+  );
   const filteredOperations = useMemo(
-    () => filterAuditOperations(operations, filters),
-    [operations, filters],
+    () => filterAuditOperations(auditOperations, filters),
+    [auditOperations, filters],
   );
   const correctedAdministrativeMovements = movements.filter(
     (movement) =>

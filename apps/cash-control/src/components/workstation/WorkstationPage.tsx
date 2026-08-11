@@ -1,40 +1,44 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import {
+  ArrowRight,
+  Clock,
+  ShieldCheck,
+  UserPlus,
+  UserRound,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, UserPlus, UserRound, Clock, ArrowRight } from "lucide-react";
-import { WorkstationAccessModal } from "./WorkstationAccessModal";
-import { mockWorkstation, mockRegisteredUsers } from "./mockData";
-import type { Participant } from "./types";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { useCallback, useState } from "react";
 import { Footer } from "@/components/layout/Footer";
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
+import { useMockSession } from "@/components/session/MockSessionContext";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import type { UserAvatar as UserAvatarModel } from "@/types/user";
+import { mockRegisteredUsers } from "./mockData";
+import type { Participant } from "./types";
+import { WorkstationAccessModal } from "./WorkstationAccessModal";
 
 function ActiveParticipantCard({
   participant,
   isResponsible,
   onSelect,
   index,
+  avatar,
 }: {
   participant: Participant;
   isResponsible: boolean;
   onSelect: () => void;
   index: number;
+  avatar?: UserAvatarModel;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
       className="group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border border-brand-border bg-white p-4 text-left shadow-sm transition-all duration-200 hover:border-brand-primary-ring hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-brand-primary-ring focus:ring-offset-2 animate-fade-in-up opacity-0"
-      style={{ animationDelay: `${index * 0.08}s`, animationFillMode: "forwards" }}
+      style={{
+        animationDelay: `${index * 0.08}s`,
+        animationFillMode: "forwards",
+      }}
     >
       {/* Indicador lateral para responsable */}
       {isResponsible && (
@@ -42,20 +46,23 @@ function ActiveParticipantCard({
       )}
 
       {/* Avatar con iniciales */}
-      <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg font-semibold text-sm ${
+      <UserAvatar
+        name={participant.userName}
+        avatar={avatar}
+        size="lg"
+        className={
           isResponsible
-            ? "bg-brand-responsible-soft text-brand-responsible"
-            : "bg-brand-primary-soft text-brand-primary"
-        }`}
-      >
-        {getInitials(participant.userName)}
-      </div>
+            ? "ring-2 ring-brand-responsible-soft"
+            : "ring-2 ring-brand-primary-soft"
+        }
+      />
 
       {/* Información del participante */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-semibold text-brand-text">{participant.userName}</p>
+          <p className="font-semibold text-brand-text">
+            {participant.userName}
+          </p>
           {isResponsible && (
             <span className="inline-flex items-center gap-1 rounded-full bg-brand-responsible-soft px-2 py-0.5 text-xs font-medium text-brand-responsible">
               <ShieldCheck className="h-3 w-3" />
@@ -71,7 +78,8 @@ function ActiveParticipantCard({
         <div className="mt-1 flex items-center gap-1.5 text-sm text-brand-text-muted">
           <Clock className="h-3.5 w-3.5" />
           <span>
-            {isResponsible ? "Responsable" : "Apoyo"} desde las {participant.startedAt}
+            {isResponsible ? "Responsable" : "Apoyo"} desde las{" "}
+            {participant.startedAt}
           </span>
         </div>
       </div>
@@ -89,13 +97,22 @@ function ActiveParticipantCard({
   );
 }
 
-function JoinAnotherUserCard({ onClick, index }: { onClick: () => void; index: number }) {
+function JoinAnotherUserCard({
+  onClick,
+  index,
+}: {
+  onClick: () => void;
+  index: number;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex w-full items-center gap-4 rounded-xl border-2 border-dashed border-brand-border bg-slate-900/5 p-5 text-left transition-all duration-200 hover:border-brand-primary hover:bg-brand-primary-soft/30 focus:outline-none focus:ring-2 focus:ring-brand-primary-ring focus:ring-offset-2 animate-fade-in-up opacity-0"
-      style={{ animationDelay: `${index * 0.08}s`, animationFillMode: "forwards" }}
+      style={{
+        animationDelay: `${index * 0.08}s`,
+        animationFillMode: "forwards",
+      }}
     >
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-surface text-brand-text-muted">
         <UserPlus className="h-6 w-6" />
@@ -103,7 +120,8 @@ function JoinAnotherUserCard({ onClick, index }: { onClick: () => void; index: n
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-brand-text">Activar usuario</p>
         <p className="mt-0.5 text-sm text-brand-text-muted">
-          Accede con una cuenta que aún no tiene participación activa en esta estación.
+          Accede con una cuenta que aún no tiene participación activa en esta
+          estación.
         </p>
       </div>
     </button>
@@ -112,14 +130,12 @@ function JoinAnotherUserCard({ onClick, index }: { onClick: () => void; index: n
 
 export function WorkstationPage() {
   const router = useRouter();
-  const {
-    participants,
-    unlockSession,
-  } = useMockSession();
-  const [workstation] = useState(mockWorkstation);
+  const { getUserAvatar, participants, unlockSession } = useMockSession();
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"access" | "join">("access");
-  const [preselectedUserId, setPreselectedUserId] = useState<string | null>(null);
+  const [preselectedUserId, setPreselectedUserId] = useState<string | null>(
+    null,
+  );
 
   const activeParticipants = participants
     .filter((p) => p.status === "active")
@@ -192,7 +208,9 @@ export function WorkstationPage() {
             <ShieldCheck className="h-6 w-6 text-white" />
             <div>
               <h1 className="text-xl font-bold text-white">Control de caja</h1>
-              <p className="text-sm text-slate-400">Control de acceso de usuarios</p>
+              <p className="text-sm text-slate-400">
+                Control de acceso de usuarios
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -201,7 +219,8 @@ export function WorkstationPage() {
               Estación activa
             </span>
             <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
-              {activeParticipants.length} {activeParticipants.length === 1 ? "activo" : "activos"}
+              {activeParticipants.length}{" "}
+              {activeParticipants.length === 1 ? "activo" : "activos"}
             </span>
           </div>
         </div>
@@ -219,7 +238,10 @@ export function WorkstationPage() {
                     Control de usuarios
                   </h3>
                   <p className="mt-1 text-sm text-brand-text-muted">
-                    {activeParticipants.length} {activeParticipants.length === 1 ? "usuario activo" : "usuarios activos"}
+                    {activeParticipants.length}{" "}
+                    {activeParticipants.length === 1
+                      ? "usuario activo"
+                      : "usuarios activos"}
                   </p>
                 </div>
               </div>
@@ -229,25 +251,41 @@ export function WorkstationPage() {
                   <ActiveParticipantCard
                     key={participant.id}
                     participant={participant}
-                    isResponsible={participant.participationType === "responsible"}
+                    isResponsible={
+                      participant.participationType === "responsible"
+                    }
                     onSelect={() => handleActiveParticipantClick(participant)}
                     index={index + 1}
+                    avatar={getUserAvatar(participant.userId)}
                   />
                 ))}
 
                 {activeParticipants.length === 0 && (
                   <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
                     <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
-                    <p className="mt-2 font-medium text-brand-text">No hay participantes activos</p>
-                    <p className="text-sm text-brand-text-muted">Inicia una jornada o incorpórate como participante.</p>
+                    <p className="mt-2 font-medium text-brand-text">
+                      No hay participantes activos
+                    </p>
+                    <p className="text-sm text-brand-text-muted">
+                      Inicia una jornada o incorpórate como participante.
+                    </p>
                   </div>
                 )}
               </div>
             </section>
 
             {/* Join another user */}
-            <div className="mt-6 animate-fade-in-up opacity-0" style={{ animationDelay: `${(activeParticipants.length + 1) * 0.08}s`, animationFillMode: "forwards" }}>
-              <JoinAnotherUserCard onClick={handleJoinClick} index={activeParticipants.length + 1} />
+            <div
+              className="mt-6 animate-fade-in-up opacity-0"
+              style={{
+                animationDelay: `${(activeParticipants.length + 1) * 0.08}s`,
+                animationFillMode: "forwards",
+              }}
+            >
+              <JoinAnotherUserCard
+                onClick={handleJoinClick}
+                index={activeParticipants.length + 1}
+              />
             </div>
           </div>
         </div>

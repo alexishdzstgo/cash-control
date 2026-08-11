@@ -1,6 +1,8 @@
 "use client";
 
-import { Check, UserRound, UserPlus } from "lucide-react";
+import { Check, UserPlus } from "lucide-react";
+import { useMockSession } from "@/components/session/MockSessionContext";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Button } from "@/components/ui/button";
 import type { RegisteredUser } from "./types";
 
@@ -21,6 +23,7 @@ export function UserSelectionStep({
   onBack,
   onContinue,
 }: UserSelectionStepProps) {
+  const { getUserAvatar } = useMockSession();
   const inactiveUsers = registeredUsers.filter(
     (u) => !activeUserIds.includes(u.userId),
   );
@@ -46,11 +49,11 @@ export function UserSelectionStep({
           Todos los usuarios registrados ya están participando activamente.
         </p>
       ) : (
-        <ul className="space-y-2" role="listbox" aria-label="Usuarios disponibles">
+        <ul className="space-y-2" aria-label="Usuarios disponibles">
           {inactiveUsers.map((user) => {
             const isSelected = selectedUserId === user.userId;
             return (
-              <li key={user.userId} role="option" aria-selected={isSelected}>
+              <li key={user.userId}>
                 <button
                   type="button"
                   onClick={() => onSelect(user.userId)}
@@ -60,11 +63,14 @@ export function UserSelectionStep({
                       : "border-brand-border bg-white hover:border-brand-primary-ring hover:bg-brand-primary-soft/30"
                   }`}
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-primary-soft text-brand-primary">
-                    <UserRound className="h-5 w-5" />
-                  </div>
+                  <UserAvatar
+                    name={user.userName}
+                    avatar={getUserAvatar(user.userId)}
+                  />
                   <div className="flex-1">
-                    <p className="font-semibold text-brand-text">{user.userName}</p>
+                    <p className="font-semibold text-brand-text">
+                      {user.userName}
+                    </p>
                   </div>
                   {isSelected && (
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-white">

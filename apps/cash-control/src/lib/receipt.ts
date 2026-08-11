@@ -21,6 +21,10 @@ export function buildReceiptData({
   const isDeposit = operation.type === "deposito";
   const status = mapReceiptStatus(operation);
   const bankName = isDeposit ? operation.bankTo : operation.bankFrom;
+  const receiptAmount =
+    operation.type === "retiro" && operation.customerCashReceived !== undefined
+      ? operation.customerCashReceived
+      : operation.amount;
 
   return {
     receiptId: operation.id,
@@ -33,7 +37,7 @@ export function buildReceiptData({
       status === "completed" || status === "delivered"
         ? (operation.editedAt ?? operation.createdAt)
         : undefined,
-    amount: operation.amount,
+    amount: receiptAmount,
     commission: operation.commission,
     total: operation.total,
     bankName,

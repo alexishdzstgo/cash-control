@@ -10,6 +10,7 @@ type BankSelectProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  error?: string;
   /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
 };
@@ -22,6 +23,7 @@ export function BankSelect({
   placeholder = "Selecciona un banco",
   disabled = false,
   className = "",
+  error,
 }: BankSelectProps) {
   return (
     <div className={className}>
@@ -38,6 +40,8 @@ export function BankSelect({
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
         className="field-input px-4 py-3"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
       >
         <option value="">{placeholder}</option>
 
@@ -47,6 +51,12 @@ export function BankSelect({
           </option>
         ))}
       </select>
+
+      {error && (
+        <p id={`${id}-error`} className="mt-2 text-sm font-medium text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

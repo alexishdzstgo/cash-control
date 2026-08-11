@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PageHeader } from "@/components/shared/PageHeader";
+import Link from "next/link";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { mockRegisteredUsers } from "@/components/workstation/mockData";
 import { getStaffMembers, getStaffSummary } from "@/lib/staff";
 import { ActiveParticipantsPanel } from "./ActiveParticipantsPanel";
@@ -11,12 +11,16 @@ import { StaffList } from "./StaffList";
 import { StaffSummary } from "./StaffSummary";
 
 export function StaffPage() {
-  const { participants, getContextResponsibleUserId } = useMockSession();
+  const { getUserAvatar, participants, getContextResponsibleUserId } =
+    useMockSession();
   const members = getStaffMembers(
     mockRegisteredUsers,
     participants,
     getContextResponsibleUserId(),
-  );
+  ).map((member) => ({
+    ...member,
+    avatar: getUserAvatar(member.userId),
+  }));
   const summary = getStaffSummary(members);
 
   return (

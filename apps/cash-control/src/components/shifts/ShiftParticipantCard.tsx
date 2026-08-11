@@ -1,9 +1,10 @@
 "use client";
 
-import type { ShiftParticipant } from "@/types/shift";
-import { Button } from "@/components/ui/button";
+import { ShieldCheck, UserRoundCheck, UserX } from "lucide-react";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, UserRoundCheck, UserRound, UserX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { ShiftParticipant } from "@/types/shift";
 
 interface ShiftParticipantCardProps {
   participant: ShiftParticipant;
@@ -54,9 +55,11 @@ export function ShiftParticipantCard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-primary-soft text-brand-primary">
-              <UserRound className="h-5 w-5" />
-            </div>
+            <UserAvatar
+              name={participant.name}
+              avatar={participant.avatar}
+              size="sm"
+            />
             <h4 className="font-medium text-slate-900">{participant.name}</h4>
             {isResponsible && (
               <Badge variant="brand">
@@ -67,10 +70,18 @@ export function ShiftParticipantCard({
           </div>
 
           <div className="mt-2 flex flex-wrap gap-2">
-            <Badge variant={systemRoleBadgeVariants[participant.systemRole] ?? "neutral"}>
+            <Badge
+              variant={
+                systemRoleBadgeVariants[participant.systemRole] ?? "neutral"
+              }
+            >
               {systemRoleLabels[participant.systemRole]}
             </Badge>
-            <Badge variant={shiftRoleBadgeVariants[participant.shiftRole] ?? "neutral"}>
+            <Badge
+              variant={
+                shiftRoleBadgeVariants[participant.shiftRole] ?? "neutral"
+              }
+            >
               {shiftRoleLabels[participant.shiftRole]}
             </Badge>
           </div>

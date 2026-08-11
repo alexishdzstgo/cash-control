@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Operation,
   OperationStatus,
@@ -23,6 +23,10 @@ export function useOperationsHistory(operations: Operation[]) {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedOperation, setSelectedOperation] =
     useState<Operation | null>(null);
+
+  useEffect(() => {
+    setOperationList(operations);
+  }, [operations]);
 
   const filteredOperations = useMemo(() => {
     const normalizedSearch = search.toLowerCase().trim();

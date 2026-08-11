@@ -4,8 +4,9 @@ export type BankOption = {
 };
 
 export const bankOptions: BankOption[] = [
-  { value: "banco-azteca", label: "Banco Azteca" },
-  { value: "bbva", label: "BBVA" },
+  { value: "bank-azteca", label: "Banco Azteca" },
+  { value: "bank-bbva", label: "BBVA" },
+  { value: "mercado-pago", label: "Mercado Pago" },
   { value: "banamex", label: "Banamex" },
   { value: "banorte", label: "Banorte" },
   { value: "santander", label: "Santander" },
@@ -13,8 +14,14 @@ export const bankOptions: BankOption[] = [
 ];
 
 export function getBankLabel(value: string): string {
+  const legacyLabels: Record<string, string> = {
+    "banco-azteca": "Banco Azteca",
+    bbva: "BBVA",
+  };
+
   return (
     bankOptions.find((bank) => bank.value === value)?.label ??
+    legacyLabels[value] ??
     "Sin seleccionar"
   );
 }

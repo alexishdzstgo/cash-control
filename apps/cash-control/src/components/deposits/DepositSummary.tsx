@@ -1,66 +1,32 @@
 "use client";
 
-import {
-  CheckCircle2,
-  Clock3,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { getBankLabel } from "@/config/banks";
 import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
-import { getBankLabel } from "@/config/banks";
-import type {
-  DepositFormData,
-  DepositMode,
-} from "@/types/deposit";
+import type { DepositFormData } from "@/types/deposit";
 
 type DepositSummaryProps = {
-  mode: DepositMode;
   formData: DepositFormData;
+  receivedBy: string;
   amount: number;
   commission: number | null;
   hasCommissionRule: boolean;
   isReadyToRegister: boolean;
+  errorMessage?: string | null;
   onRegister: () => void;
 };
 
-const deliveryMethodLabels: Record<
-  string,
-  string
-> = {
-  "bank-transfer":
-    "Transferencia bancaria",
-  "cash-deposit": "Depósito en efectivo",
-};
-
-const pendingReasonLabels: Record<
-  string,
-  string
-> = {
-  "bank-unavailable":
-    "Servicio bancario no disponible",
-  "insufficient-bank-balance":
-    "Saldo insuficiente en la cuenta",
-  "movement-limit":
-    "Límite de movimientos alcanzado",
-  "customer-request":
-    "Solicitud del cliente",
-  other: "Otro motivo",
-};
-
 export function DepositSummary({
-  mode,
   formData,
+  receivedBy,
   amount,
   commission,
   hasCommissionRule,
   isReadyToRegister,
+  errorMessage,
   onRegister,
 }: DepositSummaryProps) {
-  const isPendingMode = mode === "pending";
-
-  /*
-   * El cliente entrega el monto y además
-   * paga la comisión.
-   */
   const totalReceived = amount + (commission ?? 0);
 
   return (
@@ -69,93 +35,43 @@ export function DepositSummary({
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
           Vista previa
         </p>
-
         <h2 className="mt-1 text-lg font-semibold text-slate-950">
-          {isPendingMode
-            ? "Resumen del depósito pendiente"
-            : "Resumen del depósito"}
+          Resumen del deposito
         </h2>
-
         <p className="mt-1 text-sm text-slate-500">
-          Verifica la información antes de
-          registrar la operación.
+          Verifica cuanto efectivo debe recibir caja.
         </p>
       </div>
 
       <div className="p-6">
         <div className="space-y-4">
           <SummaryRow
-            label="Folio bancario"
+            label="Folio del sistema"
+            value={formData.bankFolio}
+            mono
+          />
+          <SummaryRow label="Monto" value={formatCurrency(amount)} />
+          <SummaryRow
+            label="Destinatario"
+            value={formData.receiverName || "Sin capturar"}
+          />
+          <SummaryRow
+            label="Banco de emision"
+            value={getBankLabel(formData.emissionBank)}
+          />
+          <SummaryRow
+            label="Ultimos 4 digitos"
             value={
-              formData.bankFolio ||
-              "Sin capturar"
+              formData.destinationAccountLast4 || "Sin capturar"
             }
             mono
           />
-
-          <SummaryRow
-            label="Banco de destino"
-            value={getBankLabel(
-              formData.destinationBank,
-            )}
-          />
-
-          <SummaryRow
-            label="Método de envío"
-            value={
-              deliveryMethodLabels[
-                formData.deliveryMethod
-              ] ?? "Sin seleccionar"
-            }
-          />
-
-          <SummaryRow
-            label="Entrega el efectivo"
-            value={
-              formData.senderName ||
-              "Sin capturar"
-            }
-          />
-
-          <SummaryRow
-            label="Recibe el depósito"
-            value={
-              formData.receiverName ||
-              "Sin capturar"
-            }
-          />
-
-          <SummaryRow
-            label="Referencia de destino"
-            value={
-              formData.destinationReference ||
-              "Sin capturar"
-            }
-            mono
-          />
-
-          {isPendingMode && (
-            <>
-              <SummaryRow
-                label="Motivo pendiente"
-                value={
-                  pendingReasonLabels[
-                    formData.pendingReason
-                  ] ?? "Sin seleccionar"
-                }
-              />
-
-              {formData.pendingReason ===
-                "other" && (
-                <SummaryRow
-                  label="Detalle del motivo"
-                  value={
-                    formData.pendingReasonDetails ||
-                    "Sin especificar"
-                  }
-                />
-              )}
-            </>
+          <SummaryRow label="Recibio efectivo" value={receivedBy} />
+          {formData.observations.trim() && (
+            <SummaryRow
+              label="Observaciones"
+              value={formData.observations.trim()}
+            />
           )}
         </div>
 
@@ -163,24 +79,21 @@ export function DepositSummary({
 
         <div className="space-y-4">
           <AmountRow
-            label="Monto del depósito"
-            value={formatCurrency(amount)}
-          />
-
-          <AmountRow
-            label="Comisión"
+            label="Comision"
             value={commission === null ? "Sin regla" : formatCurrency(commission)}
           />
-
           <div className="border-t border-slate-100 pt-4">
             <AmountRow
               label="Total recibido"
-              value={formatCurrency(
-                totalReceived,
-              )}
+              value={formatCurrency(totalReceived)}
               large
             />
           </div>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Caja fisica aumenta por {formatCurrency(totalReceived)} y el banco de
+          emision disminuye por {formatCurrency(amount)}.
         </div>
 
         {!hasCommissionRule && amount > 0 && (
@@ -189,29 +102,29 @@ export function DepositSummary({
           </div>
         )}
 
+        {errorMessage && (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
         <button
           type="button"
-          disabled={!isReadyToRegister}
+          aria-disabled={!isReadyToRegister}
           onClick={onRegister}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-3 font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+          className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
+            isReadyToRegister
+              ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
+              : "bg-slate-300 text-slate-600 hover:bg-slate-300"
+          }`}
         >
-          {isPendingMode ? (
-            <>
-              <Clock3 className="h-5 w-5" />
-              Registrar como pendiente
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-5 w-5" />
-              Registrar depósito
-            </>
-          )}
+          <CheckCircle2 className="h-5 w-5" />
+          Registrar deposito
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
-          {isPendingMode
-            ? "La operación aparecerá en depósitos pendientes hasta que se complete."
-            : "Después de registrar, la operación aparecerá en el historial."}
+          No se genera ticket: el cliente conserva el comprobante de la app
+          bancaria.
         </p>
       </div>
     </aside>
@@ -232,7 +145,6 @@ function SummaryRow({
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
         {label}
       </p>
-
       <p
         className={`mt-1 break-words text-sm font-semibold text-slate-800 ${
           mono ? "font-mono" : ""
@@ -255,10 +167,7 @@ function AmountRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-500">
-        {label}
-      </span>
-
+      <span className="text-sm text-slate-500">{label}</span>
       <span
         className={
           large

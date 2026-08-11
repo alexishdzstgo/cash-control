@@ -1,8 +1,19 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
+import { initialUserAccounts } from "@/components/users/userMockData";
+import {
+  mockParticipants,
+  mockRegisteredUsers,
+} from "@/components/workstation/mockData";
 import type { Participant, SystemRole } from "@/components/workstation/types";
-import { mockParticipants, mockRegisteredUsers } from "@/components/workstation/mockData";
+import type { UserAvatar } from "@/types/user";
 
 export interface SessionUser {
   userId: string;
@@ -24,17 +35,31 @@ export interface TransferSummary {
 interface MockSessionContextValue {
   authenticatedUser: SessionUser | null;
   participants: Participant[];
+  getUserAvatar: (userId: string) => UserAvatar | undefined;
+  updateUserAvatar: (userId: string, avatar: UserAvatar) => void;
   unlockSession: (user: SessionUser) => void;
   lockSession: () => void;
   updateAuthenticatedUser: (updates: Partial<SessionUser>) => void;
   startParticipation: (userId: string) => void;
-  endParticipation: (userId: string) => { success: boolean; isResponsible: boolean; isOnlyParticipant?: boolean };
+  endParticipation: (userId: string) => {
+    success: boolean;
+    isResponsible: boolean;
+    isOnlyParticipant?: boolean;
+  };
   getActiveParticipation: (userId: string) => Participant | undefined;
   hasActiveParticipation: (userId: string) => boolean;
-  transferResponsibility: (fromUserId: string, toUserId: string, pin: string) => { success: boolean; error?: string };
+  transferResponsibility: (
+    fromUserId: string,
+    toUserId: string,
+    pin: string,
+  ) => { success: boolean; error?: string };
   getActiveParticipants: () => Participant[];
   addParticipant: (userId: string) => void;
-  removeParticipant: (userId: string) => { success: boolean; isResponsible: boolean; error?: string };
+  removeParticipant: (userId: string) => {
+    success: boolean;
+    isResponsible: boolean;
+    error?: string;
+  };
   addActivityEvent: (description: string) => void;
   getTransferSummary: () => {
     cashOnHand: number;
@@ -62,8 +87,17 @@ function getCurrentTime(): string {
 }
 
 export function MockSessionProvider({ children }: { children: ReactNode }) {
-  const [authenticatedUser, setAuthenticatedUser] = useState<SessionUser | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>(mockParticipants);
+  const [authenticatedUser, setAuthenticatedUser] =
+    useState<SessionUser | null>(null);
+  const [participants, setParticipants] =
+    useState<Participant[]>(mockParticipants);
+  const [userAvatars, setUserAvatars] = useState<
+    Record<string, UserAvatar | undefined>
+  >(() =>
+    Object.fromEntries(
+      initialUserAccounts.map((user) => [user.id, user.avatar]),
+    ),
+  );
 
   const unlockSession = useCallback((user: SessionUser) => {
     setAuthenticatedUser(user);
@@ -74,11 +108,23 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     // Participants are preserved — lockSession does NOT remove participations
   }, []);
 
-  const updateAuthenticatedUser = useCallback((updates: Partial<SessionUser>) => {
-    setAuthenticatedUser((prev) => {
-      if (!prev) return null;
-      return { ...prev, ...updates };
-    });
+  const updateAuthenticatedUser = useCallback(
+    (updates: Partial<SessionUser>) => {
+      setAuthenticatedUser((prev) => {
+        if (!prev) return null;
+        return { ...prev, ...updates };
+      });
+    },
+    [],
+  );
+
+  const getUserAvatar = useCallback(
+    (userId: string): UserAvatar | undefined => userAvatars[userId],
+    [userAvatars],
+  );
+
+  const updateUserAvatar = useCallback((userId: string, avatar: UserAvatar) => {
+    setUserAvatars((current) => ({ ...current, [userId]: avatar }));
   }, []);
 
   const startParticipation = useCallback((userId: string): void => {
@@ -88,7 +134,9 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     // Functional updater guarantees the latest state for duplicate detection.
     // No external variables are mutated — the updater is pure.
     setParticipants((prev) => {
-      const alreadyActive = prev.some((p) => p.userId === userId && p.status === "active");
+      const alreadyActive = prev.some(
+        (p) => p.userId === userId && p.status === "active",
+      );
       if (alreadyActive) return prev;
 
       const newParticipant: Participant = {
@@ -104,46 +152,69 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const endParticipation = useCallback((userId: string): { success: boolean; isResponsible: boolean; isOnlyParticipant?: boolean } => {
-    const participation = participants.find((p) => p.userId === userId && p.status === "active");
-    
-    if (!participation) {
-      return { success: false, isResponsible: false };
-    }
+  const endParticipation = useCallback(
+    (
+      userId: string,
+    ): {
+      success: boolean;
+      isResponsible: boolean;
+      isOnlyParticipant?: boolean;
+    } => {
+      const participation = participants.find(
+        (p) => p.userId === userId && p.status === "active",
+      );
 
-    // Check if user is responsible
-    if (participation.participationType === "responsible") {
-      const activeParticipants = participants.filter((p) => p.status === "active");
-      const isOnlyParticipant = activeParticipants.length === 1;
-      return { success: false, isResponsible: true, isOnlyParticipant };
-    }
+      if (!participation) {
+        return { success: false, isResponsible: false };
+      }
 
-    // For support type, end the participation
-    const endedAt = getCurrentTime();
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.userId === userId && p.status === "active"
-          ? { ...p, status: "ended" as const, endedAt }
-          : p
-      )
-    );
+      // Check if user is responsible
+      if (participation.participationType === "responsible") {
+        const activeParticipants = participants.filter(
+          (p) => p.status === "active",
+        );
+        const isOnlyParticipant = activeParticipants.length === 1;
+        return { success: false, isResponsible: true, isOnlyParticipant };
+      }
 
-    // Update authenticated user's hasActiveParticipation flag
-    setAuthenticatedUser((prev) => {
-      if (!prev || prev.userId !== userId) return prev;
-      return { ...prev, hasActiveParticipation: false };
-    });
+      // For support type, end the participation
+      const endedAt = getCurrentTime();
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.userId === userId && p.status === "active"
+            ? { ...p, status: "ended" as const, endedAt }
+            : p,
+        ),
+      );
 
-    return { success: true, isResponsible: false };
-  }, [participants]);
+      // Update authenticated user's hasActiveParticipation flag
+      setAuthenticatedUser((prev) => {
+        if (!prev || prev.userId !== userId) return prev;
+        return { ...prev, hasActiveParticipation: false };
+      });
 
-  const getActiveParticipation = useCallback((userId: string): Participant | undefined => {
-    return participants.find((p) => p.userId === userId && p.status === "active");
-  }, [participants]);
+      return { success: true, isResponsible: false };
+    },
+    [participants],
+  );
 
-  const hasActiveParticipation = useCallback((userId: string): boolean => {
-    return participants.some((p) => p.userId === userId && p.status === "active");
-  }, [participants]);
+  const getActiveParticipation = useCallback(
+    (userId: string): Participant | undefined => {
+      return participants.find(
+        (p) => p.userId === userId && p.status === "active",
+      );
+    },
+    [participants],
+  );
+
+  const hasActiveParticipation = useCallback(
+    (userId: string): boolean => {
+      return participants.some(
+        (p) => p.userId === userId && p.status === "active",
+      );
+    },
+    [participants],
+  );
 
   const getActiveParticipants = useCallback((): Participant[] => {
     return participants.filter((p) => p.status === "active");
@@ -155,137 +226,177 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getTransferSummary = useCallback(() => {
-    const activeParticipants = participants.filter((p) => p.status === "active");
-    const currentResponsible = participants.find((p) => p.participationType === "responsible" && p.status === "active");
-    
     // Mock data for transfer summary
     return {
-      cashOnHand: 15000.00,
+      cashOnHand: 15000.0,
       bankBalances: [
-        { bank: "BBVA", account: "****4521", balance: 8500.00 },
-        { bank: "Santander", account: "****7832", balance: 12300.00 },
+        { bank: "BBVA", account: "****4521", balance: 8500.0 },
+        { bank: "Santander", account: "****7832", balance: 12300.0 },
       ],
       pendingWithdrawals: {
         count: 3,
-        total: 4500.00,
+        total: 4500.0,
       },
       pendingDeposits: {
         count: 2,
-        total: 6700.00,
+        total: 6700.0,
       },
       editedOperations: 1,
       operationsSinceLastTransfer: 12,
       transferTime: getCurrentTime(),
     };
-  }, [participants]);
+  }, []);
 
-  const addParticipant = useCallback((userId: string): void => {
-    // Authorization: only owner can add participants (RN-PAR-010)
-    if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
-      console.warn("addParticipant blocked: only owner can add participants");
-      return;
-    }
+  const addParticipant = useCallback(
+    (userId: string): void => {
+      // Authorization: only owner can add participants (RN-PAR-010)
+      if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
+        console.warn("addParticipant blocked: only owner can add participants");
+        return;
+      }
 
-    const registeredUser = mockRegisteredUsers.find((u) => u.userId === userId);
-    if (!registeredUser) return;
+      const registeredUser = mockRegisteredUsers.find(
+        (u) => u.userId === userId,
+      );
+      if (!registeredUser) return;
 
-    // Functional updater guarantees the latest state for duplicate detection.
-    // No external variables are mutated — the updater is pure.
-    setParticipants((prev) => {
-      const alreadyActive = prev.some((p) => p.userId === userId && p.status === "active");
-      if (alreadyActive) return prev;
+      // Functional updater guarantees the latest state for duplicate detection.
+      // No external variables are mutated — the updater is pure.
+      setParticipants((prev) => {
+        const alreadyActive = prev.some(
+          (p) => p.userId === userId && p.status === "active",
+        );
+        if (alreadyActive) return prev;
 
-      const newParticipant: Participant = {
-        id: `part-${Date.now()}`,
-        userId,
-        userName: registeredUser.userName,
-        participationType: "support",
-        status: "active",
-        startedAt: getCurrentTime(),
-      };
+        const newParticipant: Participant = {
+          id: `part-${Date.now()}`,
+          userId,
+          userName: registeredUser.userName,
+          participationType: "support",
+          status: "active",
+          startedAt: getCurrentTime(),
+        };
 
-      return [...prev, newParticipant];
-    });
+        return [...prev, newParticipant];
+      });
 
-    addActivityEvent(`${registeredUser.userName} se incorporó como participante`);
-  }, [authenticatedUser, addActivityEvent]);
+      addActivityEvent(
+        `${registeredUser.userName} se incorporó como participante`,
+      );
+    },
+    [authenticatedUser, addActivityEvent],
+  );
 
-  const removeParticipant = useCallback((userId: string): { success: boolean; isResponsible: boolean; error?: string } => {
-    // Authorization: only owner can remove participants (RN-PAR-011)
-    if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
-      return { success: false, isResponsible: false, error: "Solo el propietario puede retirar participantes" };
-    }
+  const removeParticipant = useCallback(
+    (
+      userId: string,
+    ): { success: boolean; isResponsible: boolean; error?: string } => {
+      // Authorization: only owner can remove participants (RN-PAR-011)
+      if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
+        return {
+          success: false,
+          isResponsible: false,
+          error: "Solo el propietario puede retirar participantes",
+        };
+      }
 
-    const participation = participants.find((p) => p.userId === userId && p.status === "active");
-    
-    if (!participation) {
-      return { success: false, isResponsible: false, error: "Participación activa no encontrada" };
-    }
+      const participation = participants.find(
+        (p) => p.userId === userId && p.status === "active",
+      );
 
-    // Prevent removing a responsible participant
-    if (participation.participationType === "responsible") {
-      return { success: false, isResponsible: true, error: "No se puede retirar al responsable del turno. Primero transfiera la responsabilidad." };
-    }
+      if (!participation) {
+        return {
+          success: false,
+          isResponsible: false,
+          error: "Participación activa no encontrada",
+        };
+      }
 
-    // For support type, end the participation
-    const endedAt = getCurrentTime();
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.userId === userId && p.status === "active"
-          ? { ...p, status: "ended" as const, endedAt }
-          : p
-      )
-    );
+      // Prevent removing a responsible participant
+      if (participation.participationType === "responsible") {
+        return {
+          success: false,
+          isResponsible: true,
+          error:
+            "No se puede retirar al responsable del turno. Primero transfiera la responsabilidad.",
+        };
+      }
 
-    // Update authenticated user's hasActiveParticipation flag if it's the same user
-    setAuthenticatedUser((prev) => {
-      if (!prev || prev.userId !== userId) return prev;
-      return { ...prev, hasActiveParticipation: false };
-    });
+      // For support type, end the participation
+      const endedAt = getCurrentTime();
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.userId === userId && p.status === "active"
+            ? { ...p, status: "ended" as const, endedAt }
+            : p,
+        ),
+      );
 
-    addActivityEvent(`${participation.userName} salió del turno`);
-    return { success: true, isResponsible: false };
-  }, [authenticatedUser, participants, addActivityEvent]);
+      // Update authenticated user's hasActiveParticipation flag if it's the same user
+      setAuthenticatedUser((prev) => {
+        if (!prev || prev.userId !== userId) return prev;
+        return { ...prev, hasActiveParticipation: false };
+      });
 
-  const transferResponsibility = useCallback((fromUserId: string, toUserId: string, pin: string): { success: boolean; error?: string } => {
-    // Verify target user is registered
-    const toUser = mockRegisteredUsers.find((u) => u.userId === toUserId);
-    if (!toUser) {
-      return { success: false, error: "Usuario destino no encontrado" };
-    }
+      addActivityEvent(`${participation.userName} salió del turno`);
+      return { success: true, isResponsible: false };
+    },
+    [authenticatedUser, participants, addActivityEvent],
+  );
 
-    // Verify PIN belongs to the RECEIVER (toUserId), not the sender
-    if (toUser.pin !== pin) {
-      return { success: false, error: "PIN incorrecto" };
-    }
+  const transferResponsibility = useCallback(
+    (
+      fromUserId: string,
+      toUserId: string,
+      pin: string,
+    ): { success: boolean; error?: string } => {
+      // Verify target user is registered
+      const toUser = mockRegisteredUsers.find((u) => u.userId === toUserId);
+      if (!toUser) {
+        return { success: false, error: "Usuario destino no encontrado" };
+      }
 
-    // Verify target user has active participation
-    const targetParticipation = participants.find((p) => p.userId === toUserId && p.status === "active");
-    if (!targetParticipation) {
-      return { success: false, error: "El usuario destino no tiene participación activa" };
-    }
+      // Verify PIN belongs to the RECEIVER (toUserId), not the sender
+      if (toUser.pin !== pin) {
+        return { success: false, error: "PIN incorrecto" };
+      }
 
-    // Get sender info for audit
-    const fromUser = mockRegisteredUsers.find((u) => u.userId === fromUserId);
+      // Verify target user has active participation
+      const targetParticipation = participants.find(
+        (p) => p.userId === toUserId && p.status === "active",
+      );
+      if (!targetParticipation) {
+        return {
+          success: false,
+          error: "El usuario destino no tiene participación activa",
+        };
+      }
 
-    // Transfer responsibility
-    setParticipants((prev) =>
-      prev.map((p) => {
-        if (p.userId === fromUserId && p.status === "active") {
-          return { ...p, participationType: "support" as const };
-        }
-        if (p.userId === toUserId && p.status === "active") {
-          return { ...p, participationType: "responsible" as const };
-        }
-        return p;
-      })
-    );
+      // Get sender info for audit
+      const fromUser = mockRegisteredUsers.find((u) => u.userId === fromUserId);
 
-    const fromUserName = fromUser?.userName || fromUserId;
-    const toUserName = toUser.userName;
-    addActivityEvent(`Responsabilidad transferida de ${fromUserName} a ${toUserName}`);
-    return { success: true };
-  }, [participants, addActivityEvent]);
+      // Transfer responsibility
+      setParticipants((prev) =>
+        prev.map((p) => {
+          if (p.userId === fromUserId && p.status === "active") {
+            return { ...p, participationType: "support" as const };
+          }
+          if (p.userId === toUserId && p.status === "active") {
+            return { ...p, participationType: "responsible" as const };
+          }
+          return p;
+        }),
+      );
+
+      const fromUserName = fromUser?.userName || fromUserId;
+      const toUserName = toUser.userName;
+      addActivityEvent(
+        `Responsabilidad transferida de ${fromUserName} a ${toUserName}`,
+      );
+      return { success: true };
+    },
+    [participants, addActivityEvent],
+  );
 
   // ── Domain capabilities ──
 
@@ -294,23 +405,27 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     return authenticatedUser.systemRole === "owner";
   }, [authenticatedUser]);
 
-  const canRemoveParticipant = useCallback((targetUserId: string): boolean => {
-    if (!authenticatedUser) return false;
-    if (authenticatedUser.systemRole !== "owner") return false;
+  const canRemoveParticipant = useCallback(
+    (targetUserId: string): boolean => {
+      if (!authenticatedUser) return false;
+      if (authenticatedUser.systemRole !== "owner") return false;
 
-    // Cannot remove the responsible participant
-    const targetParticipation = participants.find(
-      (p) => p.userId === targetUserId && p.status === "active"
-    );
-    if (targetParticipation?.participationType === "responsible") return false;
+      // Cannot remove the responsible participant
+      const targetParticipation = participants.find(
+        (p) => p.userId === targetUserId && p.status === "active",
+      );
+      if (targetParticipation?.participationType === "responsible")
+        return false;
 
-    return true;
-  }, [authenticatedUser, participants]);
+      return true;
+    },
+    [authenticatedUser, participants],
+  );
 
   const canTransferResponsibility = useCallback((): boolean => {
     if (!authenticatedUser) return false;
     const activeParticipation = participants.find(
-      (p) => p.userId === authenticatedUser.userId && p.status === "active"
+      (p) => p.userId === authenticatedUser.userId && p.status === "active",
     );
     return activeParticipation?.participationType === "responsible";
   }, [authenticatedUser, participants]);
@@ -318,7 +433,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   const canEndOwnParticipation = useCallback((): boolean => {
     if (!authenticatedUser) return false;
     const activeParticipation = participants.find(
-      (p) => p.userId === authenticatedUser.userId && p.status === "active"
+      (p) => p.userId === authenticatedUser.userId && p.status === "active",
     );
     // Can end own participation only if NOT responsible
     return activeParticipation?.participationType !== "responsible";
@@ -327,14 +442,14 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   const isCurrentUserResponsible = useCallback((): boolean => {
     if (!authenticatedUser) return false;
     const activeParticipation = participants.find(
-      (p) => p.userId === authenticatedUser.userId && p.status === "active"
+      (p) => p.userId === authenticatedUser.userId && p.status === "active",
     );
     return activeParticipation?.participationType === "responsible";
   }, [authenticatedUser, participants]);
 
   const getContextResponsibleUserId = useCallback((): string | null => {
     const responsible = participants.find(
-      (p) => p.participationType === "responsible" && p.status === "active"
+      (p) => p.participationType === "responsible" && p.status === "active",
     );
     return responsible?.userId ?? null;
   }, [participants]);
@@ -344,6 +459,8 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       value={{
         authenticatedUser,
         participants,
+        getUserAvatar,
+        updateUserAvatar,
         unlockSession,
         lockSession,
         updateAuthenticatedUser,

@@ -11,17 +11,23 @@ import {
   bankAccounts,
   cashBalance,
 } from "@/components/balances/balanceMockData";
+import { mockOperations } from "@/components/history/mockOperations";
 import {
   applyAdministrativeMovement,
   calculateAdministrativeCorrectionImpact,
   getAdministrativeResources,
   validateAdministrativeWithdrawal,
 } from "@/lib/administrativeMovements";
+import {
+  applyOperationFinancialImpact,
+  validateOperationFinancialImpact,
+} from "@/lib/finance";
 import type {
   AdministrativeMovement,
   AdministrativeMovementType,
 } from "@/types/administrativeMovement";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
+import type { Operation } from "@/types/operation";
 import { initialAdministrativeMovements } from "./businessFundsMockData";
 
 type RegisterAdministrativeMovementInput = {
@@ -48,8 +54,14 @@ type CorrectAdministrativeMovementInput = {
 type BusinessFundsContextValue = {
   cash: CashBalance;
   banks: BankAccountBalance[];
+  operations: Operation[];
   movements: AdministrativeMovement[];
   resources: ReturnType<typeof getAdministrativeResources>;
+  registerClientOperation: (operation: Operation) => {
+    success: boolean;
+    operation?: Operation;
+    error?: string;
+  };
   registerMovement: (input: RegisterAdministrativeMovementInput) => {
     success: boolean;
     movement?: AdministrativeMovement;
@@ -72,6 +84,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   const [movements, setMovements] = useState<AdministrativeMovement[]>(
     initialAdministrativeMovements,
   );
+  const [operations, setOperations] = useState<Operation[]>(mockOperations);
 
   const resources = useMemo(
     () => getAdministrativeResources(cash, banks),
@@ -122,6 +135,31 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setBanks(nextBalances.banks);
     setMovements((current) => [movement, ...current]);
     return { success: true, movement };
+  }
+
+  function registerClientOperation(operation: Operation): {
+    success: boolean;
+    operation?: Operation;
+    error?: string;
+  } {
+    const validation = validateOperationFinancialImpact({
+      cash,
+      banks,
+      operation,
+    });
+    if (validation) return { success: false, error: validation };
+
+    const nextBalances = applyOperationFinancialImpact({
+      cash,
+      banks,
+      operation,
+    });
+
+    setCash(nextBalances.cash);
+    setBanks(nextBalances.banks);
+    setOperations((current) => [operation, ...current]);
+
+    return { success: true, operation };
   }
 
   function correctMovement(input: CorrectAdministrativeMovementInput): {
@@ -211,8 +249,10 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       value={{
         cash,
         banks,
+        operations,
         movements,
         resources,
+        registerClientOperation,
         registerMovement,
         correctMovement,
       }}

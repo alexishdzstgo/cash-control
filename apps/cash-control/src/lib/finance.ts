@@ -3,6 +3,7 @@ import {
   cashBalance,
 } from "@/components/balances/balanceMockData";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
+import type { Operation } from "@/types/operation";
 
 export type BalanceHealthStatus = "normal" | "warning" | "critical";
 
@@ -63,11 +64,126 @@ export type BankMovementAlert = {
   isNearLimit: boolean;
 };
 
+export type OperationFinancialImpact = {
+  cashDelta: number;
+  bankDeltas: Array<{
+    bankId: string;
+    amount: number;
+  }>;
+};
+
+const bankIdAliases: Record<string, string> = {
+  "Banco Azteca": "bank-azteca",
+  "banco-azteca": "bank-azteca",
+  BBVA: "bank-bbva",
+  bbva: "bank-bbva",
+  "Mercado Pago": "mercado-pago",
+};
+
+export function getOperationFinancialImpact(
+  operation: Operation,
+): OperationFinancialImpact {
+  const bankId = resolveOperationBankId(operation);
+  const commission = operation.commission ?? 0;
+
+  if (operation.type === "deposito") {
+    return {
+      cashDelta: operation.amount + commission,
+      bankDeltas: bankId ? [{ bankId, amount: -operation.amount }] : [],
+    };
+  }
+
+  if (operation.withdrawalCommissionMode === "cash") {
+    return {
+      cashDelta: -operation.amount + commission,
+      bankDeltas: bankId ? [{ bankId, amount: operation.amount }] : [],
+    };
+  }
+
+  if (operation.withdrawalCommissionMode === "deducted") {
+    return {
+      cashDelta: -(operation.customerCashReceived ?? operation.amount - commission),
+      bankDeltas: bankId ? [{ bankId, amount: operation.amount }] : [],
+    };
+  }
+
+  return {
+    cashDelta: -operation.amount,
+    bankDeltas: bankId ? [{ bankId, amount: operation.amount + commission }] : [],
+  };
+}
+
+export function applyOperationFinancialImpact({
+  cash,
+  banks,
+  operation,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  operation: Operation;
+}): { cash: CashBalance; banks: BankAccountBalance[] } {
+  const impact = getOperationFinancialImpact(operation);
+
+  return {
+    cash: {
+      ...cash,
+      physicalBalance: cash.physicalBalance + impact.cashDelta,
+    },
+    banks: banks.map((bank) => {
+      const bankDelta = impact.bankDeltas
+        .filter((delta) => delta.bankId === bank.id)
+        .reduce((sum, delta) => sum + delta.amount, 0);
+
+      return bankDelta === 0
+        ? bank
+        : { ...bank, realBalance: bank.realBalance + bankDelta };
+    }),
+  };
+}
+
+export function validateOperationFinancialImpact({
+  cash,
+  banks,
+  operation,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  operation: Operation;
+}): string | null {
+  const impact = getOperationFinancialImpact(operation);
+
+  if (cash.physicalBalance + impact.cashDelta < 0) {
+    return "No hay efectivo suficiente en caja para registrar esta operación.";
+  }
+
+  for (const delta of impact.bankDeltas) {
+    const bank = banks.find((item) => item.id === delta.bankId);
+    if (!bank) {
+      return "Selecciona un banco disponible.";
+    }
+
+    if (bank.realBalance + delta.amount < 0) {
+      return `No hay saldo suficiente en ${bank.bankName} para registrar esta operación.`;
+    }
+  }
+
+  return null;
+}
+
 export function computeFinancialTotals(): FinancialTotals {
   return computeFinancialTotalsFromBalances({
     cash: cashBalance,
     banks: bankAccounts,
   });
+}
+
+function resolveOperationBankId(operation: Operation): string | null {
+  const bankReference =
+    operation.bankResourceId ??
+    (operation.type === "deposito" ? operation.bankTo : operation.bankFrom) ??
+    "";
+
+  return bankIdAliases[bankReference] ?? (bankReference || null);
 }
 
 export function computeFinancialTotalsFromBalances({

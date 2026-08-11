@@ -4,6 +4,16 @@ export type UserAccountStatus = "active" | "suspended";
 
 export type UserLastLoginLabel = "today" | "yesterday" | "never";
 
+export type UserAvatar =
+  | {
+      type: "generated";
+      style: "avataaars-neutral" | "shapes";
+      seed: string;
+    }
+  | {
+      type: "initials";
+    };
+
 export type UserAccount = {
   id: string;
   firstName: string;
@@ -12,7 +22,7 @@ export type UserAccount = {
   username: string;
   systemRole: SystemRole;
   status: UserAccountStatus;
-  avatar?: string;
+  avatar?: UserAvatar;
   createdAt: string;
   lastLogin: UserLastLoginLabel;
   temporaryPassword: string;

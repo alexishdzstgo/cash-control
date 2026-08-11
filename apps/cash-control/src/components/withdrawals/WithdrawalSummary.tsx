@@ -1,43 +1,60 @@
 "use client";
 
-import { CheckCircle2, Clock3 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { getBankLabel } from "@/config/banks";
 import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
-import { getBankLabel } from "@/config/banks";
 import type {
+  WithdrawalCommissionMode,
   WithdrawalFormData,
-  WithdrawalMode,
 } from "@/types/withdrawal";
 
-interface WithdrawalSummaryProps {
-  mode: WithdrawalMode;
+type WithdrawalSummaryProps = {
   formData: WithdrawalFormData;
+  deliveredBy: string;
   amount: number;
   commission: number | null;
+  cashDeliveredToCustomer: number;
   hasCommissionRule: boolean;
   isReadyToRegister: boolean;
+  errorMessage?: string | null;
   onRegister: () => void;
-}
+};
 
-const pendingReasonLabels: Record<string, string> = {
-  "bank-movement-limit":
-    "Límite de movimientos visibles en la aplicación bancaria",
-  "customer-not-present":
-    "El cliente no se encuentra presente",
-  other: "Otro motivo",
+const commissionModeLabels: Record<WithdrawalCommissionMode, string> = {
+  deposited: "Comision depositada por el cliente",
+  cash: "Comision pagada en efectivo",
+  deducted: "Comision descontada del retiro",
+};
+
+const commissionDestinationLabels: Record<WithdrawalCommissionMode, string> = {
+  deposited: "Banco de recepcion",
+  cash: "Caja fisica",
+  deducted: "Caja fisica",
 };
 
 export function WithdrawalSummary({
-  mode,
   formData,
+  deliveredBy,
   amount,
   commission,
+  cashDeliveredToCustomer,
   hasCommissionRule,
   isReadyToRegister,
+  errorMessage,
   onRegister,
 }: WithdrawalSummaryProps) {
-  const isPendingMode = mode === "pending";
-  const total = amount + (commission ?? 0);
+  const selectedCommissionMode = isWithdrawalCommissionMode(
+    formData.commissionMode,
+  )
+    ? formData.commissionMode
+    : null;
+  const commissionModeLabel = selectedCommissionMode
+    ? commissionModeLabels[selectedCommissionMode]
+    : "Sin seleccionar";
+  const commissionDestinationLabel = selectedCommissionMode
+    ? commissionDestinationLabels[selectedCommissionMode]
+    : "Sin seleccionar";
 
   return (
     <aside className="sticky top-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -45,17 +62,11 @@ export function WithdrawalSummary({
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
           Vista previa
         </p>
-
         <h2 className="mt-1 text-lg font-semibold text-slate-950">
-          {isPendingMode
-            ? "Resumen del retiro pendiente"
-            : "Resumen de entrega"}
+          Resumen del retiro
         </h2>
-
         <p className="mt-1 text-sm text-slate-500">
-          {isPendingMode
-            ? "Verifica los datos antes de registrar el retiro pendiente."
-            : "Verifica los datos antes de entregar el efectivo."}
+          Verifica los datos antes de entregar el efectivo.
         </p>
       </div>
 
@@ -66,76 +77,38 @@ export function WithdrawalSummary({
             value={formData.bankFolio || "Sin capturar"}
             mono
           />
-
+          <SummaryRow label="Monto" value={formatCurrency(amount)} />
           <SummaryRow
-            label="Banco"
-            value={getBankLabel(
-              formData.bank,
-            )}
+            label="Banco de recepcion"
+            value={getBankLabel(formData.bank)}
           />
-
           <SummaryRow
-            label="Nombre de quien envía"
-            value={
-              formData.senderName || "Sin capturar"
-            }
+            label="Nombre de quien recibe"
+            value={formData.receiverName || "Sin capturar"}
           />
-
-          {!isPendingMode && (
-            <SummaryRow
-              label="Nombre de quien recibe"
-              value={
-                formData.receiverName ||
-                "Sin capturar"
-              }
-            />
-          )}
-
-          {isPendingMode && (
-            <>
-              <SummaryRow
-                label="Motivo pendiente"
-                value={
-                  pendingReasonLabels[
-                    formData.pendingReason
-                  ] ?? "Sin seleccionar"
-                }
-              />
-
-              {formData.pendingReason ===
-                "other" && (
-                <SummaryRow
-                  label="Detalle del motivo"
-                  value={
-                    formData.pendingReasonDetails.trim() ||
-                    "Sin especificar"
-                  }
-                />
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="my-6 border-t border-dashed border-slate-200" />
-
-        <div className="space-y-4">
-          <AmountRow
-            label="Monto a entregar"
-            value={formatCurrency(amount)}
+          <SummaryRow
+            label="Forma de cobrar comision"
+            value={commissionModeLabel}
           />
-
-          <AmountRow
-            label="Comisión"
+          <SummaryRow
+            label="Comision"
             value={commission === null ? "Sin regla" : formatCurrency(commission)}
           />
-
-          <div className="border-t border-slate-100 pt-4">
-            <AmountRow
-              label="Total de la operación"
-              value={formatCurrency(total)}
-              large
+          <SummaryRow label="Entrega el efectivo" value={deliveredBy} />
+          <SummaryRow
+            label="Efectivo que recibira el cliente"
+            value={formatCurrency(cashDeliveredToCustomer)}
+          />
+          <SummaryRow
+            label="Destino de la comision"
+            value={commissionDestinationLabel}
+          />
+          {formData.observations.trim() && (
+            <SummaryRow
+              label="Observaciones"
+              value={formData.observations.trim()}
             />
-          </div>
+          )}
         </div>
 
         {!hasCommissionRule && amount > 0 && (
@@ -144,33 +117,38 @@ export function WithdrawalSummary({
           </div>
         )}
 
+        {errorMessage && (
+          <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
         <button
           type="button"
-          disabled={!isReadyToRegister}
+          aria-disabled={!isReadyToRegister}
           onClick={onRegister}
-          className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 py-3 font-semibold text-white transition hover:bg-brand-primary-hover disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+          className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
+            isReadyToRegister
+              ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
+              : "bg-slate-300 text-slate-600 hover:bg-slate-300"
+          }`}
         >
-          {isPendingMode ? (
-            <>
-              <Clock3 className="h-5 w-5" />
-              Registrar como pendiente
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-5 w-5" />
-              Registrar entrega
-            </>
-          )}
+          <CheckCircle2 className="h-5 w-5" />
+          Registrar retiro y generar ticket
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
-          {isPendingMode
-            ? "Aparecerá en retiros pendientes y se considerará durante el corte."
-            : "Después de registrar, se podrá imprimir el ticket."}
+          Despues de registrar, podras revisar e imprimir el comprobante.
         </p>
       </div>
     </aside>
   );
+}
+
+function isWithdrawalCommissionMode(
+  value: WithdrawalFormData["commissionMode"],
+): value is WithdrawalCommissionMode {
+  return value === "deposited" || value === "cash" || value === "deducted";
 }
 
 function SummaryRow({
@@ -187,7 +165,6 @@ function SummaryRow({
       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
         {label}
       </p>
-
       <p
         className={`mt-1 break-words text-sm font-semibold text-slate-800 ${
           mono ? "font-mono" : ""
@@ -195,34 +172,6 @@ function SummaryRow({
       >
         {value}
       </p>
-    </div>
-  );
-}
-
-function AmountRow({
-  label,
-  value,
-  large = false,
-}: {
-  label: string;
-  value: string;
-  large?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-500">
-        {label}
-      </span>
-
-      <span
-        className={
-          large
-            ? "text-2xl font-bold text-slate-950 tabular-nums"
-            : "font-semibold text-slate-950 tabular-nums"
-        }
-      >
-        {value}
-      </span>
     </div>
   );
 }

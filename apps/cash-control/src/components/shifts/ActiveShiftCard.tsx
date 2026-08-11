@@ -1,8 +1,9 @@
 "use client";
 
-import type { Shift } from "@/types/shift";
-import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { Shift } from "@/types/shift";
 
 interface ActiveShiftCardProps {
   shift: Shift;
@@ -19,8 +20,12 @@ export function ActiveShiftCard({
   onTransferResponsibility,
   onStartClosing,
 }: ActiveShiftCardProps) {
-  const responsible = shift.participants.find((p) => p.userId === shift.responsibleUserId);
-  const activeParticipants = shift.participants.filter((p) => p.status === "active");
+  const responsible = shift.participants.find(
+    (p) => p.userId === shift.responsibleUserId,
+  );
+  const activeParticipants = shift.participants.filter(
+    (p) => p.status === "active",
+  );
 
   return (
     <div className="rounded-xl border border-brand-border bg-white p-6">
@@ -31,7 +36,8 @@ export function ActiveShiftCard({
             <Badge variant="success">Activo</Badge>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Iniciado el {new Date(shift.startedAt).toLocaleDateString("es-MX", {
+            Iniciado el{" "}
+            {new Date(shift.startedAt).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "long",
               year: "numeric",
@@ -47,9 +53,22 @@ export function ActiveShiftCard({
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Responsable
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">
-            {responsible?.name ?? "Sin asignar"}
-          </p>
+          {responsible ? (
+            <div className="mt-2 flex items-center gap-2">
+              <UserAvatar
+                name={responsible.name}
+                avatar={responsible.avatar}
+                size="sm"
+              />
+              <p className="min-w-0 truncate text-sm font-medium text-slate-900">
+                {responsible.name}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-1 text-sm font-medium text-slate-900">
+              Sin asignar
+            </p>
+          )}
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-3">
@@ -75,7 +94,10 @@ export function ActiveShiftCard({
             Saldo inicial
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900 tabular-nums">
-            ${shift.openingBalance.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+            $
+            {shift.openingBalance.toLocaleString("es-MX", {
+              minimumFractionDigits: 2,
+            })}
           </p>
         </div>
       </div>
@@ -96,7 +118,8 @@ export function ActiveShiftCard({
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Las acciones de este módulo son una simulación local y se reinician al recargar.
+        Las acciones de este módulo son una simulación local y se reinician al
+        recargar.
       </p>
     </div>
   );
