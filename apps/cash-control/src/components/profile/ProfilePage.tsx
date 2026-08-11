@@ -28,10 +28,10 @@ const emptyPasswordForm: PasswordForm = {
 
 const pendingAuthItems = [
   "PIN",
-  "AutenticaciÃ³n en dos pasos",
+  "Autenticación en dos pasos",
   "Sesiones activas",
   "Dispositivos autorizados",
-  "Correo electrÃ³nico",
+  "Correo electrónico",
 ] as const;
 
 export function ProfilePage() {
@@ -59,7 +59,7 @@ export function ProfilePage() {
   const [avatarDraft, setAvatarDraft] = useState<UserAvatarModel>({
     type: "initials",
   });
-  const [successTitle, setSuccessTitle] = useState<string>("AcciÃ³n registrada");
+  const [successTitle, setSuccessTitle] = useState<string>("Acción registrada");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -118,23 +118,23 @@ export function ProfilePage() {
     chooseAvatarButtonRef.current?.focus();
     setSuccessTitle("Avatar actualizado correctamente.");
     setSuccessMessage(
-      "Este cambio se conservarÃ¡ permanentemente cuando el sistema estÃ© conectado a la base de datos.",
+      "Este cambio se conservará permanentemente cuando el sistema esté conectado a la base de datos.",
     );
   }
 
   function savePassword() {
     setPasswordForm(emptyPasswordForm);
     setIsPasswordFormOpen(false);
-    setSuccessTitle("AcciÃ³n registrada");
+    setSuccessTitle("Acción registrada");
     setSuccessMessage(
-      "Esta funcionalidad estarÃ¡ disponible cuando el sistema utilice autenticaciÃ³n real.",
+      "Esta funcionalidad estará disponible cuando el sistema utilice autenticación real.",
     );
   }
 
   function savePreferences() {
     setPreferences(preferencesDraft);
     setIsEditingPreferences(false);
-    setSuccessTitle("AcciÃ³n registrada");
+    setSuccessTitle("Acción registrada");
     setSuccessMessage("Preferencias mock actualizadas correctamente.");
   }
 
@@ -142,13 +142,13 @@ export function ProfilePage() {
     <>
       <PageHeader
         title="Mi perfil"
-        description="Consulta la informaciÃ³n de tu cuenta y personaliza tus preferencias."
+        description="Consulta la información de tu cuenta y personaliza tus preferencias."
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="space-y-6">
           <ProfileCard
-            title="InformaciÃ³n personal"
+            title="Información personal"
             description="Datos visibles de la cuenta autenticada."
             action={
               <button
@@ -188,12 +188,12 @@ export function ProfilePage() {
 
           <ProfileCard
             title="Estado"
-            description="InformaciÃ³n derivada de la participaciÃ³n actual."
+            description="Información derivada de la participación actual."
           >
             <ProfileRows
               rows={[
-                ["ParticipaciÃ³n", activeParticipation ? "Activa" : "Inactiva"],
-                ["Responsable actual", isResponsible ? "SÃ­" : "No"],
+                ["Participación", activeParticipation ? "Activa" : "Inactiva"],
+                ["Responsable actual", isResponsible ? "Sí" : "No"],
                 ["Turno", activeParticipation ? "Turno actual" : "Sin turno"],
               ]}
             />
@@ -201,13 +201,13 @@ export function ProfilePage() {
 
           <ProfileCard
             title="Actividad"
-            description="Estado de actividad disponible en la sesiÃ³n mock."
+            description="Estado de actividad disponible en la sesión mock."
           >
             {activeParticipation ? (
               <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                   <Clock3 className="h-4 w-4 text-[#2563EB]" />
-                  ParticipaciÃ³n iniciada
+                  Participación iniciada
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
                   Inicio registrado a las {activeParticipation.startedAt}.
@@ -215,7 +215,7 @@ export function ProfilePage() {
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-                Sin participaciÃ³n activa en este momento.
+                Sin participación activa en este momento.
               </p>
             )}
           </ProfileCard>
@@ -232,20 +232,20 @@ export function ProfilePage() {
                 onClick={() => setIsPasswordFormOpen((current) => !current)}
               >
                 <KeyRound className="h-4 w-4" />
-                Cambiar contraseÃ±a
+                Cambiar contraseña
               </button>
             }
           >
             <ProfileRows
               rows={[
-                ["ContraseÃ±a", "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"],
-                ["Ãšltimo cambio", "Pendiente"],
+                ["Contraseña", "••••••••"],
+                ["Último cambio", "Pendiente"],
               ]}
             />
             {isPasswordFormOpen && (
               <div className="mt-4 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
                 <PasswordField
-                  label="ContraseÃ±a actual"
+                  label="Contraseña actual"
                   value={passwordForm.currentPassword}
                   onChange={(currentPassword) =>
                     setPasswordForm((current) => ({
@@ -255,7 +255,7 @@ export function ProfilePage() {
                   }
                 />
                 <PasswordField
-                  label="Nueva contraseÃ±a"
+                  label="Nueva contraseña"
                   value={passwordForm.newPassword}
                   onChange={(newPassword) =>
                     setPasswordForm((current) => ({
@@ -265,7 +265,7 @@ export function ProfilePage() {
                   }
                 />
                 <PasswordField
-                  label="Confirmar contraseÃ±a"
+                  label="Confirmar contraseña"
                   value={passwordForm.confirmPassword}
                   onChange={(confirmPassword) =>
                     setPasswordForm((current) => ({
@@ -317,14 +317,14 @@ export function ProfilePage() {
           </ProfileCard>
 
           <ProfileCard
-            title="InformaciÃ³n de cuenta"
+            title="Información de cuenta"
             description="Datos no editables asociados a la cuenta actual."
           >
             <ProfileRows
               rows={[
                 ["Cuenta creada", profile.createdAtLabel],
-                ["Ãšltimo acceso", profile.lastLoginLabel],
-                ["VersiÃ³n del sistema", "0.9.0 Demo"],
+                ["Último acceso", profile.lastLoginLabel],
+                ["Versión del sistema", "0.9.0 Demo"],
                 ["Entorno", "Mock"],
                 ["Rol", getUserRoleLabel(profile.systemRole)],
               ]}
@@ -332,8 +332,8 @@ export function ProfilePage() {
           </ProfileCard>
 
           <ProfileCard
-            title="PrÃ³ximamente"
-            description="Funciones reservadas para autenticaciÃ³n real."
+            title="Próximamente"
+            description="Funciones reservadas para autenticación real."
             muted
           >
             <div className="space-y-3">
@@ -346,7 +346,7 @@ export function ProfilePage() {
                     {item}
                   </span>
                   <span className="text-right text-sm text-slate-500">
-                    Pendiente de autenticaciÃ³n.
+                    Pendiente de autenticación.
                   </span>
                 </div>
               ))}
@@ -465,7 +465,7 @@ function AvatarPickerDialog({
               <p className="mt-4 text-center text-sm font-medium text-slate-700">
                 {areSameAvatar(selectedAvatar, currentAvatar)
                   ? "Avatar actual"
-                  : "Nueva selecciÃ³n"}
+                  : "Nueva selección"}
               </p>
             </aside>
 
@@ -721,7 +721,7 @@ function buildProfileView(
     createdAtLabel: account ? formatDate(account.createdAt) : "Pendiente",
     lastLoginLabel: account
       ? getLastLoginLabel(account.lastLogin)
-      : "SesiÃ³n actual",
+      : "Sesión actual",
   };
 }
 

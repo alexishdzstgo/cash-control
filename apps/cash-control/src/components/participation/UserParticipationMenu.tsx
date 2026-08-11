@@ -97,9 +97,9 @@ export function UserParticipationMenu() {
     : null;
 
   const getStatusText = () => {
-    if (!activeParticipation) return "Sin participaciÃ³n";
+    if (!activeParticipation) return "Sin participación";
     if (isResponsible) return "Responsable del turno";
-    return "ParticipaciÃ³n activa";
+    return "Participación activa";
   };
 
   const getStatusIcon = () => {
@@ -144,18 +144,18 @@ export function UserParticipationMenu() {
     if (result.success) {
       setShowEndModal(false);
       addActivityEvent(
-        `${authenticatedUser.userName} finalizÃ³ su participaciÃ³n`,
+        `${authenticatedUser.userName} finalizó su participación`,
       );
       setIsOpen(false);
     } else if (result.isResponsible) {
       setShowEndModal(false);
       if (result.isOnlyParticipant) {
         alert(
-          "No puedes finalizar tu participaciÃ³n siendo el Ãºnico participante activo. Debes iniciar a otro participante o cerrar la estaciÃ³n.",
+          "No puedes finalizar tu participación siendo el único participante activo. Debes iniciar a otro participante o cerrar la estación.",
         );
       } else {
         alert(
-          "No puedes finalizar tu participaciÃ³n mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
+          "No puedes finalizar tu participación mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
         );
       }
     }
@@ -219,7 +219,6 @@ export function UserParticipationMenu() {
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
-
         <UserAvatar
           name={authenticatedUser.userName}
           avatar={currentUserAvatar}
@@ -251,7 +250,7 @@ export function UserParticipationMenu() {
           </span>
         )}
         {!activeParticipation && (
-          <span className="hidden lg:inline text-slate-500">â€¢</span>
+          <span className="hidden lg:inline text-slate-500">•</span>
         )}
         {!activeParticipation && (
           <span className="hidden lg:inline text-slate-600">
@@ -334,7 +333,7 @@ export function UserParticipationMenu() {
                 role="menuitem"
               >
                 <UserCheck className="h-4 w-4 text-emerald-600" />
-                Activar participaciÃ³n
+                Activar participación
               </button>
             ) : canEndOwnParticipation() ? (
               <button
@@ -347,7 +346,7 @@ export function UserParticipationMenu() {
                 role="menuitem"
               >
                 <UserX className="h-4 w-4 text-red-600" />
-                Finalizar participaciÃ³n
+                Finalizar participación
               </button>
             ) : otherActiveParticipants.length > 0 ? (
               <div className="space-y-1">
@@ -396,8 +395,6 @@ export function UserParticipationMenu() {
               <UserRound className="h-4 w-4" />
               Mi perfil
             </button>
-
-
           </div>
 
           <div className="border-t border-slate-100 p-2">
@@ -408,7 +405,7 @@ export function UserParticipationMenu() {
               role="menuitem"
             >
               <LogOut className="h-4 w-4" />
-              Cerrar sesiÃ³n
+              Cerrar sesión
             </button>
           </div>
         </div>

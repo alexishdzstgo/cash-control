@@ -88,6 +88,13 @@ export const navigationGroups: NavigationGroup[] = [
         enabled: true,
         roles: ["owner", "employee"],
       },
+      {
+        label: "Fondos del negocio",
+        href: "/business-funds",
+        icon: WalletCards,
+        enabled: true,
+        roles: ["employee"],
+      },
     ],
   },
   {

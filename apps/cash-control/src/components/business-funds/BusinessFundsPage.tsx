@@ -3,6 +3,7 @@
 import { Eye, Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { AmountField } from "@/components/shared/AmountField";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
@@ -12,25 +13,32 @@ import {
   getAdministrativeMovementsSummary,
   getMovementTypeLabel,
   parseCurrencyToCents,
-  validateAdministrativeWithdrawal,
 } from "@/lib/administrativeMovements";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type {
   AdministrativeMovement,
   AdministrativeMovementFilters,
   AdministrativeMovementType,
+  AdministrativeResource,
 } from "@/types/administrativeMovement";
 import { useBusinessFunds } from "./BusinessFundsContext";
 
 type FormState = {
   mode: "create" | "edit";
   movementId?: string;
-  movementType: AdministrativeMovementType;
+  movementType: AdministrativeMovementType | "";
   resourceId: string;
   amount: string;
   explanation: string;
   editReason: string;
 };
+
+type FormErrors = Partial<
+  Record<
+    "movementType" | "resourceId" | "amount" | "explanation" | "editReason",
+    string
+  >
+>;
 
 const defaultFilters: AdministrativeMovementFilters = {
   search: "",
@@ -41,7 +49,11 @@ const defaultFilters: AdministrativeMovementFilters = {
 };
 
 export function BusinessFundsPage() {
-  const { authenticatedUser, getContextResponsibleUserId } = useMockSession();
+  const {
+    authenticatedUser,
+    getActiveParticipation,
+    getContextResponsibleUserId,
+  } = useMockSession();
   const { movements, resources, registerMovement, correctMovement } =
     useBusinessFunds();
   const [filters, setFilters] =
@@ -50,8 +62,17 @@ export function BusinessFundsPage() {
   const [detail, setDetail] = useState<AdministrativeMovement | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isOwner = authenticatedUser?.systemRole === "owner";
+  const isEmployee = authenticatedUser?.systemRole === "employee";
+  const activeParticipation = authenticatedUser
+    ? getActiveParticipation(authenticatedUser.userId)
+    : undefined;
+  const canCreateMovement = isOwner || Boolean(activeParticipation);
+  const canCorrectMovements = isOwner;
 
   const summary = useMemo(
     () => getAdministrativeMovementsSummary(movements),
@@ -69,20 +90,35 @@ export function BusinessFundsPage() {
     ? resources.find((resource) => resource.id === form.resourceId)
     : undefined;
   const amountCents = form ? parseCurrencyToCents(form.amount) : null;
-  const balanceAfterCents =
-    selectedResource && form && amountCents !== null
-      ? selectedResource.realBalanceCents +
+  const previewBalanceAfterCents =
+    selectedResource &&
+    form &&
+    isAdministrativeMovementType(form.movementType) &&
+    amountCents !== null
+      ? selectedResource.availableCents +
         (form.movementType === "income" ? amountCents : -amountCents)
-      : 0;
+      : null;
+
+  if (!authenticatedUser) {
+    return null;
+  }
 
   function openCreateForm() {
+    if (!canCreateMovement) {
+      setFormError(
+        "Activa tu participacion para registrar movimientos de fondos.",
+      );
+      return;
+    }
+
     setFormError(null);
+    setFormErrors({});
     setConfirming(false);
     setIsSubmitting(false);
     setForm({
       mode: "create",
-      movementType: "income",
-      resourceId: resources[0]?.id ?? "cash",
+      movementType: "",
+      resourceId: "",
       amount: "",
       explanation: "",
       editReason: "",
@@ -90,7 +126,12 @@ export function BusinessFundsPage() {
   }
 
   function openEditForm(movement: AdministrativeMovement) {
+    if (!canCorrectMovements) {
+      return;
+    }
+
     setFormError(null);
+    setFormErrors({});
     setConfirming(false);
     setIsSubmitting(false);
     setForm({
@@ -105,42 +146,51 @@ export function BusinessFundsPage() {
   }
 
   function requestConfirm() {
-    if (!form || !selectedResource) return;
-    const parsedAmountCents = parseCurrencyToCents(form.amount);
-    if (form.amount.trim() === "") {
-      setFormError("El monto es obligatorio.");
-      return;
-    }
-    if (parsedAmountCents === null) {
-      setFormError("Ingresa un monto válido.");
-      return;
-    }
-    const validation = validateAdministrativeWithdrawal({
-      movementType: form.movementType,
-      resource: selectedResource,
-      amountCents: parsedAmountCents,
+    if (!form) return;
+
+    const validation = validateForm({
+      form,
+      selectedResource,
+      amountCents,
+      isEmployee,
+      canCreateMovement,
     });
-    if (validation) {
-      setFormError(validation);
+
+    setFormErrors(validation.errors);
+    setFormError(validation.formError);
+
+    if (!validation.isValid) {
       return;
     }
-    if (form.mode === "edit" && !form.editReason.trim()) {
-      setFormError("El motivo de corrección es obligatorio.");
-      return;
-    }
-    setFormError(null);
+
     setConfirming(true);
   }
 
   function submitMovement() {
-    if (isSubmitting || !form || !selectedResource || !authenticatedUser)
+    if (
+      isSubmitting ||
+      !form ||
+      !selectedResource ||
+      !isAdministrativeMovementType(form.movementType) ||
+      !authenticatedUser
+    ) {
       return;
+    }
+
     const parsedAmountCents = parseCurrencyToCents(form.amount);
     if (parsedAmountCents === null) {
-      setFormError("Ingresa un monto válido.");
+      setFormErrors({ amount: "Ingresa un monto valido." });
+      setFormError(null);
       setConfirming(false);
       return;
     }
+
+    if (form.mode === "edit" && !canCorrectMovements) {
+      setFormError("Solo el owner puede corregir movimientos de fondos.");
+      setConfirming(false);
+      return;
+    }
+
     setIsSubmitting(true);
     const actor = {
       userId: authenticatedUser.userId,
@@ -171,7 +221,11 @@ export function BusinessFundsPage() {
           });
 
     if (!result.success) {
-      setFormError(result.error ?? "No fue posible registrar el movimiento.");
+      setFormError(
+        result.error?.includes("fondos disponibles")
+          ? "El recurso seleccionado no tiene fondos suficientes."
+          : (result.error ?? "No fue posible registrar el movimiento."),
+      );
       setConfirming(false);
       setIsSubmitting(false);
       return;
@@ -180,6 +234,7 @@ export function BusinessFundsPage() {
     setForm(null);
     setConfirming(false);
     setFormError(null);
+    setFormErrors({});
     setIsSubmitting(false);
     setSuccessMessage(
       form.mode === "create"
@@ -192,77 +247,96 @@ export function BusinessFundsPage() {
     <div>
       <PageHeader
         title="Fondos del negocio"
-        description="Registra los ingresos y retiros realizados por los dueños del negocio."
+        description={
+          isEmployee
+            ? "Registra entradas o salidas de dinero que no corresponden a depositos o retiros de clientes."
+            : "Registra los ingresos y retiros internos realizados con fondos del negocio."
+        }
         action={
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={openCreateForm}
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo movimiento
-          </button>
+          <div className="flex flex-col items-start gap-2 lg:items-end">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={openCreateForm}
+              disabled={!canCreateMovement}
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo movimiento
+            </button>
+            {!canCreateMovement && (
+              <p className="max-w-xs text-sm font-medium text-amber-700">
+                Activa tu participacion para registrar movimientos de fondos.
+              </p>
+            )}
+          </div>
         }
       />
 
       <div className="space-y-6">
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            label="Ingresos de hoy"
-            value={summary.incomeTodayCents}
-          />
-          <SummaryCard
-            label="Retiros de hoy"
-            value={summary.withdrawalTodayCents}
-          />
-          <SummaryCard
-            label="Balance neto administrativo"
-            value={summary.netTodayCents}
-          />
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
-              Movimientos hoy
-            </p>
-            <p className="mt-2 text-3xl font-bold text-slate-950">
-              {summary.movementsToday}
-            </p>
-          </div>
-        </section>
+        {isOwner && (
+          <>
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryCard
+                label="Ingresos de hoy"
+                value={summary.incomeTodayCents}
+              />
+              <SummaryCard
+                label="Retiros de hoy"
+                value={summary.withdrawalTodayCents}
+              />
+              <SummaryCard
+                label="Balance neto administrativo"
+                value={summary.netTodayCents}
+              />
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-sm font-medium text-slate-500">
+                  Movimientos hoy
+                </p>
+                <p className="mt-2 text-3xl font-bold text-slate-950">
+                  {summary.movementsToday}
+                </p>
+              </div>
+            </section>
 
-        {latestMovement && (
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-950">
-              Último movimiento
-            </h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-5">
-              <Info
-                label="Tipo"
-                value={getMovementTypeLabel(latestMovement.movementType)}
-              />
-              <Info label="Recurso" value={latestMovement.resourceName} />
-              <Info
-                label="Monto"
-                value={formatCents(latestMovement.amountCents)}
-              />
-              <Info label="Usuario" value={latestMovement.createdByUserName} />
-              <Info
-                label="Fecha"
-                value={formatDateTime(latestMovement.createdAt)}
-              />
-            </div>
-            {latestMovement.explanation && (
-              <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-                “{latestMovement.explanation}”
-              </p>
+            {latestMovement && (
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Ultimo movimiento
+                </h2>
+                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                  <Info
+                    label="Tipo"
+                    value={getMovementTypeLabel(latestMovement.movementType)}
+                  />
+                  <Info label="Recurso" value={latestMovement.resourceName} />
+                  <Info
+                    label="Monto"
+                    value={formatCents(latestMovement.amountCents)}
+                  />
+                  <Info
+                    label="Realizado por"
+                    value={latestMovement.createdByUserName}
+                  />
+                  <Info
+                    label="Fecha"
+                    value={formatDateTime(latestMovement.createdAt)}
+                  />
+                </div>
+                {latestMovement.explanation && (
+                  <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                    "{latestMovement.explanation}"
+                  </p>
+                )}
+              </section>
             )}
-          </section>
+          </>
         )}
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
             <input
               className="field-input"
-              placeholder="Buscar en explicación, recurso o usuario"
+              placeholder="Buscar por motivo, recurso o usuario"
               value={filters.search}
               onChange={(event) =>
                 setFilters({ ...filters, search: event.target.value })
@@ -297,7 +371,7 @@ export function BusinessFundsPage() {
               value={filters.userName}
               onChange={(userName) => setFilters({ ...filters, userName })}
               options={[
-                ["all", "Usuario"],
+                ["all", "Realizado por"],
                 ...users.map((user) => [user, user] as const),
               ]}
             />
@@ -321,8 +395,8 @@ export function BusinessFundsPage() {
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Recurso</th>
                   <th className="px-4 py-3">Monto</th>
-                  <th className="px-4 py-3">Usuario</th>
-                  <th className="px-4 py-3">Explicación</th>
+                  <th className="px-4 py-3">Realizado por</th>
+                  <th className="px-4 py-3">Motivo</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
@@ -332,6 +406,7 @@ export function BusinessFundsPage() {
                   <MovementRow
                     key={movement.id}
                     movement={movement}
+                    canEdit={canCorrectMovements}
                     onView={() => setDetail(movement)}
                     onEdit={() => openEditForm(movement)}
                   />
@@ -344,6 +419,7 @@ export function BusinessFundsPage() {
               <div key={movement.id} className="p-4">
                 <MovementCard
                   movement={movement}
+                  canEdit={canCorrectMovements}
                   onView={() => setDetail(movement)}
                   onEdit={() => openEditForm(movement)}
                 />
@@ -352,30 +428,35 @@ export function BusinessFundsPage() {
           </div>
           {filteredMovements.length === 0 && (
             <p className="p-8 text-center text-sm text-slate-500">
-              No se encontraron movimientos administrativos con los filtros
+              No se encontraron movimientos de fondos con los filtros
               seleccionados.
             </p>
           )}
         </section>
 
         <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          Los movimientos de esta versión de demostración no se conservarán al
-          recargar.
+          Los movimientos de fondos son internos: no se contabilizan
+          automaticamente como ganancia, deposito de cliente, retiro de cliente
+          ni comision.
         </p>
       </div>
 
-      {form && selectedResource && !confirming && (
+      {form && !confirming && (
         <MovementForm
           form={form}
           formError={formError}
-          resourceAvailable={selectedResource.availableCents}
+          formErrors={formErrors}
+          resources={resources}
+          selectedResource={selectedResource}
+          balanceAfterCents={previewBalanceAfterCents}
+          isEmployee={isEmployee}
           onChange={(updates) =>
             setForm((current) => {
               setFormError(null);
+              setFormErrors({});
               return current ? { ...current, ...updates } : current;
             })
           }
-          resources={resources}
           onClose={() => setForm(null)}
           onSubmit={requestConfirm}
         />
@@ -389,12 +470,15 @@ export function BusinessFundsPage() {
             : "Registrar retiro"
         }
         description={
-          form && selectedResource && amountCents !== null
-            ? `${form.movementType === "income" ? "Se agregarán" : "Se retirarán"} ${formatCents(amountCents)} ${form.movementType === "income" ? "a" : "de"} ${selectedResource.name}. Saldo antes: ${formatCents(selectedResource.realBalanceCents)}. Saldo después: ${formatCents(balanceAfterCents)}.${form.explanation.trim() ? ` Explicación: ${form.explanation.trim()}.` : ""}`
+          form &&
+          selectedResource &&
+          amountCents !== null &&
+          previewBalanceAfterCents !== null
+            ? `${getMovementTypeLabel(form.movementType as AdministrativeMovementType)} en ${selectedResource.name}. Monto: ${formatCents(amountCents)}. Motivo: ${form.explanation.trim() || "Sin motivo"}. Saldo actual: ${formatCents(selectedResource.availableCents)}. Saldo despues: ${formatCents(previewBalanceAfterCents)}.`
             : ""
         }
-        confirmLabel="Confirmar movimiento"
-        cancelLabel="Volver"
+        confirmLabel="Registrar movimiento"
+        cancelLabel="Cancelar"
         onConfirm={submitMovement}
         onCancel={() => {
           setConfirming(false);
@@ -418,6 +502,61 @@ export function BusinessFundsPage() {
   );
 }
 
+function validateForm({
+  form,
+  selectedResource,
+  amountCents,
+  isEmployee,
+  canCreateMovement,
+}: {
+  form: FormState;
+  selectedResource: AdministrativeResource | undefined;
+  amountCents: number | null;
+  isEmployee: boolean;
+  canCreateMovement: boolean;
+}): { isValid: boolean; errors: FormErrors; formError: string | null } {
+  const errors: FormErrors = {};
+  let formError: string | null = null;
+
+  if (form.mode === "create" && !canCreateMovement) {
+    formError = "Activa tu participacion para registrar movimientos de fondos.";
+  }
+  if (!isAdministrativeMovementType(form.movementType)) {
+    errors.movementType = "Selecciona el tipo de movimiento.";
+  }
+  if (!selectedResource) {
+    errors.resourceId = "Selecciona el recurso.";
+  }
+  if (form.amount.trim() === "") {
+    errors.amount = "El monto es obligatorio.";
+  } else if (amountCents === null) {
+    errors.amount = "Ingresa un monto valido.";
+  } else if (amountCents <= 0) {
+    errors.amount = "El monto debe ser mayor que cero.";
+  }
+  if (isEmployee && !form.explanation.trim()) {
+    errors.explanation = "Indica el motivo del movimiento.";
+  }
+  if (form.mode === "edit" && !form.editReason.trim()) {
+    errors.editReason = "El motivo de correccion es obligatorio.";
+  }
+  if (
+    selectedResource &&
+    amountCents !== null &&
+    isAdministrativeMovementType(form.movementType) &&
+    form.movementType === "withdrawal" &&
+    amountCents > selectedResource.availableCents
+  ) {
+    errors.amount = "El recurso seleccionado no tiene fondos suficientes.";
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0 && formError === null,
+    errors,
+    formError,
+  };
+}
+
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -431,10 +570,12 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
 
 function MovementRow({
   movement,
+  canEdit,
   onView,
   onEdit,
 }: {
   movement: AdministrativeMovement;
+  canEdit: boolean;
   onView: () => void;
   onEdit: () => void;
 }) {
@@ -454,7 +595,7 @@ function MovementRow({
       </td>
       <td className="px-4 py-4 text-slate-600">{movement.createdByUserName}</td>
       <td className="max-w-xs truncate px-4 py-4 text-slate-600">
-        {movement.explanation ?? "Sin explicación"}
+        {movement.explanation ?? "Sin motivo"}
       </td>
       <td className="px-4 py-4">
         <StatusBadge movement={movement} />
@@ -464,21 +605,28 @@ function MovementRow({
           <IconButton label="Ver detalle" onClick={onView}>
             <Eye className="h-4 w-4" />
           </IconButton>
-          <IconButton label="Corregir" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </IconButton>
+          {canEdit && (
+            <IconButton label="Corregir" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
       </td>
     </tr>
   );
 }
 
-function MovementCard(props: {
+function MovementCard({
+  movement,
+  canEdit,
+  onView,
+  onEdit,
+}: {
   movement: AdministrativeMovement;
+  canEdit: boolean;
   onView: () => void;
   onEdit: () => void;
 }) {
-  const { movement, onView, onEdit } = props;
   return (
     <div>
       <div className="flex items-start justify-between gap-3">
@@ -496,7 +644,13 @@ function MovementCard(props: {
         </p>
       </div>
       <p className="mt-3 text-sm text-slate-600">
-        {movement.explanation ?? "Sin explicación"}
+        {movement.explanation ?? "Sin motivo"}
+      </p>
+      <p className="mt-2 text-sm text-slate-500">
+        Realizado por:{" "}
+        <span className="font-semibold text-slate-700">
+          {movement.createdByUserName}
+        </span>
       </p>
       <div className="mt-3 flex items-center justify-between gap-3">
         <StatusBadge movement={movement} />
@@ -504,9 +658,11 @@ function MovementCard(props: {
           <IconButton label="Ver detalle" onClick={onView}>
             <Eye className="h-4 w-4" />
           </IconButton>
-          <IconButton label="Corregir" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </IconButton>
+          {canEdit && (
+            <IconButton label="Corregir" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
       </div>
     </div>
@@ -516,20 +672,29 @@ function MovementCard(props: {
 function MovementForm({
   form,
   formError,
+  formErrors,
   resources,
-  resourceAvailable,
+  selectedResource,
+  balanceAfterCents,
+  isEmployee,
   onChange,
   onClose,
   onSubmit,
 }: {
   form: FormState;
   formError: string | null;
-  resources: Array<{ id: string; name: string; availableCents: number }>;
-  resourceAvailable: number;
+  formErrors: FormErrors;
+  resources: AdministrativeResource[];
+  selectedResource: AdministrativeResource | undefined;
+  balanceAfterCents: number | null;
+  isEmployee: boolean;
   onChange: (updates: Partial<FormState>) => void;
   onClose: () => void;
   onSubmit: () => void;
 }) {
+  const resourceBalanceAfterIsNegative =
+    balanceAfterCents !== null && balanceAfterCents < 0;
+
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
       <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
@@ -545,25 +710,36 @@ function MovementForm({
             </h2>
           </header>
           <div className="scrollbar-hidden min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-            <div className="grid grid-cols-2 gap-2">
-              {(["income", "withdrawal"] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                    form.movementType === type
-                      ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
-                      : "border-slate-200 text-slate-600"
-                  }`}
-                  onClick={() => onChange({ movementType: type })}
-                >
-                  {getMovementTypeLabel(type)}
-                </button>
-              ))}
-            </div>
+            <fieldset>
+              <legend className="mb-2 block text-sm font-semibold text-slate-700">
+                Tipo de movimiento
+                <RequiredMark />
+              </legend>
+              <div className="grid grid-cols-2 gap-2">
+                {(["income", "withdrawal"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                      form.movementType === type
+                        ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                    onClick={() => onChange({ movementType: type })}
+                  >
+                    {getMovementTypeLabel(type)}
+                  </button>
+                ))}
+              </div>
+              {formErrors.movementType && (
+                <FieldError message={formErrors.movementType} />
+              )}
+            </fieldset>
+
             <label className="block">
               <span className="mb-2 block text-sm font-semibold text-slate-700">
                 Recurso
+                <RequiredMark />
               </span>
               <select
                 className="field-input"
@@ -572,55 +748,82 @@ function MovementForm({
                   onChange({ resourceId: event.target.value })
                 }
               >
+                <option value="">Selecciona un recurso</option>
                 {resources.map((resource) => (
                   <option key={resource.id} value={resource.id}>
                     {resource.name}
                   </option>
                 ))}
               </select>
-              <span className="mt-2 block text-sm text-slate-500">
-                Disponible actual: {formatCents(resourceAvailable)}
-              </span>
+              {formErrors.resourceId && (
+                <FieldError message={formErrors.resourceId} />
+              )}
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">
-                Monto
-              </span>
-              <input
-                className="field-input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.amount}
-                onChange={(event) => onChange({ amount: event.target.value })}
+
+            <AmountField
+              id="business-funds-amount"
+              value={form.amount}
+              onChange={(amount) => onChange({ amount })}
+              label="Monto"
+              placeholder="0.00"
+              required
+              min={0}
+              step={0.01}
+              error={formErrors.amount}
+            />
+
+            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+              <Info
+                label="Disponible actual"
+                value={
+                  selectedResource
+                    ? formatCents(selectedResource.availableCents)
+                    : "Selecciona un recurso"
+                }
               />
-            </label>
+              <Info
+                label="Despues del movimiento"
+                value={
+                  balanceAfterCents === null
+                    ? "Pendiente"
+                    : formatCents(balanceAfterCents)
+                }
+              />
+              {resourceBalanceAfterIsNegative && (
+                <p className="sm:col-span-2 text-sm font-semibold text-red-700">
+                  El recurso seleccionado no tiene fondos suficientes.
+                </p>
+              )}
+            </div>
+
             <label className="block">
               <span className="mb-2 block text-sm font-semibold text-slate-700">
-                Explicación
+                Motivo del movimiento
+                {isEmployee && <RequiredMark />}
               </span>
               <textarea
                 className="field-input resize-none"
                 rows={3}
                 value={form.explanation}
+                placeholder="Describe brevemente por que aumenta o disminuye este saldo"
                 onChange={(event) =>
                   onChange({ explanation: event.target.value })
                 }
               />
-              <span className="mt-2 block text-sm text-slate-500">
-                Agrega una referencia breve para facilitar futuras consultas.
-              </span>
-              {!form.explanation.trim() && (
-                <span className="mt-1 block text-sm text-amber-700">
-                  Se recomienda agregar una explicación para facilitar la
-                  auditoría.
+              {formErrors.explanation ? (
+                <FieldError message={formErrors.explanation} />
+              ) : (
+                <span className="mt-2 block text-sm text-slate-500">
+                  Este texto queda visible para auditoria y consultas futuras.
                 </span>
               )}
             </label>
+
             {form.mode === "edit" && (
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-slate-700">
-                  Motivo de corrección
+                  Motivo de correccion
+                  <RequiredMark />
                 </span>
                 <textarea
                   className="field-input resize-none"
@@ -630,6 +833,9 @@ function MovementForm({
                     onChange({ editReason: event.target.value })
                   }
                 />
+                {formErrors.editReason && (
+                  <FieldError message={formErrors.editReason} />
+                )}
               </label>
             )}
           </div>
@@ -638,7 +844,7 @@ function MovementForm({
               {formError}
             </div>
           )}
-          <footer className="flex justify-end gap-3 border-t border-slate-100 p-5">
+          <footer className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
             </button>
@@ -683,7 +889,7 @@ function MovementDetail({
             label="Saldo posterior"
             value={formatCents(movement.balanceAfterCents)}
           />
-          <Info label="Usuario" value={movement.createdByUserName} />
+          <Info label="Realizado por" value={movement.createdByUserName} />
           <Info
             label="Fecha y hora"
             value={formatDateTime(movement.createdAt)}
@@ -693,18 +899,15 @@ function MovementDetail({
             value={movement.shiftId ?? "Sin turno asociado"}
           />
           <Info
-            label="Indicador de corrección"
-            value={movement.isEdited ? "Corregido" : "Sin corrección"}
+            label="Indicador de correccion"
+            value={movement.isEdited ? "Corregido" : "Sin correccion"}
           />
           <div className="md:col-span-2">
-            <Info
-              label="Explicación"
-              value={movement.explanation ?? "Sin explicación"}
-            />
+            <Info label="Motivo" value={movement.explanation ?? "Sin motivo"} />
           </div>
           {movement.editReason && (
             <div className="md:col-span-2">
-              <Info label="Motivo de corrección" value={movement.editReason} />
+              <Info label="Motivo de correccion" value={movement.editReason} />
             </div>
           )}
         </div>
@@ -803,6 +1006,20 @@ function Select({
   );
 }
 
+function RequiredMark() {
+  return <span className="ml-1 text-red-500">*</span>;
+}
+
+function FieldError({ message }: { message: string }) {
+  return <p className="mt-2 text-sm font-medium text-red-600">{message}</p>;
+}
+
 function formatCents(value: number): string {
   return formatCurrency(centsToPesos(value));
+}
+
+function isAdministrativeMovementType(
+  value: FormState["movementType"],
+): value is AdministrativeMovementType {
+  return value === "income" || value === "withdrawal";
 }
