@@ -21,6 +21,9 @@ import type {
   BankClosingStory,
   CashMovement,
   CashMovementCategory,
+  FinancialTimeline,
+  FinancialTimelineEvent,
+  FinancialTimelineImpact,
 } from "@/types/cash-closing";
 import { CashClosingConfirmation } from "./CashClosingConfirmation";
 import { CashClosingResult } from "./CashClosingResult";
@@ -234,18 +237,13 @@ export function CashClosingPage() {
 
       <TurnStoryHero expectedCash={story.expectedCash} />
 
-      <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+      <section className="space-y-4">
         <div ref={openingRef}>
-          <CashStoryCard
-            openingBalance={story.openingBalance}
-            totalEntries={story.totalEntries}
-            totalOutputs={story.totalOutputs}
-            expectedCash={story.expectedCash}
-            onViewOpening={() => scrollToSection(openingRef)}
-            onViewEntries={() => scrollToSection(entriesRef)}
-            onViewOutputs={() => scrollToSection(outputsRef)}
-          />
+          <FinancialTimelineCard timeline={story.timeline} />
         </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
         <ReservedCashCard
           reservedCash={story.reservedCash.total}
           availableCash={story.availableCash}
@@ -359,6 +357,221 @@ function TurnStoryHero({ expectedCash }: { expectedCash: number }) {
         </div>
         <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           Primero revisa la historia del dinero. Después inicia el conteo.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinancialTimelineCard({ timeline }: { timeline: FinancialTimeline }) {
+  const visibleEvents = timeline.events.slice(0, 8);
+  const hiddenCount = Math.max(0, timeline.events.length - visibleEvents.length);
+
+  return (
+    <section className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-bold text-slate-950">
+        Cómo llegamos a esta cantidad
+      </h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Reconstruimos el dinero paso a paso usando todos los movimientos
+        registrados.
+      </p>
+
+      {timeline.reconstructionIssues.length > 0 && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          {timeline.reconstructionIssues.map((issue) => (
+            <p key={issue}>{issue}</p>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-5 space-y-6">
+        <TimelineStart timeline={timeline} />
+        <section>
+          <h4 className="text-sm font-bold uppercase tracking-wide text-slate-400">
+            Lo que ocurrió
+          </h4>
+          <div className="mt-4 space-y-4">
+            {visibleEvents.map((event) => (
+              <TimelineEventCard key={event.id} event={event} />
+            ))}
+          </div>
+          {hiddenCount > 0 && (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm font-semibold text-blue-700">
+                Ver {hiddenCount} movimientos más
+              </summary>
+              <div className="mt-4 space-y-4">
+                {timeline.events.slice(visibleEvents.length).map((event) => (
+                  <TimelineEventCard key={event.id} event={event} />
+                ))}
+              </div>
+            </details>
+          )}
+        </section>
+        <TimelineFinal timeline={timeline} />
+      </div>
+    </section>
+  );
+}
+
+function TimelineStart({ timeline }: { timeline: FinancialTimeline }) {
+  return (
+    <section className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-slate-400">
+        Al comenzar
+      </h4>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+        <div className="rounded-xl border border-slate-100 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">Caja física</p>
+          <p className="mt-2 text-2xl font-bold text-slate-950 tabular-nums">
+            {formatCurrency(timeline.initialCash)}
+          </p>
+          <div className="mt-3 space-y-2 text-sm">
+            <SplitRow
+              label="Apartado para retiros"
+              value={timeline.initialReservedCash}
+            />
+            <SplitRow label="Disponible" value={timeline.initialAvailableCash} />
+          </div>
+        </div>
+        <div className="rounded-xl border border-slate-100 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">Bancos</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {timeline.initialBanks.map((bank) => (
+              <SplitRow
+                key={bank.bankId}
+                label={bank.bankName}
+                value={bank.initialBalance}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TimelineEventCard({ event }: { event: FinancialTimelineEvent }) {
+  return (
+    <article className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+            {event.badge}
+          </span>
+          <h5 className="mt-2 text-base font-bold text-slate-950">
+            {formatTimelineDate(event.occurredAt)} · {event.title}
+          </h5>
+          <p className="mt-1 text-sm text-slate-600">{event.description}</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Registrado por: {event.actor}
+          </p>
+        </div>
+        <div className="grid gap-2 text-xs text-slate-500 sm:grid-cols-2 lg:min-w-72">
+          {event.details.map((detail) => (
+            <div key={detail.label} className="rounded-lg bg-white px-3 py-2">
+              <p className="font-medium text-slate-400">{detail.label}</p>
+              <p className="mt-0.5 font-semibold text-slate-700">
+                {detail.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {event.impacts.map((impact) => (
+          <ImpactCard key={`${event.id}-${impact.resourceId}`} impact={impact} />
+        ))}
+      </div>
+
+      {(event.commissionInfo || event.note) && (
+        <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
+          {event.commissionInfo && (
+            <p className="rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-cyan-800">
+              {event.commissionInfo}
+            </p>
+          )}
+          {event.note && (
+            <p className="rounded-lg border border-slate-100 bg-white px-3 py-2 text-slate-500">
+              {event.note}
+            </p>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ImpactCard({ impact }: { impact: FinancialTimelineImpact }) {
+  const isPositive = impact.amount > 0;
+  const isNegative = impact.amount < 0;
+  const valueClass = isPositive
+    ? "text-emerald-700"
+    : isNegative
+      ? "text-orange-700"
+      : "text-slate-500";
+
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-slate-950">{impact.resourceName}</p>
+        <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-500">
+          {impact.resourceType === "bank" ? "Banco" : "Caja"}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+        <TinyTimelineMetric label="Antes" value={formatCurrency(impact.before)} />
+        <TinyTimelineMetric
+          label="Movimiento"
+          value={formatSignedCurrency(impact.amount)}
+          className={valueClass}
+        />
+        <TinyTimelineMetric label="Después" value={formatCurrency(impact.after)} />
+      </div>
+      {impact.detail && (
+        <p className="mt-3 text-xs text-slate-500">{impact.detail}</p>
+      )}
+    </div>
+  );
+}
+
+function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
+  return (
+    <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-blue-700">
+        Así quedó tu dinero
+      </h4>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">Caja física</p>
+          <SplitRow label="Total" value={timeline.finalCash} strong />
+          <SplitRow label="Apartado" value={timeline.finalReservedCash} />
+          <SplitRow label="Disponible" value={timeline.finalAvailableCash} />
+        </div>
+        <div className="rounded-xl border border-blue-100 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">Bancos</p>
+          <div className="mt-3 space-y-2">
+            {timeline.finalBanks.map((bank) => (
+              <SplitRow
+                key={bank.bankId}
+                label={bank.bankName}
+                value={bank.finalBalance}
+              />
+            ))}
+            <div className="border-t border-slate-100 pt-2">
+              <SplitRow label="Total bancos" value={timeline.totalBanks} strong />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 rounded-xl border border-blue-100 bg-white p-4">
+        <p className="text-sm font-bold text-slate-950">Total controlado</p>
+        <SplitRow label="Caja física" value={timeline.finalCash} />
+        <SplitRow label="Bancos" value={timeline.totalBanks} />
+        <div className="mt-2 border-t border-slate-100 pt-2">
+          <SplitRow label="Total" value={timeline.totalControlled} strong />
         </div>
       </div>
     </section>
@@ -786,4 +999,61 @@ function MiniBreakdown({
       </div>
     </div>
   );
+}
+
+function SplitRow({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: number;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-600">{label}</span>
+      <span
+        className={`tabular-nums ${
+          strong ? "font-bold text-slate-950" : "font-semibold text-slate-800"
+        }`}
+      >
+        {formatCurrency(value)}
+      </span>
+    </div>
+  );
+}
+
+function TinyTimelineMetric({
+  label,
+  value,
+  className = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] text-slate-500">{label}</p>
+      <p className={`mt-1 text-xs font-semibold tabular-nums ${className}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatSignedCurrency(value: number): string {
+  if (Number.isNaN(value)) return "—";
+  return value > 0 ? `+${formatCurrency(value)}` : formatCurrency(value);
+}
+
+function formatTimelineDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }

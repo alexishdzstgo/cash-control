@@ -12,6 +12,9 @@ import type {
   CashMovementCategory,
   CashMovementCategorySummary,
   CommissionLocationBreakdownItem,
+  FinancialTimeline,
+  FinancialTimelineEvent,
+  FinancialTimelineImpact,
   ShiftCommissionProfitSummary,
 } from "@/types/cash-closing";
 import type { Operation } from "@/types/operation";
@@ -117,12 +120,19 @@ export function buildCashClosingStory({
     },
     availableCash: expectedCash - reservedTotal,
     bankStories: buildBankStories(banks, bankMovements),
+    timeline: buildFinancialTimeline({
+      cash,
+      banks,
+      operations: shiftOperations,
+      administrativeMovements,
+      reservedTotal,
+    }),
     commissionProfit: buildCommissionProfitSummary(shiftOperations, banks),
   };
 }
 
 function isCurrentShiftOperation(operation: Operation): boolean {
-  return operation.id.startsWith("operation-");
+  return operation.status !== "cancelado";
 }
 
 function operationToCashMovements(operation: Operation): CashMovement[] {
@@ -532,6 +542,296 @@ function getOperationBank(
   return banks.find(
     (bank) => bank.id === bankReference || bank.bankName === bankReference,
   );
+}
+
+function buildFinancialTimeline({
+  cash,
+  banks,
+  operations,
+  administrativeMovements,
+  reservedTotal,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  operations: Operation[];
+  administrativeMovements: AdministrativeMovement[];
+  reservedTotal: number;
+}): FinancialTimeline {
+  const rawEvents = [
+    ...operations.map((operation) => operationToTimelineSeed(operation, banks)),
+    ...administrativeMovements
+      .filter((movement) => movement.status === "active")
+      .map(administrativeMovementToTimelineSeed),
+  ]
+    .filter((event): event is TimelineSeed => event !== null)
+    .sort(
+      (a, b) =>
+        new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+    );
+
+  const totalCashDelta = rawEvents.reduce(
+    (sum, event) => sum + (event.resourceDeltas.cash ?? 0),
+    0,
+  );
+  const totalBankDeltas = new Map<string, number>();
+
+  for (const event of rawEvents) {
+    for (const [bankId, amount] of Object.entries(event.resourceDeltas.banks)) {
+      totalBankDeltas.set(bankId, (totalBankDeltas.get(bankId) ?? 0) + amount);
+    }
+  }
+
+  const balances = {
+    cash: cash.physicalBalance - totalCashDelta,
+    reservedCash: reservedTotal,
+    banks: new Map(
+      banks.map((bank) => [
+        bank.id,
+        bank.realBalance - (totalBankDeltas.get(bank.id) ?? 0),
+      ]),
+    ),
+  };
+
+  const initialCash = balances.cash;
+  const initialBanks = banks.map((bank) => ({
+    bankId: bank.id,
+    bankName: bank.bankName,
+    accountName: bank.accountName,
+    initialBalance: balances.banks.get(bank.id) ?? 0,
+    finalBalance: bank.realBalance,
+  }));
+  const events: FinancialTimelineEvent[] = [];
+
+  for (const seed of rawEvents) {
+    const impacts: FinancialTimelineImpact[] = [];
+
+    if (seed.resourceDeltas.cash !== undefined) {
+      const before = balances.cash;
+      const amount = seed.resourceDeltas.cash;
+      const after = before + amount;
+      impacts.push({
+        resourceId: "cash",
+        resourceName: "Caja física",
+        resourceType: "cash",
+        before,
+        amount,
+        after,
+        detail: seed.cashDetail,
+      });
+      balances.cash = after;
+    }
+
+    for (const [bankId, amount] of Object.entries(seed.resourceDeltas.banks)) {
+      const bank = banks.find((item) => item.id === bankId);
+      if (!bank) continue;
+
+      const before = balances.banks.get(bankId) ?? 0;
+      const after = before + amount;
+      impacts.push({
+        resourceId: bankId,
+        resourceName: bank.bankName,
+        resourceType: "bank",
+        before,
+        amount,
+        after,
+      });
+      balances.banks.set(bankId, after);
+    }
+
+    events.push({
+      id: seed.id,
+      type: seed.type,
+      title: seed.title,
+      badge: seed.badge,
+      occurredAt: seed.occurredAt,
+      actor: seed.actor,
+      description: seed.description,
+      details: seed.details,
+      impacts,
+      commissionInfo: seed.commissionInfo,
+      note: seed.note,
+    });
+  }
+
+  const finalBanks = banks.map((bank) => ({
+    bankId: bank.id,
+    bankName: bank.bankName,
+    accountName: bank.accountName,
+    initialBalance: initialBanks.find((item) => item.bankId === bank.id)
+      ?.initialBalance ?? 0,
+    finalBalance: balances.banks.get(bank.id) ?? 0,
+  }));
+  const totalBanks = finalBanks.reduce(
+    (sum, bank) => sum + bank.finalBalance,
+    0,
+  );
+  const reconstructionIssues: string[] = [];
+
+  if (Math.round(balances.cash * 100) !== Math.round(cash.physicalBalance * 100)) {
+    reconstructionIssues.push("La caja reconstruida no coincide con el saldo actual.");
+  }
+
+  for (const bank of banks) {
+    const reconstructed = balances.banks.get(bank.id) ?? 0;
+    if (Math.round(reconstructed * 100) !== Math.round(bank.realBalance * 100)) {
+      reconstructionIssues.push(
+        `El saldo reconstruido de ${bank.bankName} no coincide con el saldo actual.`,
+      );
+    }
+  }
+
+  return {
+    initialCash,
+    initialReservedCash: reservedTotal,
+    initialAvailableCash: initialCash - reservedTotal,
+    initialBanks,
+    events,
+    finalCash: balances.cash,
+    finalReservedCash: reservedTotal,
+    finalAvailableCash: balances.cash - reservedTotal,
+    finalBanks,
+    totalBanks,
+    totalControlled: balances.cash + totalBanks,
+    reconstructionIssues,
+  };
+}
+
+type TimelineSeed = {
+  id: string;
+  type: FinancialTimelineEvent["type"];
+  title: string;
+  badge: string;
+  occurredAt: string;
+  actor: string;
+  description: string;
+  details: Array<{ label: string; value: string }>;
+  resourceDeltas: {
+    cash?: number;
+    banks: Record<string, number>;
+  };
+  cashDetail?: string;
+  commissionInfo?: string;
+  note?: string;
+};
+
+function operationToTimelineSeed(
+  operation: Operation,
+  banks: BankAccountBalance[],
+): TimelineSeed | null {
+  const bank = getOperationBank(operation, banks);
+  const commission = operation.commission ?? 0;
+
+  if (operation.type === "deposito") {
+    const cashDelta = operation.amount + commission;
+    return {
+      id: operation.id,
+      type: "deposit",
+      title: "Depósito de cliente",
+      badge: "DEPÓSITO",
+      occurredAt: operation.createdAt,
+      actor: operation.createdBy,
+      description: operation.senderName,
+      details: [
+        { label: "Monto enviado", value: formatPlainCurrency(operation.amount) },
+        { label: "Comisión", value: formatPlainCurrency(commission) },
+        { label: "Banco de emisión", value: bank?.bankName ?? "Banco no identificado" },
+      ],
+      resourceDeltas: {
+        cash: cashDelta,
+        banks: bank ? { [bank.id]: -operation.amount } : {},
+      },
+      cashDetail:
+        commission > 0
+          ? `Incluye ${formatPlainCurrency(commission)} de comisión que permanecen en Caja física.`
+          : undefined,
+      commissionInfo:
+        commission > 0
+          ? `${formatPlainCurrency(commission)} quedó en Caja física.`
+          : undefined,
+    };
+  }
+
+  const bankDelta =
+    operation.withdrawalCommissionMode === "deposited"
+      ? operation.amount + commission
+      : operation.amount;
+  const cashDelta =
+    operation.customerCashReceived !== undefined
+      ? -operation.customerCashReceived
+      : operation.withdrawalCommissionMode === "cash"
+        ? -operation.amount + commission
+        : operation.withdrawalCommissionMode === "deducted"
+          ? -Math.max(0, operation.amount - commission)
+          : -operation.amount;
+  const cashDetail =
+    operation.withdrawalCommissionMode === "cash"
+      ? `Se entregó ${formatPlainCurrency(operation.amount)} y el cliente pagó ${formatPlainCurrency(commission)} en efectivo.`
+      : operation.withdrawalCommissionMode === "deducted"
+        ? `El cliente recibe ${formatPlainCurrency(Math.max(0, operation.amount - commission))}; la comisión permanece en Caja física sin sumarse otra vez.`
+        : undefined;
+  const commissionInfo =
+    commission > 0
+      ? operation.withdrawalCommissionMode === "deposited"
+        ? `${formatPlainCurrency(commission)} quedó en ${bank?.bankName ?? "banco"}.`
+        : `${formatPlainCurrency(commission)} quedó en Caja física.`
+      : undefined;
+
+  return {
+    id: operation.id,
+    type: "withdrawal",
+    title: "Retiro de cliente",
+    badge: "RETIRO",
+    occurredAt: operation.createdAt,
+    actor: operation.createdBy,
+    description: operation.receiverName || operation.senderName,
+    details: [
+      { label: "Monto del retiro", value: formatPlainCurrency(operation.amount) },
+      { label: "Comisión", value: formatPlainCurrency(commission) },
+      { label: "Banco de recepción", value: bank?.bankName ?? "Banco no identificado" },
+    ],
+    resourceDeltas: {
+      cash: cashDelta,
+      banks: bank ? { [bank.id]: bankDelta } : {},
+    },
+    cashDetail,
+    commissionInfo,
+  };
+}
+
+function administrativeMovementToTimelineSeed(
+  movement: AdministrativeMovement,
+): TimelineSeed {
+  const isIncome = movement.movementType === "income";
+  const amount = movement.amountCents / 100;
+  const delta = isIncome ? amount : -amount;
+  const isCash = movement.resourceType === "cash";
+
+  return {
+    id: movement.id,
+    type: isIncome ? "business_fund_income" : "business_fund_withdrawal",
+    title: "Fondos del negocio",
+    badge: `FONDOS DEL NEGOCIO · ${isIncome ? "INGRESO" : "RETIRO"}`,
+    occurredAt: movement.createdAt,
+    actor: movement.createdByUserName,
+    description: movement.resourceName,
+    details: [
+      { label: "Recurso", value: movement.resourceName },
+      { label: "Monto", value: formatPlainCurrency(amount) },
+      { label: "Motivo", value: movement.explanation ?? "Sin explicación." },
+    ],
+    resourceDeltas: {
+      cash: isCash ? delta : undefined,
+      banks: isCash ? {} : { [movement.resourceId]: delta },
+    },
+    note: "No es ganancia.",
+  };
+}
+
+function formatPlainCurrency(value: number): string {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+  }).format(value);
 }
 
 function sumMovements(

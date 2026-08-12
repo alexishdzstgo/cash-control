@@ -61,6 +61,56 @@ export type BankClosingStory = {
   expectedBalance: number;
 };
 
+export type FinancialTimelineImpact = {
+  resourceId: string;
+  resourceName: string;
+  resourceType: "cash" | "reserved_cash" | "bank";
+  before: number;
+  amount: number;
+  after: number;
+  detail?: string;
+};
+
+export type FinancialTimelineEvent = {
+  id: string;
+  type: "deposit" | "withdrawal" | "business_fund_income" | "business_fund_withdrawal";
+  title: string;
+  badge: string;
+  occurredAt: string;
+  actor: string;
+  description: string;
+  details: Array<{
+    label: string;
+    value: string;
+  }>;
+  impacts: FinancialTimelineImpact[];
+  commissionInfo?: string;
+  note?: string;
+};
+
+export type FinancialTimelineBankBalance = {
+  bankId: string;
+  bankName: string;
+  accountName: string;
+  initialBalance: number;
+  finalBalance: number;
+};
+
+export type FinancialTimeline = {
+  initialCash: number;
+  initialReservedCash: number;
+  initialAvailableCash: number;
+  initialBanks: FinancialTimelineBankBalance[];
+  events: FinancialTimelineEvent[];
+  finalCash: number;
+  finalReservedCash: number;
+  finalAvailableCash: number;
+  finalBanks: FinancialTimelineBankBalance[];
+  totalBanks: number;
+  totalControlled: number;
+  reconstructionIssues: string[];
+};
+
 export type CashClosingShift = {
   id: string;
   name: string;
@@ -122,5 +172,6 @@ export type CashClosingStory = {
   reservedCash: ReservedCashSummary;
   availableCash: number;
   bankStories: BankClosingStory[];
+  timeline: FinancialTimeline;
   commissionProfit: ShiftCommissionProfitSummary;
 };
