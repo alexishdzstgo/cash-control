@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, User, Calendar, Timer } from "lucide-react";
+import { Calendar, Clock, Timer, User } from "lucide-react";
 import type { CashClosingShift } from "@/types/cash-closing";
 
 type ShiftClosingHeaderProps = {
@@ -21,40 +21,47 @@ export function ShiftClosingHeader({ shift }: ShiftClosingHeaderProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <User className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 break-words">
-            <span className="font-medium text-slate-500">Responsable:</span>{" "}
-            {shift.responsibleName}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <Clock className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 break-words">
-            <span className="font-medium text-slate-500">Inicio:</span>{" "}
-            {shift.startedAt}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 break-words">
-            <span className="font-medium text-slate-500">Fin programado:</span>{" "}
-            {shift.scheduledEndAt}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <Timer className="h-4 w-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 break-words">
-            <span className="font-medium text-slate-500">Duración:</span>{" "}
-            {shift.currentDuration}
-          </span>
-        </div>
+        <ShiftFact
+          icon={User}
+          label="Responsable"
+          value={shift.responsibleName}
+        />
+        <ShiftFact icon={Clock} label="Inicio" value={shift.startedAt} />
+        <ShiftFact
+          icon={Calendar}
+          label="Fin programado"
+          value={shift.scheduledEndAt}
+        />
+        <ShiftFact
+          icon={Timer}
+          label="Duración"
+          value={shift.currentDuration}
+        />
       </div>
 
       <p className="mt-4 text-xs text-slate-400">
         Esta es una vista de prueba. El cierre real del turno se implementará
         posteriormente.
       </p>
+    </div>
+  );
+}
+
+function ShiftFact({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof User;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-slate-600">
+      <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+      <span className="min-w-0 break-words">
+        <span className="font-medium text-slate-500">{label}:</span> {value}
+      </span>
     </div>
   );
 }

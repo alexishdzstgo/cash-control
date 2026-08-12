@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import type { CashClosingStatus } from "@/types/cash-closing";
 
@@ -26,7 +26,6 @@ export function CashClosingResult({
   onReset,
 }: CashClosingResultProps) {
   const countedNumeric = Number(countedCash);
-
   const resultStatus: "balanced" | "shortage" | "surplus" =
     status === "review_required"
       ? difference < 0
@@ -38,29 +37,34 @@ export function CashClosingResult({
 
   const config = {
     balanced: {
-      title: "Caja cuadrada",
+      title: "Caja correcta",
       subtitle: "Corte realizado",
       description:
-        "El efectivo contado coincide con el esperado por el sistema.",
+        "El efectivo contado coincide con los movimientos registrados.",
       icon: CheckCircle2,
       iconClassName: "text-emerald-500",
       badgeClassName: "bg-emerald-50 text-emerald-700",
+      valueClassName: "text-emerald-700",
     },
     shortage: {
-      title: "Faltante",
-      subtitle: "Corte realizado",
-      description: `El corte quedó marcado para revisión.`,
+      title: "Falta efectivo",
+      subtitle: "Corte realizado con faltante",
+      description:
+        "Hay menos efectivo del que debería existir según los movimientos registrados.",
       icon: AlertTriangle,
       iconClassName: "text-red-500",
       badgeClassName: "bg-red-50 text-red-700",
+      valueClassName: "text-red-700",
     },
     surplus: {
-      title: "Sobrante",
-      subtitle: "Corte realizado",
-      description: `El corte quedó marcado para revisión.`,
+      title: "Sobra efectivo",
+      subtitle: "Corte realizado con sobrante",
+      description:
+        "Hay más efectivo del que debería existir según los movimientos registrados.",
       icon: TrendingUp,
-      iconClassName: "text-amber-500",
-      badgeClassName: "bg-amber-50 text-amber-700",
+      iconClassName: "text-blue-500",
+      badgeClassName: "bg-blue-50 text-blue-700",
+      valueClassName: "text-blue-700",
     },
   };
 
@@ -73,9 +77,15 @@ export function CashClosingResult({
         <div className="flex items-start gap-4">
           <Icon className={`mt-1 h-8 w-8 shrink-0 ${current.iconClassName}`} />
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">{current.title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{current.subtitle}</p>
-            <p className="mt-2 text-sm text-slate-600">{current.description}</p>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {current.title}
+            </h2>
+            <p
+              className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${current.badgeClassName}`}
+            >
+              {current.subtitle}
+            </p>
+            <p className="mt-3 text-sm text-slate-600">{current.description}</p>
           </div>
         </div>
       </div>
@@ -86,52 +96,54 @@ export function CashClosingResult({
         </h3>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">Esperado</span>
-            <span className="font-medium text-slate-900">
-              {formatCurrency(expectedCash)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">Contado</span>
-            <span className="font-medium text-slate-900">
-              {formatCurrency(countedNumeric)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">Diferencia</span>
-            <span className={`font-semibold ${resultStatus === "balanced" ? "text-emerald-700" : resultStatus === "shortage" ? "text-red-700" : "text-amber-700"}`}>
-              {formatCurrency(difference)}
-            </span>
-          </div>
+          <ResultRow label="Esperado" value={formatCurrency(expectedCash)} />
+          <ResultRow label="Contado" value={formatCurrency(countedNumeric)} />
+          <ResultRow
+            label="Diferencia"
+            value={
+              difference > 0
+                ? `+${formatCurrency(difference)}`
+                : formatCurrency(difference)
+            }
+            className={current.valueClassName}
+          />
 
           <div className="border-t border-slate-100 pt-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-600">Responsable</span>
-              <span className="font-medium text-slate-900">{responsibleName}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-sm">
-              <span className="text-slate-600">Turno</span>
-              <span className="font-medium text-slate-900">{shiftName}</span>
-            </div>
+            <ResultRow label="Responsable" value={responsibleName} />
+            <ResultRow label="Turno" value={shiftName} />
           </div>
 
           {observations.trim() !== "" && (
             <div className="border-t border-slate-100 pt-3">
-              <p className="text-sm font-medium text-slate-700">Observaciones</p>
+              <p className="text-sm font-medium text-slate-700">
+                Observaciones
+              </p>
               <p className="mt-1 text-sm text-slate-600">{observations}</p>
             </div>
           )}
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onReset}
-        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-      >
+      <button type="button" onClick={onReset} className="btn-secondary w-full">
         Reiniciar demostración
       </button>
+    </div>
+  );
+}
+
+function ResultRow({
+  label,
+  value,
+  className = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-600">{label}</span>
+      <span className={`font-medium tabular-nums ${className}`}>{value}</span>
     </div>
   );
 }

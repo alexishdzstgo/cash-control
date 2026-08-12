@@ -1,29 +1,24 @@
 "use client";
 
 import { Eye } from "lucide-react";
+import { CASH_CLOSING_CATEGORY_META } from "@/lib/cashClosing";
 import { formatCurrency } from "@/lib/formatters";
 import type { CashMovement, CashMovementCategory } from "@/types/cash-closing";
 
 type CashMovementBreakdownProps = {
   movements: CashMovement[];
+  title?: string;
+  emptyMessage?: string;
   onViewCategory: (category: CashMovementCategory) => void;
 };
 
 type CategorySummary = {
   category: CashMovementCategory;
   label: string;
+  helperText: string;
   total: number;
   count: number;
   direction: "in" | "out";
-};
-
-const CATEGORY_META: Record<CashMovementCategory, { label: string; direction: "in" | "out" }> = {
-  opening_balance: { label: "Saldo inicial", direction: "in" },
-  cash_deposit: { label: "Depósitos recibidos", direction: "in" },
-  commission: { label: "Comisiones cobradas", direction: "in" },
-  delivered_withdrawal: { label: "Retiros entregados", direction: "out" },
-  owner_withdrawal: { label: "Retiros del propietario", direction: "out" },
-  authorized_adjustment: { label: "Ajustes autorizados", direction: "out" },
 };
 
 function buildCategorySummary(movements: CashMovement[]): CategorySummary[] {
@@ -38,12 +33,14 @@ function buildCategorySummary(movements: CashMovement[]): CategorySummary[] {
       continue;
     }
 
+    const meta = CASH_CLOSING_CATEGORY_META[movement.category];
     map.set(movement.category, {
       category: movement.category,
-      label: CATEGORY_META[movement.category].label,
+      label: meta.label,
+      helperText: meta.helperText,
       total: movement.amount,
       count: 1,
-      direction: CATEGORY_META[movement.category].direction,
+      direction: meta.direction,
     });
   }
 
@@ -52,6 +49,8 @@ function buildCategorySummary(movements: CashMovement[]): CategorySummary[] {
 
 export function CashMovementBreakdown({
   movements,
+  title = "Movimientos que explican esta parte",
+  emptyMessage = "No hay movimientos registrados en este turno.",
   onViewCategory,
 }: CashMovementBreakdownProps) {
   const categories = buildCategorySummary(movements);
@@ -59,9 +58,7 @@ export function CashMovementBreakdown({
   if (categories.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
-        <p className="text-sm text-slate-500">
-          No hay movimientos registrados en este turno.
-        </p>
+        <p className="text-sm text-slate-500">{emptyMessage}</p>
       </div>
     );
   }
@@ -69,33 +66,37 @@ export function CashMovementBreakdown({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-400">
-        Desglose de movimientos
+        {title}
       </h3>
 
       <div className="space-y-3">
         {categories.map((category) => (
           <div
             key={category.category}
-            className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 p-4"
+            className="flex flex-col gap-3 rounded-lg border border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900">
                 {category.label}
               </p>
-              <p className="text-xs text-slate-500">
-                {category.count} {category.count === 1 ? "operación" : "operaciones"}
+              <p className="mt-1 text-xs text-slate-500">
+                {category.helperText}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {category.count}{" "}
+                {category.count === 1 ? "movimiento" : "movimientos"}
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
               <span
-                className={`text-sm font-semibold ${
+                className={`text-sm font-semibold tabular-nums ${
                   category.direction === "in"
                     ? "text-emerald-700"
-                    : "text-red-600"
+                    : "text-orange-700"
                 }`}
               >
-                {category.direction === "in" ? "+" : "\u2212"}
+                {category.direction === "in" ? "+" : "-"}
                 {formatCurrency(category.total)}
               </span>
               <button
@@ -104,7 +105,7 @@ export function CashMovementBreakdown({
                 className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-slate-800"
               >
                 <Eye className="h-3.5 w-3.5 shrink-0" />
-                <span className="hidden sm:inline">Ver operaciones</span>
+                <span>Ver movimientos</span>
               </button>
             </div>
           </div>

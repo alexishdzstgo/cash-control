@@ -2,7 +2,8 @@
 
 import { X } from "lucide-react";
 import { useEffect, useId } from "react";
-import { formatCurrency } from "@/lib/formatters";
+import { CASH_CLOSING_CATEGORY_META } from "@/lib/cashClosing";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { CashMovement, CashMovementCategory } from "@/types/cash-closing";
 
 type MovementDetailsModalProps = {
@@ -12,15 +13,6 @@ type MovementDetailsModalProps = {
   movements: CashMovement[];
 };
 
-const CATEGORY_LABELS: Record<CashMovementCategory, string> = {
-  opening_balance: "Saldo inicial",
-  cash_deposit: "Depósitos recibidos",
-  commission: "Comisiones cobradas",
-  delivered_withdrawal: "Retiros entregados",
-  owner_withdrawal: "Retiros del propietario",
-  authorized_adjustment: "Ajustes autorizados",
-};
-
 export function MovementDetailsModal({
   isOpen,
   onClose,
@@ -28,27 +20,30 @@ export function MovementDetailsModal({
   movements,
 }: MovementDetailsModalProps) {
   const titleId = useId();
-  const categoryTotal = movements.reduce((sum, movement) => sum + movement.amount, 0);
-  const categoryLabel = CATEGORY_LABELS[category];
+  const categoryTotal = movements.reduce(
+    (sum, movement) => sum + movement.amount,
+    0,
+  );
+  const categoryLabel = CASH_CLOSING_CATEGORY_META[category].label;
 
   useEffect(() => {
-    if (isOpen) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
+    if (!isOpen) return;
 
-      function handleKeyDown(event: KeyboardEvent) {
-        if (event.key === "Escape") {
-          onClose();
-        }
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
       }
-
-      window.addEventListener("keydown", handleKeyDown);
-
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        window.removeEventListener("keydown", handleKeyDown);
-      };
     }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) {
@@ -56,25 +51,22 @@ export function MovementDetailsModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6">
       <div
-        className="flex w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200 max-h-[90dvh]"
-        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-[90dvh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
-          <h2
-            id={titleId}
-            className="text-lg font-bold text-slate-900 min-w-0 pr-4"
-          >
-            {categoryLabel}
-          </h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div className="min-w-0 pr-4">
+            <h2 id={titleId} className="text-lg font-bold text-slate-900">
+              {categoryLabel}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {CASH_CLOSING_CATEGORY_META[category].helperText}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -85,9 +77,7 @@ export function MovementDetailsModal({
           </button>
         </div>
 
-        {/* Scrollable content */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Desktop table */}
           <div className="hidden sm:block">
             <table className="w-full text-left text-sm">
               <thead>
@@ -106,17 +96,19 @@ export function MovementDetailsModal({
                     key={movement.id}
                     className="border-b border-slate-50 last:border-none"
                   >
-                    <td className="py-3 pr-4 font-medium text-slate-900 whitespace-nowrap">
+                    <td className="py-3 pr-4 font-medium whitespace-nowrap text-slate-900">
                       {movement.folio}
                     </td>
-                    <td className="py-3 pr-4 text-slate-700">{movement.description}</td>
-                    <td className="py-3 pr-4 text-right font-medium text-slate-900 whitespace-nowrap">
+                    <td className="py-3 pr-4 text-slate-700">
+                      {movement.description}
+                    </td>
+                    <td className="py-3 pr-4 text-right font-medium whitespace-nowrap text-slate-900">
                       {formatCurrency(movement.amount)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-500 whitespace-nowrap">
-                      {movement.registeredAt}
+                    <td className="py-3 pr-4 whitespace-nowrap text-slate-500">
+                      {formatMovementDate(movement.registeredAt)}
                     </td>
-                    <td className="py-3 pr-4 text-slate-500 whitespace-nowrap">
+                    <td className="py-3 pr-4 whitespace-nowrap text-slate-500">
                       {movement.registeredBy}
                     </td>
                     <td className="py-3 pr-4">
@@ -130,7 +122,6 @@ export function MovementDetailsModal({
             </table>
           </div>
 
-          {/* Mobile cards */}
           <div className="space-y-3 pb-4 sm:hidden">
             {movements.map((movement) => (
               <div
@@ -138,48 +129,45 @@ export function MovementDetailsModal({
                 className="rounded-xl border border-slate-100 bg-slate-50 p-4"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-900 min-w-0 break-words">
+                  <span className="min-w-0 break-words text-sm font-semibold text-slate-900">
                     {movement.folio}
                   </span>
-                  <span className="shrink-0 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                  <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
                     {movement.direction === "in" ? "Entrada" : "Salida"}
                   </span>
                 </div>
                 <div className="space-y-1.5 text-sm text-slate-600">
-                  <p className="flex items-center gap-2">
-                    <span className="font-medium text-slate-500 shrink-0 w-16">Descripción:</span>
-                    <span className="min-w-0 break-words">{movement.description}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="font-medium text-slate-500 shrink-0 w-16">Monto:</span>
-                    <span className="font-semibold text-slate-900">{formatCurrency(movement.amount)}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="font-medium text-slate-500 shrink-0 w-16">Fecha:</span>
-                    <span>{movement.registeredAt}</span>
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="font-medium text-slate-500 shrink-0 w-16">Usuario:</span>
-                    <span>{movement.registeredBy}</span>
-                  </p>
+                  <DetailLine
+                    label="Descripción"
+                    value={movement.description}
+                  />
+                  <DetailLine
+                    label="Monto"
+                    value={formatCurrency(movement.amount)}
+                    strong
+                  />
+                  <DetailLine
+                    label="Fecha"
+                    value={formatMovementDate(movement.registeredAt)}
+                  />
+                  <DetailLine label="Usuario" value={movement.registeredBy} />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Footer */}
         <div className="shrink-0 border-t border-slate-100 px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center justify-between sm:justify-start gap-2">
-              <span className="text-sm font-semibold text-slate-900">Total de la categoría</span>
-              <span className="text-lg font-bold text-slate-900">{formatCurrency(categoryTotal)}</span>
+            <div className="flex items-center justify-between gap-2 sm:justify-start">
+              <span className="text-sm font-semibold text-slate-900">
+                Total de la categoría
+              </span>
+              <span className="text-lg font-bold text-slate-900">
+                {formatCurrency(categoryTotal)}
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 w-full sm:w-auto"
-            >
+            <button type="button" onClick={onClose} className="btn-secondary">
               Cerrar
             </button>
           </div>
@@ -187,4 +175,33 @@ export function MovementDetailsModal({
       </div>
     </div>
   );
+}
+
+function DetailLine({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <p className="flex items-start gap-2">
+      <span className="w-24 shrink-0 font-medium text-slate-500">{label}:</span>
+      <span
+        className={`min-w-0 break-words ${strong ? "font-semibold text-slate-900" : ""}`}
+      >
+        {value}
+      </span>
+    </p>
+  );
+}
+
+function formatMovementDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return formatDateTime(date);
 }

@@ -24,7 +24,8 @@ function getClosingResult(
     return "pending";
   }
 
-  const differenceCents = Math.round(counted * 100) - Math.round(expectedCash * 100);
+  const differenceCents =
+    Math.round(counted * 100) - Math.round(expectedCash * 100);
 
   if (differenceCents === 0) return "balanced";
   if (differenceCents < 0) return "shortage";
@@ -53,31 +54,34 @@ export function CashDifferenceCard({
       valueClassName: "text-slate-500",
     },
     balanced: {
-      title: "Diferencia de caja",
+      title: "Caja correcta",
       value: formatCurrency(0),
-      description: "Caja cuadrada",
+      description:
+        "El efectivo contado coincide con los movimientos registrados.",
       icon: CheckCircle2,
       iconClassName: "text-emerald-500",
       badgeClassName: "bg-emerald-50 text-emerald-700",
       valueClassName: "text-emerald-700",
     },
     shortage: {
-      title: "Diferencia de caja",
+      title: "Falta efectivo",
       value: formatCurrency(difference),
-      description: `Faltante de ${formatCurrency(Math.abs(difference))}`,
+      description:
+        "Hay menos efectivo del que debería existir según los movimientos registrados.",
       icon: AlertTriangle,
       iconClassName: "text-red-500",
       badgeClassName: "bg-red-50 text-red-700",
       valueClassName: "text-red-700",
     },
     surplus: {
-      title: "Diferencia de caja",
+      title: "Sobra efectivo",
       value: `+${formatCurrency(difference)}`,
-      description: `Sobrante de ${formatCurrency(difference)}`,
+      description:
+        "Hay más efectivo del que debería existir según los movimientos registrados.",
       icon: TrendingUp,
-      iconClassName: "text-amber-500",
-      badgeClassName: "bg-amber-50 text-amber-700",
-      valueClassName: "text-amber-700",
+      iconClassName: "text-blue-500",
+      badgeClassName: "bg-blue-50 text-blue-700",
+      valueClassName: "text-blue-700",
     },
   };
 
@@ -92,37 +96,52 @@ export function CashDifferenceCard({
           <p className={`mt-1 text-2xl font-bold ${current.valueClassName}`}>
             {current.value}
           </p>
-          <p className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${current.badgeClassName}`}>
+          <p
+            className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${current.badgeClassName}`}
+          >
             {current.description}
           </p>
         </div>
         <Icon className={`mt-1 h-6 w-6 shrink-0 ${current.iconClassName}`} />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4 text-center">
-        <div>
-          <p className="text-xs text-slate-500">Esperado</p>
-          <p className="mt-1 text-sm font-semibold text-slate-900">
-            {formatCurrency(expectedCash)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Contado</p>
-          <p className="mt-1 text-sm font-semibold text-slate-900">
-            {hasCountedValue ? formatCurrency(countedNumeric) : "—"}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Diferencia</p>
-          <p className={`mt-1 text-sm font-semibold ${current.valueClassName}`}>
-            {hasCountedValue
+      <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 text-center sm:grid-cols-3">
+        <Metric label="Esperado" value={formatCurrency(expectedCash)} />
+        <Metric
+          label="Contado"
+          value={hasCountedValue ? formatCurrency(countedNumeric) : "—"}
+        />
+        <Metric
+          label="Diferencia"
+          value={
+            hasCountedValue
               ? differenceCents > 0
                 ? `+${formatCurrency(difference)}`
                 : formatCurrency(difference)
-              : "—"}
-          </p>
-        </div>
+              : "—"
+          }
+          className={current.valueClassName}
+        />
       </div>
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  className = "text-slate-900",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-semibold tabular-nums ${className}`}>
+        {value}
+      </p>
     </div>
   );
 }
