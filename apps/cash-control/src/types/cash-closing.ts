@@ -32,6 +32,35 @@ export type CashMovement = {
   customerName?: string;
 };
 
+export type BankClosingMovementDirection = "in" | "out";
+
+export type BankClosingMovement = {
+  id: string;
+  folio: string;
+  bankId: string;
+  bankName: string;
+  direction: BankClosingMovementDirection;
+  description: string;
+  amount: number;
+  registeredAt: string;
+  registeredBy: string;
+  sourceType?: "operation" | "administrative_movement";
+  sourceId?: string;
+  customerName?: string;
+};
+
+export type BankClosingStory = {
+  bankId: string;
+  bankName: string;
+  accountName: string;
+  openingBalance: number;
+  entries: BankClosingMovement[];
+  outputs: BankClosingMovement[];
+  totalEntries: number;
+  totalOutputs: number;
+  expectedBalance: number;
+};
+
 export type CashClosingShift = {
   id: string;
   name: string;
@@ -92,5 +121,6 @@ export type CashClosingStory = {
   expectedCash: number;
   reservedCash: ReservedCashSummary;
   availableCash: number;
+  bankStories: BankClosingStory[];
   commissionProfit: ShiftCommissionProfitSummary;
 };

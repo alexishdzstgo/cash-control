@@ -5,6 +5,8 @@ import type {
   ReservedOperation,
 } from "@/types/balance";
 import type {
+  BankClosingMovement,
+  BankClosingStory,
   CashClosingStory,
   CashMovement,
   CashMovementCategory,
@@ -74,6 +76,14 @@ export function buildCashClosingStory({
 }): CashClosingStory {
   const shiftOperations = operations.filter(isCurrentShiftOperation);
   const operationMovements = shiftOperations.flatMap(operationToCashMovements);
+  const bankMovements = [
+    ...shiftOperations.flatMap((operation) =>
+      operationToBankMovements(operation, banks),
+    ),
+    ...administrativeMovements
+      .filter((movement) => movement.resourceType === "bank")
+      .map(administrativeMovementToBankMovement),
+  ];
   const administrativeCashMovements = administrativeMovements
     .filter((movement) => movement.resourceType === "cash")
     .map(administrativeMovementToCashMovement);
@@ -106,6 +116,7 @@ export function buildCashClosingStory({
       movements: reservedMovements,
     },
     availableCash: expectedCash - reservedTotal,
+    bankStories: buildBankStories(banks, bankMovements),
     commissionProfit: buildCommissionProfitSummary(shiftOperations, banks),
   };
 }
@@ -157,10 +168,7 @@ function operationToCashMovements(operation: Operation): CashMovement[] {
     (operation.withdrawalCommissionMode === "deducted"
       ? Math.max(0, operation.amount - commission)
       : operation.amount);
-  const cashCommissionModes = ["cash", "deducted"];
-  const isCashCommission = cashCommissionModes.includes(
-    operation.withdrawalCommissionMode ?? "",
-  );
+  const isCashCommission = operation.withdrawalCommissionMode === "cash";
 
   return [
     {
@@ -183,10 +191,7 @@ function operationToCashMovements(operation: Operation): CashMovement[] {
             folio: operation.bankFolio,
             category: "cash_commission" as const,
             direction: "in" as const,
-            description:
-              operation.withdrawalCommissionMode === "deducted"
-                ? "Comisión descontada del retiro; quedó en caja"
-                : "Comisión de retiro pagada en efectivo",
+            description: "Comisión de retiro pagada en efectivo",
             amount: commission,
             registeredAt: operation.createdAt,
             registeredBy: operation.createdBy,
@@ -196,6 +201,61 @@ function operationToCashMovements(operation: Operation): CashMovement[] {
           },
         ]
       : []),
+  ];
+}
+
+function operationToBankMovements(
+  operation: Operation,
+  banks: BankAccountBalance[],
+): BankClosingMovement[] {
+  const bank = getOperationBank(operation, banks);
+  if (!bank) return [];
+
+  const commission = operation.commission ?? 0;
+
+  if (operation.type === "deposito") {
+    return [
+      {
+        id: `${operation.id}-bank`,
+        folio: operation.bankFolio,
+        bankId: bank.id,
+        bankName: bank.bankName,
+        direction: "out",
+        description: `Depósito enviado desde ${bank.bankName}`,
+        amount: operation.amount,
+        registeredAt: operation.createdAt,
+        registeredBy: operation.createdBy,
+        sourceType: "operation",
+        sourceId: operation.id,
+        customerName: operation.senderName,
+      },
+    ];
+  }
+
+  const bankAmount =
+    operation.bankMovementAmount ??
+    (operation.withdrawalCommissionMode === "deposited"
+      ? operation.amount + commission
+      : operation.amount);
+
+  return [
+    {
+      id: `${operation.id}-bank`,
+      folio: operation.bankFolio,
+      bankId: bank.id,
+      bankName: bank.bankName,
+      direction: "in",
+      description:
+        operation.withdrawalCommissionMode === "deposited"
+          ? `Retiro recibido en ${bank.bankName} con comisión depositada`
+          : `Retiro recibido en ${bank.bankName}`,
+      amount: bankAmount,
+      registeredAt: operation.createdAt,
+      registeredBy: operation.createdBy,
+      sourceType: "operation",
+      sourceId: operation.id,
+      customerName: operation.receiverName || operation.senderName,
+    },
   ];
 }
 
@@ -222,6 +282,28 @@ function administrativeMovementToCashMovement(
   };
 }
 
+function administrativeMovementToBankMovement(
+  movement: AdministrativeMovement,
+): BankClosingMovement {
+  const isIncome = movement.movementType === "income";
+
+  return {
+    id: movement.id,
+    folio: movement.id,
+    bankId: movement.resourceId,
+    bankName: movement.resourceName,
+    direction: isIncome ? "in" : "out",
+    description:
+      movement.explanation ??
+      (isIncome ? "Ingreso interno a banco" : "Retiro interno desde banco"),
+    amount: movement.amountCents / 100,
+    registeredAt: movement.createdAt,
+    registeredBy: movement.createdByUserName,
+    sourceType: "administrative_movement",
+    sourceId: movement.id,
+  };
+}
+
 function reservedToCashMovement(operation: ReservedOperation): CashMovement {
   return {
     id: operation.id,
@@ -236,6 +318,44 @@ function reservedToCashMovement(operation: ReservedOperation): CashMovement {
     sourceId: operation.id,
     customerName: operation.customerName,
   };
+}
+
+function buildBankStories(
+  banks: BankAccountBalance[],
+  movements: BankClosingMovement[],
+): BankClosingStory[] {
+  return banks.map((bank) => {
+    const bankMovements = movements.filter(
+      (movement) => movement.bankId === bank.id,
+    );
+    const entries = bankMovements.filter(
+      (movement) => movement.direction === "in",
+    );
+    const outputs = bankMovements.filter(
+      (movement) => movement.direction === "out",
+    );
+    const totalEntries = entries.reduce(
+      (sum, movement) => sum + movement.amount,
+      0,
+    );
+    const totalOutputs = outputs.reduce(
+      (sum, movement) => sum + movement.amount,
+      0,
+    );
+    const openingBalance = bank.realBalance - totalEntries + totalOutputs;
+
+    return {
+      bankId: bank.id,
+      bankName: bank.bankName,
+      accountName: bank.accountName,
+      openingBalance,
+      entries,
+      outputs,
+      totalEntries,
+      totalOutputs,
+      expectedBalance: openingBalance + totalEntries - totalOutputs,
+    };
+  });
 }
 
 function summarizeCategories(
@@ -398,6 +518,19 @@ function getOperationBankName(
     banks.find((bank) => bank.id === bankReference)?.bankName ??
     bankReference ??
     "Banco no identificado"
+  );
+}
+
+function getOperationBank(
+  operation: Operation,
+  banks: BankAccountBalance[],
+): BankAccountBalance | undefined {
+  const bankReference =
+    operation.bankResourceId ??
+    (operation.type === "deposito" ? operation.bankTo : operation.bankFrom);
+
+  return banks.find(
+    (bank) => bank.id === bankReference || bank.bankName === bankReference,
   );
 }
 

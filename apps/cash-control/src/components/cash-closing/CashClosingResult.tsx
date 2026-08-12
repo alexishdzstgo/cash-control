@@ -110,7 +110,7 @@ export function CashClosingResult({
 
           <div className="border-t border-slate-100 pt-3">
             <ResultRow label="Responsable" value={responsibleName} />
-            <ResultRow label="Turno" value={shiftName} />
+            <ResultRow label="Corte" value={shiftName} />
           </div>
 
           {observations.trim() !== "" && (

@@ -8,6 +8,8 @@ import type { CashMovement, CashMovementCategory } from "@/types/cash-closing";
 type CashMovementBreakdownProps = {
   movements: CashMovement[];
   title?: string;
+  totalLabel?: string;
+  total?: number;
   emptyMessage?: string;
   onViewCategory: (category: CashMovementCategory) => void;
 };
@@ -50,10 +52,16 @@ function buildCategorySummary(movements: CashMovement[]): CategorySummary[] {
 export function CashMovementBreakdown({
   movements,
   title = "Movimientos que explican esta parte",
+  totalLabel,
+  total,
   emptyMessage = "No hay movimientos registrados en este turno.",
   onViewCategory,
 }: CashMovementBreakdownProps) {
   const categories = buildCategorySummary(movements);
+  const direction = categories[0]?.direction ?? "in";
+  const displayedTotal =
+    total ??
+    categories.reduce((sum, category) => sum + category.total, 0);
 
   if (categories.length === 0) {
     return (
@@ -111,6 +119,22 @@ export function CashMovementBreakdown({
           </div>
         ))}
       </div>
+
+      {totalLabel && (
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <span className="text-sm font-semibold text-slate-900">
+            {totalLabel}
+          </span>
+          <span
+            className={`text-sm font-bold tabular-nums ${
+              direction === "in" ? "text-emerald-700" : "text-orange-700"
+            }`}
+          >
+            {direction === "in" ? "+" : "-"}
+            {formatCurrency(displayedTotal)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
