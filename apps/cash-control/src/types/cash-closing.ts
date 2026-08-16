@@ -73,7 +73,12 @@ export type FinancialTimelineImpact = {
 
 export type FinancialTimelineEvent = {
   id: string;
-  type: "deposit" | "withdrawal" | "business_fund_income" | "business_fund_withdrawal";
+  type:
+    | "deposit"
+    | "withdrawal"
+    | "reserved_cash_allocation"
+    | "business_fund_income"
+    | "business_fund_withdrawal";
   title: string;
   badge: string;
   occurredAt: string;

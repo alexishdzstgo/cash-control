@@ -125,7 +125,7 @@ export function buildCashClosingStory({
       banks,
       operations: shiftOperations,
       administrativeMovements,
-      reservedTotal,
+      reservedOperations: cash.reservedOperations,
     }),
     commissionProfit: buildCommissionProfitSummary(shiftOperations, banks),
   };
@@ -549,16 +549,21 @@ function buildFinancialTimeline({
   banks,
   operations,
   administrativeMovements,
-  reservedTotal,
+  reservedOperations,
 }: {
   cash: CashBalance;
   banks: BankAccountBalance[];
   operations: Operation[];
   administrativeMovements: AdministrativeMovement[];
-  reservedTotal: number;
+  reservedOperations: ReservedOperation[];
 }): FinancialTimeline {
+  const reservedTotal = reservedOperations.reduce(
+    (sum, operation) => sum + operation.amount,
+    0,
+  );
   const rawEvents = [
     ...operations.map((operation) => operationToTimelineSeed(operation, banks)),
+    ...reservedOperations.map(reservedOperationToTimelineSeed),
     ...administrativeMovements
       .filter((movement) => movement.status === "active")
       .map(administrativeMovementToTimelineSeed),
@@ -566,11 +571,15 @@ function buildFinancialTimeline({
     .filter((event): event is TimelineSeed => event !== null)
     .sort(
       (a, b) =>
-        new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+        getTimelineSortTime(a.occurredAt) - getTimelineSortTime(b.occurredAt),
     );
 
-  const totalCashDelta = rawEvents.reduce(
-    (sum, event) => sum + (event.resourceDeltas.cash ?? 0),
+  const totalAvailableCashDelta = rawEvents.reduce(
+    (sum, event) => sum + (event.resourceDeltas.availableCash ?? 0),
+    0,
+  );
+  const totalReservedCashDelta = rawEvents.reduce(
+    (sum, event) => sum + (event.resourceDeltas.reservedCash ?? 0),
     0,
   );
   const totalBankDeltas = new Map<string, number>();
@@ -581,9 +590,10 @@ function buildFinancialTimeline({
     }
   }
 
+  const finalAvailableCash = cash.physicalBalance - reservedTotal;
   const balances = {
-    cash: cash.physicalBalance - totalCashDelta,
-    reservedCash: reservedTotal,
+    availableCash: finalAvailableCash - totalAvailableCashDelta,
+    reservedCash: reservedTotal - totalReservedCashDelta,
     banks: new Map(
       banks.map((bank) => [
         bank.id,
@@ -592,7 +602,9 @@ function buildFinancialTimeline({
     ),
   };
 
-  const initialCash = balances.cash;
+  const initialAvailableCash = balances.availableCash;
+  const initialReservedCash = balances.reservedCash;
+  const initialCash = initialAvailableCash + initialReservedCash;
   const initialBanks = banks.map((bank) => ({
     bankId: bank.id,
     bankName: bank.bankName,
@@ -605,12 +617,12 @@ function buildFinancialTimeline({
   for (const seed of rawEvents) {
     const impacts: FinancialTimelineImpact[] = [];
 
-    if (seed.resourceDeltas.cash !== undefined) {
-      const before = balances.cash;
-      const amount = seed.resourceDeltas.cash;
+    if (seed.resourceDeltas.availableCash !== undefined) {
+      const before = balances.availableCash;
+      const amount = seed.resourceDeltas.availableCash;
       const after = before + amount;
       impacts.push({
-        resourceId: "cash",
+        resourceId: "cash_available",
         resourceName: "Caja física",
         resourceType: "cash",
         before,
@@ -618,7 +630,23 @@ function buildFinancialTimeline({
         after,
         detail: seed.cashDetail,
       });
-      balances.cash = after;
+      balances.availableCash = after;
+    }
+
+    if (seed.resourceDeltas.reservedCash !== undefined) {
+      const before = balances.reservedCash;
+      const amount = seed.resourceDeltas.reservedCash;
+      const after = before + amount;
+      impacts.push({
+        resourceId: "cash_reserved",
+        resourceName: "Caja de retiros apartados",
+        resourceType: "reserved_cash",
+        before,
+        amount,
+        after,
+        detail: seed.reservedCashDetail,
+      });
+      balances.reservedCash = after;
     }
 
     for (const [bankId, amount] of Object.entries(seed.resourceDeltas.banks)) {
@@ -666,9 +694,14 @@ function buildFinancialTimeline({
     0,
   );
   const reconstructionIssues: string[] = [];
+  const reconstructedTotalCash = balances.availableCash + balances.reservedCash;
 
-  if (Math.round(balances.cash * 100) !== Math.round(cash.physicalBalance * 100)) {
+  if (Math.round(reconstructedTotalCash * 100) !== Math.round(cash.physicalBalance * 100)) {
     reconstructionIssues.push("La caja reconstruida no coincide con el saldo actual.");
+  }
+
+  if (Math.round(balances.reservedCash * 100) !== Math.round(reservedTotal * 100)) {
+    reconstructionIssues.push("La caja de retiros apartados reconstruida no coincide con el saldo actual.");
   }
 
   for (const bank of banks) {
@@ -682,16 +715,16 @@ function buildFinancialTimeline({
 
   return {
     initialCash,
-    initialReservedCash: reservedTotal,
-    initialAvailableCash: initialCash - reservedTotal,
+    initialReservedCash,
+    initialAvailableCash,
     initialBanks,
     events,
-    finalCash: balances.cash,
-    finalReservedCash: reservedTotal,
-    finalAvailableCash: balances.cash - reservedTotal,
+    finalCash: reconstructedTotalCash,
+    finalReservedCash: balances.reservedCash,
+    finalAvailableCash: balances.availableCash,
     finalBanks,
     totalBanks,
-    totalControlled: balances.cash + totalBanks,
+    totalControlled: reconstructedTotalCash + totalBanks,
     reconstructionIssues,
   };
 }
@@ -706,10 +739,12 @@ type TimelineSeed = {
   description: string;
   details: Array<{ label: string; value: string }>;
   resourceDeltas: {
-    cash?: number;
+    availableCash?: number;
+    reservedCash?: number;
     banks: Record<string, number>;
   };
   cashDetail?: string;
+  reservedCashDetail?: string;
   commissionInfo?: string;
   note?: string;
 };
@@ -737,7 +772,7 @@ function operationToTimelineSeed(
         { label: "Banco de emisión", value: bank?.bankName ?? "Banco no identificado" },
       ],
       resourceDeltas: {
-        cash: cashDelta,
+        availableCash: cashDelta,
         banks: bank ? { [bank.id]: -operation.amount } : {},
       },
       cashDetail:
@@ -790,7 +825,7 @@ function operationToTimelineSeed(
       { label: "Banco de recepción", value: bank?.bankName ?? "Banco no identificado" },
     ],
     resourceDeltas: {
-      cash: cashDelta,
+      availableCash: cashDelta,
       banks: bank ? { [bank.id]: bankDelta } : {},
     },
     cashDetail,
@@ -820,11 +855,51 @@ function administrativeMovementToTimelineSeed(
       { label: "Motivo", value: movement.explanation ?? "Sin explicación." },
     ],
     resourceDeltas: {
-      cash: isCash ? delta : undefined,
+      availableCash: isCash ? delta : undefined,
       banks: isCash ? {} : { [movement.resourceId]: delta },
     },
     note: "No es ganancia.",
   };
+}
+
+function reservedOperationToTimelineSeed(
+  operation: ReservedOperation,
+): TimelineSeed {
+  return {
+    id: `reserved-${operation.id}`,
+    type: "reserved_cash_allocation",
+    title: "Apartado para retiro",
+    badge: "APARTADO PARA RETIRO",
+    occurredAt: operation.registeredAt,
+    actor: operation.registeredBy,
+    description: operation.customerName,
+    details: [
+      { label: "Folio", value: operation.folio },
+      { label: "Monto apartado", value: formatPlainCurrency(operation.amount) },
+      { label: "Estado", value: "Pendiente" },
+    ],
+    resourceDeltas: {
+      availableCash: -operation.amount,
+      reservedCash: operation.amount,
+      banks: {},
+    },
+    cashDetail: "Sale de la caja disponible.",
+    reservedCashDetail: "Queda físicamente separado para este retiro pendiente.",
+    note: "Redistribución interna: el total en efectivo no cambia.",
+  };
+}
+
+function getTimelineSortTime(value: string): number {
+  const parsed = new Date(value).getTime();
+  if (!Number.isNaN(parsed)) return parsed;
+
+  const match = value.match(/(\d{1,2}):(\d{2})\s*a\.\s*m\./i);
+  if (match) {
+    const [, hour, minutes] = match;
+    return Number(hour) * 60 + Number(minutes);
+  }
+
+  return Number.MAX_SAFE_INTEGER;
 }
 
 function formatPlainCurrency(value: number): string {

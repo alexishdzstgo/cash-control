@@ -9,8 +9,9 @@ import {
   Eye,
   PiggyBank,
   Wallet,
+  X,
 } from "lucide-react";
-import { type RefObject, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -102,6 +103,14 @@ export function CashClosingPage() {
   const difference = hasCountedValue
     ? countedNumeric - story.expectedCash
     : NaN;
+  const availableDifference =
+    state.countedAvailableCash !== "" && !Number.isNaN(countedAvailableNumeric)
+      ? countedAvailableNumeric - story.availableCash
+      : NaN;
+  const reservedDifference =
+    state.countedReservedCash !== "" && !Number.isNaN(countedReservedNumeric)
+      ? countedReservedNumeric - story.reservedCash.total
+      : NaN;
   const bankDifferences = story.bankStories.map((bank) => {
     const countedValue = state.countedBanks[bank.bankId] ?? "";
     const counted = countedValue === "" ? NaN : Number(countedValue);
@@ -157,7 +166,8 @@ export function CashClosingPage() {
     if (!hasCountedValue || !hasAllBankValues) return;
 
     const hasAnyDifference =
-      Math.round(difference * 100) !== 0 ||
+      Math.round(availableDifference * 100) !== 0 ||
+      Math.round(reservedDifference * 100) !== 0 ||
       bankDifferences.some((bank) => Math.round(bank.difference * 100) !== 0);
     const nextStatus =
       !hasAnyDifference
@@ -364,78 +374,96 @@ function TurnStoryHero({ expectedCash }: { expectedCash: number }) {
 }
 
 function FinancialTimelineCard({ timeline }: { timeline: FinancialTimeline }) {
+  const [selectedEvent, setSelectedEvent] =
+    useState<FinancialTimelineEvent | null>(null);
   const visibleEvents = timeline.events.slice(0, 8);
   const hiddenCount = Math.max(0, timeline.events.length - visibleEvents.length);
 
   return (
-    <section className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-bold text-slate-950">
-        Cómo llegamos a esta cantidad
-      </h3>
-      <p className="mt-1 text-sm text-slate-500">
-        Reconstruimos el dinero paso a paso usando todos los movimientos
-        registrados.
-      </p>
+    <>
+      <section className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-950">
+          Cómo llegamos a esta cantidad
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Reconstruimos el dinero paso a paso usando todos los movimientos
+          registrados.
+        </p>
 
-      {timeline.reconstructionIssues.length > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          {timeline.reconstructionIssues.map((issue) => (
-            <p key={issue}>{issue}</p>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-5 space-y-6">
-        <TimelineStart timeline={timeline} />
-        <section>
-          <h4 className="text-sm font-bold uppercase tracking-wide text-slate-400">
-            Lo que ocurrió
-          </h4>
-          <div className="mt-4 space-y-4">
-            {visibleEvents.map((event) => (
-              <TimelineEventCard key={event.id} event={event} />
+        {timeline.reconstructionIssues.length > 0 && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {timeline.reconstructionIssues.map((issue) => (
+              <p key={issue}>{issue}</p>
             ))}
           </div>
-          {hiddenCount > 0 && (
-            <details className="mt-4">
-              <summary className="cursor-pointer text-sm font-semibold text-blue-700">
-                Ver {hiddenCount} movimientos más
-              </summary>
-              <div className="mt-4 space-y-4">
-                {timeline.events.slice(visibleEvents.length).map((event) => (
-                  <TimelineEventCard key={event.id} event={event} />
-                ))}
-              </div>
-            </details>
-          )}
-        </section>
-        <TimelineFinal timeline={timeline} />
-      </div>
-    </section>
+        )}
+
+        <div className="mt-5 space-y-6">
+          <TimelineStart timeline={timeline} />
+          <section>
+            <h4 className="text-sm font-bold uppercase tracking-wide text-slate-400">
+              Lo que ocurrió
+            </h4>
+            <div className="relative mt-4 space-y-0 pl-6 before:absolute before:top-2 before:bottom-2 before:left-2 before:w-px before:bg-slate-200">
+              {visibleEvents.map((event) => (
+                <TimelineEventCard
+                  key={event.id}
+                  event={event}
+                  onView={() => setSelectedEvent(event)}
+                />
+              ))}
+            </div>
+            {hiddenCount > 0 && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm font-semibold text-blue-700">
+                  Ver {hiddenCount} movimientos más
+                </summary>
+                <div className="relative mt-4 space-y-0 pl-6 before:absolute before:top-2 before:bottom-2 before:left-2 before:w-px before:bg-slate-200">
+                  {timeline.events.slice(visibleEvents.length).map((event) => (
+                    <TimelineEventCard
+                      key={event.id}
+                      event={event}
+                      onView={() => setSelectedEvent(event)}
+                    />
+                  ))}
+                </div>
+              </details>
+            )}
+          </section>
+          <TimelineFinal timeline={timeline} />
+        </div>
+      </section>
+
+      <TimelineEventDetailsModal
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+      />
+    </>
   );
 }
 
 function TimelineStart({ timeline }: { timeline: FinancialTimeline }) {
   return (
-    <section className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+    <section className="rounded-xl bg-slate-50 p-4">
       <h4 className="text-sm font-bold uppercase tracking-wide text-slate-400">
         Al comenzar
       </h4>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <div className="rounded-xl border border-slate-100 bg-white p-4">
-          <p className="text-sm font-semibold text-slate-900">Caja física</p>
+      <div className="mt-4 grid gap-5 lg:grid-cols-[0.9fr_1.4fr]">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Efectivo</p>
           <p className="mt-2 text-2xl font-bold text-slate-950 tabular-nums">
             {formatCurrency(timeline.initialCash)}
           </p>
           <div className="mt-3 space-y-2 text-sm">
+            <SplitRow label="Caja física" value={timeline.initialAvailableCash} />
             <SplitRow
-              label="Apartado para retiros"
+              label="Caja de retiros apartados"
               value={timeline.initialReservedCash}
             />
-            <SplitRow label="Disponible" value={timeline.initialAvailableCash} />
+            <SplitRow label="Total en efectivo" value={timeline.initialCash} strong />
           </div>
         </div>
-        <div className="rounded-xl border border-slate-100 bg-white p-4">
+        <div className="border-t border-slate-200 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
           <p className="text-sm font-semibold text-slate-900">Bancos</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {timeline.initialBanks.map((bank) => (
@@ -452,9 +480,285 @@ function TimelineStart({ timeline }: { timeline: FinancialTimeline }) {
   );
 }
 
-function TimelineEventCard({ event }: { event: FinancialTimelineEvent }) {
+function TimelineEventCard({
+  event,
+  onView,
+}: {
+  event: FinancialTimelineEvent;
+  onView: () => void;
+}) {
+  const amount = getTimelineEventMainAmount(event);
+  const badge = getTimelineEventBadge(event);
+  const reference = getTimelineEventReference(event);
+
   return (
-    <article className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+    <article className="relative pb-6 last:pb-0">
+      <span className="absolute -left-[1.15rem] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-200 ring-1 ring-emerald-100" />
+      <div className="rounded-xl border-b border-slate-100 bg-white/70 px-3 py-3 transition hover:bg-slate-50/80 sm:px-4">
+        <div className="grid gap-2 sm:grid-cols-[4.5rem_8rem_minmax(0,1fr)_8rem_5.25rem] sm:items-center">
+          <div className="flex items-center justify-between gap-3 sm:block">
+            <span className="text-sm font-bold text-slate-500 tabular-nums">
+              {formatTimelineTime(event.occurredAt)}
+            </span>
+            <span className="sm:hidden">
+              <TimelineBadge label={badge} />
+            </span>
+          </div>
+          <div className="hidden sm:block">
+            <TimelineBadge label={badge} />
+          </div>
+          <p className="min-w-0 truncate text-sm font-semibold text-slate-900">
+            {reference}
+          </p>
+          <p className="row-start-3 text-sm font-bold text-slate-950 tabular-nums sm:row-auto sm:text-right">
+            {amount}
+          </p>
+          <button
+            type="button"
+            title="Ver detalle del movimiento"
+            aria-label={`Ver detalle del movimiento ${reference}`}
+            onClick={onView}
+            className="row-start-3 inline-flex h-10 min-w-10 cursor-pointer items-center justify-center gap-1.5 justify-self-end rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:row-auto sm:h-9"
+          >
+            <Eye aria-hidden="true" className="h-4 w-4" />
+            <span>VER</span>
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function TimelineBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex w-fit rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200">
+      {label}
+    </span>
+  );
+}
+
+function TimelineEventDetailsModal({
+  event,
+  onClose,
+}: {
+  event: FinancialTimelineEvent | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    if (!event) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(keyboardEvent: KeyboardEvent) {
+      if (keyboardEvent.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [event, onClose]);
+
+  if (!event) {
+    return null;
+  }
+
+  const reference = getTimelineEventReference(event);
+  const bank = getTimelineEventDetail(event, "Banco");
+  const commission = getTimelineEventDetail(event, "Comisi");
+  const reason = getTimelineEventDetail(event, "Motivo");
+  const commissionLocation = getCommissionLocation(event.commissionInfo);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="my-4 flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="timeline-event-detail-title"
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+          <div className="min-w-0 pr-4">
+            <p className="text-sm font-medium text-emerald-600">
+              {getTimelineEventBadge(event)}
+            </p>
+            <h2
+              id="timeline-event-detail-title"
+              className="text-lg font-bold text-slate-900"
+            >
+              Detalle del movimiento
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TimelineDetailItem label="Tipo" value={getTimelineEventBadge(event)} />
+            <TimelineDetailItem
+              label="Fecha"
+              value={formatTimelineCalendarDate(event.occurredAt)}
+            />
+            <TimelineDetailItem
+              label="Hora"
+              value={formatTimelineTime(event.occurredAt)}
+            />
+            <TimelineDetailItem
+              label="Monto"
+              value={getTimelineEventMainAmount(event)}
+            />
+            <TimelineDetailItem label="Persona/referencia" value={reference} />
+            {bank && <TimelineDetailItem label="Banco" value={bank} />}
+            {commission && (
+              <TimelineDetailItem label="Comision" value={commission} />
+            )}
+            {commissionLocation && (
+              <TimelineDetailItem label="Quedo en" value={commissionLocation} />
+            )}
+            {reason && <TimelineDetailItem label="Motivo" value={reason} />}
+            <TimelineDetailItem label="Registrado por" value={event.actor} />
+          </div>
+
+          {event.description && (
+            <p className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {event.description}
+            </p>
+          )}
+
+          <section className="mt-5">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
+              Impacto del movimiento
+            </h3>
+            <ImpactTable impacts={event.impacts} />
+          </section>
+
+          {(event.commissionInfo || event.note) && (
+            <div className="mt-4 space-y-2 text-xs">
+              {event.commissionInfo && (
+                <p className="inline-flex rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-cyan-800">
+                  {event.commissionInfo}
+                </p>
+              )}
+              {event.note && (
+                <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-slate-500">
+                  {event.note}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-slate-100 px-5 py-4">
+          <div className="flex justify-end">
+            <button type="button" onClick={onClose} className="btn-secondary">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineDetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+      <p className="text-xs font-medium uppercase text-slate-400">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ImpactTable({ impacts }: { impacts: FinancialTimelineImpact[] }) {
+  return (
+    <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
+      <div className="hidden grid-cols-[1.2fr_1fr_1fr_1fr] bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:grid">
+        <span>Recurso</span>
+        <span className="text-right">Antes</span>
+        <span className="text-right">Cambio</span>
+        <span className="text-right">Después</span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {impacts.map((impact) => (
+          <ImpactRow key={impact.resourceId} impact={impact} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ImpactRow({ impact }: { impact: FinancialTimelineImpact }) {
+  const isPositive = impact.amount > 0;
+  const isNegative = impact.amount < 0;
+  const valueClass = isPositive
+    ? "text-emerald-700"
+    : isNegative
+      ? "text-orange-700"
+      : "text-slate-500";
+
+  return (
+    <div className="grid gap-2 bg-white px-3 py-3 text-sm sm:grid-cols-[1.2fr_1fr_1fr_1fr] sm:items-center">
+      <div>
+        <p className="font-semibold text-slate-900">{impact.resourceName}</p>
+        {impact.detail && (
+          <p className="mt-1 text-xs text-slate-500">{impact.detail}</p>
+        )}
+      </div>
+      <TimelineValue label="Antes" value={formatCurrency(impact.before)} />
+      <TimelineValue
+        label="Cambio"
+        value={formatSignedCurrency(impact.amount)}
+        className={valueClass}
+      />
+      <TimelineValue label="Después" value={formatCurrency(impact.after)} />
+    </div>
+  );
+}
+
+function TimelineValue({
+  label,
+  value,
+  className = "text-slate-800",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
+      <span className="text-xs text-slate-400 sm:hidden">{label}</span>
+      <span className={`font-semibold tabular-nums ${className}`}>{value}</span>
+    </div>
+  );
+}
+
+function LegacyTimelineEventCard({ event }: { event: FinancialTimelineEvent }) {
+  return (
+    <article className="hidden rounded-xl border border-slate-100 bg-slate-50 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
@@ -545,10 +849,13 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
       </h4>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-blue-100 bg-white p-4">
-          <p className="text-sm font-semibold text-slate-900">Caja física</p>
-          <SplitRow label="Total" value={timeline.finalCash} strong />
-          <SplitRow label="Apartado" value={timeline.finalReservedCash} />
-          <SplitRow label="Disponible" value={timeline.finalAvailableCash} />
+          <p className="text-sm font-semibold text-slate-900">Efectivo</p>
+          <SplitRow label="Caja física" value={timeline.finalAvailableCash} />
+          <SplitRow
+            label="Caja de retiros apartados"
+            value={timeline.finalReservedCash}
+          />
+          <SplitRow label="Total en efectivo" value={timeline.finalCash} strong />
         </div>
         <div className="rounded-xl border border-blue-100 bg-white p-4">
           <p className="text-sm font-semibold text-slate-900">Bancos</p>
@@ -568,8 +875,12 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
       </div>
       <div className="mt-4 rounded-xl border border-blue-100 bg-white p-4">
         <p className="text-sm font-bold text-slate-950">Total controlado</p>
-        <SplitRow label="Caja física" value={timeline.finalCash} />
-        <SplitRow label="Bancos" value={timeline.totalBanks} />
+        <SplitRow label="Caja física" value={timeline.finalAvailableCash} />
+        <SplitRow
+          label="Caja de retiros apartados"
+          value={timeline.finalReservedCash}
+        />
+        <SplitRow label="Total bancos" value={timeline.totalBanks} />
         <div className="mt-2 border-t border-slate-100 pt-2">
           <SplitRow label="Total" value={timeline.totalControlled} strong />
         </div>
@@ -1041,6 +1352,94 @@ function TinyTimelineMetric({
       </p>
     </div>
   );
+}
+
+function getTimelineEventBadge(event: FinancialTimelineEvent): string {
+  if (event.type === "business_fund_income") return "FONDOS · INGRESO";
+  if (event.type === "business_fund_withdrawal") return "FONDOS · EGRESO";
+  if (event.type === "reserved_cash_allocation") return "RETIRO";
+  return event.badge;
+}
+
+function getTimelineEventReference(event: FinancialTimelineEvent): string {
+  if (event.type === "business_fund_income") {
+    return `Ingreso a ${formatTimelineResourceReference(event.description)}`;
+  }
+
+  if (event.type === "business_fund_withdrawal") {
+    return `Retiro de ${formatTimelineResourceReference(event.description)}`;
+  }
+
+  return event.description || event.title;
+}
+
+function formatTimelineResourceReference(resourceName: string): string {
+  if (resourceName.toLowerCase().includes("caja")) {
+    return "Caja";
+  }
+
+  return resourceName;
+}
+
+function getTimelineEventMainAmount(event: FinancialTimelineEvent): string {
+  const amountDetail =
+    event.details.find((detail) =>
+      detail.label.toLowerCase().includes("monto"),
+    ) ?? event.details[0];
+
+  if (amountDetail?.value) {
+    return amountDetail.value;
+  }
+
+  const largestImpact = event.impacts.reduce<FinancialTimelineImpact | null>(
+    (currentLargest, impact) =>
+      !currentLargest || Math.abs(impact.amount) > Math.abs(currentLargest.amount)
+        ? impact
+        : currentLargest,
+    null,
+  );
+
+  return largestImpact ? formatCurrency(Math.abs(largestImpact.amount)) : "-";
+}
+
+function getTimelineEventDetail(
+  event: FinancialTimelineEvent,
+  labelFragment: string,
+): string | null {
+  const normalizedFragment = labelFragment.toLowerCase();
+  return (
+    event.details.find((detail) =>
+      detail.label.toLowerCase().includes(normalizedFragment),
+    )?.value ?? null
+  );
+}
+
+function getCommissionLocation(commissionInfo?: string): string | null {
+  if (!commissionInfo) return null;
+
+  const locationMatch = commissionInfo.match(/qued\S* en (.+?)\.?$/i);
+  return locationMatch?.[1] ?? null;
+}
+
+function formatTimelineCalendarDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatTimelineTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function formatSignedCurrency(value: number): string {

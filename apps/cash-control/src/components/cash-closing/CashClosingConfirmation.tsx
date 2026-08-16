@@ -57,18 +57,33 @@ export function CashClosingConfirmation({
 
   const countedAvailable = parseMoney(countedAvailableCash);
   const countedReserved = parseMoney(countedReservedCash);
+  const hasAvailableValue =
+    countedAvailableCash !== "" && !Number.isNaN(countedAvailable);
+  const hasReservedValue =
+    countedReservedCash !== "" && !Number.isNaN(countedReserved);
   const hasPhysicalValues =
-    countedAvailableCash !== "" &&
-    countedReservedCash !== "" &&
-    !Number.isNaN(countedAvailable) &&
-    !Number.isNaN(countedReserved);
+    hasAvailableValue && hasReservedValue;
   const countedPhysical = hasPhysicalValues
     ? countedAvailable + countedReserved
     : NaN;
+  const availableDifference = hasAvailableValue
+    ? countedAvailable - availableCash
+    : NaN;
+  const reservedDifference = hasReservedValue
+    ? countedReserved - reservedCash
+    : NaN;
   const cashDifference = hasPhysicalValues ? countedPhysical - expectedCash : NaN;
+  const availableResult = getResultConfig(
+    hasAvailableValue ? Math.round(availableDifference * 100) : NaN,
+    "Caja física",
+  );
+  const reservedResult = getResultConfig(
+    hasReservedValue ? Math.round(reservedDifference * 100) : NaN,
+    "Caja de retiros apartados",
+  );
   const cashResult = getResultConfig(
     hasPhysicalValues ? Math.round(cashDifference * 100) : NaN,
-    "Caja",
+    "Total en efectivo",
   );
 
   const bankComparisons = bankStories.map((bank) => {
@@ -90,17 +105,26 @@ export function CashClosingConfirmation({
   });
 
   const hasAllBankValues = bankComparisons.every((bank) => bank.hasValue);
+  const totalBanksExpected = bankStories.reduce(
+    (sum, bank) => sum + bank.expectedBalance,
+    0,
+  );
+  const totalBanksCounted = bankComparisons.reduce(
+    (sum, bank) => sum + (bank.hasValue ? bank.counted : 0),
+    0,
+  );
+  const totalBanksDifference = bankComparisons.reduce(
+    (sum, bank) => sum + (bank.hasValue ? bank.difference : 0),
+    0,
+  );
   const hasAnyDifference =
-    (hasPhysicalValues && Math.round(cashDifference * 100) !== 0) ||
+    (hasAvailableValue && Math.round(availableDifference * 100) !== 0) ||
+    (hasReservedValue && Math.round(reservedDifference * 100) !== 0) ||
     bankComparisons.some(
       (bank) => bank.hasValue && Math.round(bank.difference * 100) !== 0,
     );
   const totalControlledDifference =
-    (hasPhysicalValues ? cashDifference : 0) +
-    bankComparisons.reduce(
-      (sum, bank) => sum + (bank.hasValue ? bank.difference : 0),
-      0,
-    );
+    (hasPhysicalValues ? cashDifference : 0) + totalBanksDifference;
   const generalResult = getResultConfig(
     hasPhysicalValues && hasAllBankValues
       ? Math.round(totalControlledDifference * 100)
@@ -142,7 +166,7 @@ export function CashClosingConfirmation({
 
       <div className="mt-5 space-y-5">
         <section className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-          <h3 className="text-sm font-bold text-slate-950">Caja física</h3>
+          <h3 className="text-sm font-bold text-slate-950">Efectivo</h3>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <MoneyInput
               label="¿Cuánto efectivo disponible contaste?"
@@ -156,34 +180,45 @@ export function CashClosingConfirmation({
             />
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <Metric
-              label="Esperado"
-              value={formatCurrency(expectedCash)}
-              helper="Total físico esperado."
-            />
-            <Metric
-              label="Contado"
+              label="Caja física"
               value={
-                hasPhysicalValues
-                  ? formatCurrency(countedPhysical)
+                hasAvailableValue
+                  ? formatSignedCurrency(availableDifference)
                   : "Sin conteo"
               }
-              helper="Disponible contado + apartado contado."
+              helper={`Esperado: ${formatCurrency(availableCash)} · Contado: ${
+                hasAvailableValue ? formatCurrency(countedAvailable) : "sin conteo"
+              }`}
+              valueClassName={availableResult.valueClassName}
             />
             <Metric
-              label="Diferencia"
+              label="Caja de retiros apartados"
+              value={
+                hasReservedValue
+                  ? formatSignedCurrency(reservedDifference)
+                  : "Sin conteo"
+              }
+              helper={`Esperado: ${formatCurrency(reservedCash)} · Contado: ${
+                hasReservedValue ? formatCurrency(countedReserved) : "sin conteo"
+              }`}
+              valueClassName={reservedResult.valueClassName}
+            />
+            <Metric
+              label="Total en efectivo"
               value={
                 hasPhysicalValues
                   ? formatSignedCurrency(cashDifference)
                   : "Sin conteo"
               }
-              helper={cashResult.description}
+              helper={`Esperado: ${formatCurrency(expectedCash)} · Contado: ${
+                hasPhysicalValues ? formatCurrency(countedPhysical) : "sin conteo"
+              }`}
               valueClassName={cashResult.valueClassName}
             />
           </div>
         </section>
-
         <section className="rounded-xl border border-slate-100 bg-slate-50 p-4">
           <h3 className="text-sm font-bold text-slate-950">Bancos</h3>
           <div className="mt-4 grid gap-4 xl:grid-cols-3">
@@ -202,7 +237,12 @@ export function CashClosingConfirmation({
             Resultado del corte
           </h3>
           <div className="mt-3 space-y-2">
-            <ResultLine label="Caja física" result={cashResult} />
+            <ResultLine label="Caja física" result={availableResult} />
+            <ResultLine
+              label="Caja de retiros apartados"
+              result={reservedResult}
+            />
+            <ResultLine label="Total en efectivo" result={cashResult} />
             {bankComparisons.map((bank) => (
               <ResultLine
                 key={bank.bankId}
@@ -212,6 +252,33 @@ export function CashClosingConfirmation({
             ))}
           </div>
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <span className="text-sm font-semibold text-slate-900">
+              Total en efectivo
+            </span>
+            <span
+              className={`text-sm font-bold tabular-nums ${cashResult.valueClassName}`}
+            >
+              {hasPhysicalValues ? formatSignedCurrency(cashDifference) : "Sin conteo"}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-slate-900">
+              Total bancos
+            </span>
+            <span
+              className={`text-sm font-bold tabular-nums ${
+                getResultConfig(
+                  hasAllBankValues ? Math.round(totalBanksDifference * 100) : NaN,
+                  "Bancos",
+                ).valueClassName
+              }`}
+            >
+              {hasAllBankValues
+                ? formatSignedCurrency(totalBanksDifference)
+                : "Sin conteo"}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-3">
             <span className="text-sm font-semibold text-slate-900">
               Diferencia total controlada
             </span>
@@ -306,22 +373,34 @@ export function CashClosingConfirmation({
               <ModalResourceSummary
                 title="Caja física"
                 rows={[
-                  ["Esperado", expectedCash],
-                  ["Disponible contado", countedAvailable],
-                  ["Apartado contado", countedReserved],
-                  ["Contado", countedPhysical],
-                  ["Diferencia", cashDifference],
+                  ["Esperado", availableCash],
+                  ["Contado", countedAvailable],
+                  ["Diferencia", availableDifference],
                 ]}
-                differenceIndex={4}
-                differenceClassName={cashResult.valueClassName}
+                differenceIndex={2}
+                differenceClassName={availableResult.valueClassName}
               />
 
               <ModalResourceSummary
-                title="Dinero apartado"
+                title="Caja de retiros apartados"
                 rows={[
                   ["Esperado", reservedCash],
                   ["Contado", countedReserved],
+                  ["Diferencia", reservedDifference],
                 ]}
+                differenceIndex={2}
+                differenceClassName={reservedResult.valueClassName}
+              />
+
+              <ModalResourceSummary
+                title="Total en efectivo"
+                rows={[
+                  ["Esperado", expectedCash],
+                  ["Contado", countedPhysical],
+                  ["Diferencia", cashDifference],
+                ]}
+                differenceIndex={2}
+                differenceClassName={cashResult.valueClassName}
               />
 
               {bankComparisons.map((bank) => (
@@ -337,6 +416,19 @@ export function CashClosingConfirmation({
                   differenceClassName={bank.result.valueClassName}
                 />
               ))}
+
+              <ModalResourceSummary
+                title="Totales controlados"
+                rows={[
+                  ["Total efectivo esperado", expectedCash],
+                  ["Total efectivo contado", countedPhysical],
+                  ["Total bancos esperado", totalBanksExpected],
+                  ["Total bancos capturado", totalBanksCounted],
+                  ["Diferencia total controlada", totalControlledDifference],
+                ]}
+                differenceIndex={4}
+                differenceClassName={generalResult.valueClassName}
+              />
 
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
