@@ -98,6 +98,20 @@ export function BusinessFundsPage() {
       ? selectedResource.availableCents +
         (form.movementType === "income" ? amountCents : -amountCents)
       : null;
+  const confirmationDescription =
+    form &&
+    selectedResource &&
+    isAdministrativeMovementType(form.movementType) &&
+    amountCents !== null &&
+    previewBalanceAfterCents !== null
+      ? getMovementConfirmationDescription({
+          movementType: form.movementType,
+          resource: selectedResource,
+          amountCents,
+          explanation: form.explanation,
+          balanceAfterCents: previewBalanceAfterCents,
+        })
+      : "";
 
   if (!authenticatedUser) {
     return null;
@@ -152,7 +166,6 @@ export function BusinessFundsPage() {
       form,
       selectedResource,
       amountCents,
-      isEmployee,
       canCreateMovement,
     });
 
@@ -449,7 +462,6 @@ export function BusinessFundsPage() {
           resources={resources}
           selectedResource={selectedResource}
           balanceAfterCents={previewBalanceAfterCents}
-          isEmployee={isEmployee}
           onChange={(updates) =>
             setForm((current) => {
               setFormError(null);
@@ -470,12 +482,7 @@ export function BusinessFundsPage() {
             : "Registrar retiro"
         }
         description={
-          form &&
-          selectedResource &&
-          amountCents !== null &&
-          previewBalanceAfterCents !== null
-            ? `${getMovementTypeLabel(form.movementType as AdministrativeMovementType)} en ${selectedResource.name}. Monto: ${formatCents(amountCents)}. Motivo: ${form.explanation.trim() || "Sin motivo"}. Saldo actual: ${formatCents(selectedResource.availableCents)}. Saldo despues: ${formatCents(previewBalanceAfterCents)}.`
-            : ""
+          confirmationDescription
         }
         confirmLabel="Registrar movimiento"
         cancelLabel="Cancelar"
@@ -506,13 +513,11 @@ function validateForm({
   form,
   selectedResource,
   amountCents,
-  isEmployee,
   canCreateMovement,
 }: {
   form: FormState;
   selectedResource: AdministrativeResource | undefined;
   amountCents: number | null;
-  isEmployee: boolean;
   canCreateMovement: boolean;
 }): { isValid: boolean; errors: FormErrors; formError: string | null } {
   const errors: FormErrors = {};
@@ -534,7 +539,7 @@ function validateForm({
   } else if (amountCents <= 0) {
     errors.amount = "El monto debe ser mayor que cero.";
   }
-  if (isEmployee && !form.explanation.trim()) {
+  if (!form.explanation.trim()) {
     errors.explanation = "Indica el motivo del movimiento.";
   }
   if (form.mode === "edit" && !form.editReason.trim()) {
@@ -676,7 +681,6 @@ function MovementForm({
   resources,
   selectedResource,
   balanceAfterCents,
-  isEmployee,
   onChange,
   onClose,
   onSubmit,
@@ -687,7 +691,6 @@ function MovementForm({
   resources: AdministrativeResource[];
   selectedResource: AdministrativeResource | undefined;
   balanceAfterCents: number | null;
-  isEmployee: boolean;
   onChange: (updates: Partial<FormState>) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -700,14 +703,14 @@ function MovementForm({
       <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
         <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl">
           <header className="border-b border-slate-100 p-5">
-            <p className="text-sm font-medium text-[#2563EB]">
-              Fondos del negocio
-            </p>
             <h2 className="text-lg font-bold text-slate-950">
               {form.mode === "create"
                 ? "Nuevo movimiento de fondos"
                 : "Corregir movimiento de fondos"}
             </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Registra una entrada o salida de dinero del negocio.
+            </p>
           </header>
           <div className="scrollbar-hidden min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             <fieldset>
@@ -716,20 +719,29 @@ function MovementForm({
                 <RequiredMark />
               </legend>
               <div className="grid grid-cols-2 gap-2">
-                {(["income", "withdrawal"] as const).map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                      form.movementType === type
-                        ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                    }`}
-                    onClick={() => onChange({ movementType: type })}
-                  >
-                    {getMovementTypeLabel(type)}
-                  </button>
-                ))}
+                {(["income", "withdrawal"] as const).map((type) => {
+                  const isSelected = form.movementType === type;
+                  const selectedClass =
+                    type === "income"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-rose-200 bg-rose-50 text-rose-800";
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={isSelected}
+                      className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${
+                        isSelected
+                          ? selectedClass
+                          : "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+                      }`}
+                      onClick={() => onChange({ movementType: type })}
+                    >
+                      {getMovementTypeLabel(type)}
+                    </button>
+                  );
+                })}
               </div>
               {formErrors.movementType && (
                 <FieldError message={formErrors.movementType} />
@@ -799,7 +811,7 @@ function MovementForm({
             <label className="block">
               <span className="mb-2 block text-sm font-semibold text-slate-700">
                 Motivo del movimiento
-                {isEmployee && <RequiredMark />}
+                <RequiredMark />
               </span>
               <textarea
                 className="field-input resize-none"
@@ -1012,6 +1024,29 @@ function RequiredMark() {
 
 function FieldError({ message }: { message: string }) {
   return <p className="mt-2 text-sm font-medium text-red-600">{message}</p>;
+}
+
+function getMovementConfirmationDescription({
+  movementType,
+  resource,
+  amountCents,
+  explanation,
+  balanceAfterCents,
+}: {
+  movementType: AdministrativeMovementType;
+  resource: AdministrativeResource;
+  amountCents: number;
+  explanation: string;
+  balanceAfterCents: number;
+}): string {
+  const currentBalanceLabel =
+    resource.type === "cash" ? "Disponible actualmente" : "Saldo actual";
+  const reservedDetail =
+    resource.type === "cash" && resource.reservedCents > 0
+      ? ` Hay ${formatCents(resource.reservedCents)} separados para retiros pendientes.`
+      : "";
+
+  return `${getMovementTypeLabel(movementType)} en ${resource.name}. Monto: ${formatCents(amountCents)}. Motivo: ${explanation.trim()}. ${currentBalanceLabel}: ${formatCents(resource.availableCents)}. Saldo despues: ${formatCents(balanceAfterCents)}.${reservedDetail}`;
 }
 
 function formatCents(value: number): string {

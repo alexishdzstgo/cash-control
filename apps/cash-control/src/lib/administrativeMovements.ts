@@ -49,7 +49,9 @@ export function getAdministrativeResources(
       reservedCents: cashReservedCents,
       availableCents: cashRealCents - cashReservedCents,
     },
-    ...banks.map((bank) => {
+    ...banks
+      .filter((bank) => !["unavailable", "inconsistent"].includes(bank.status))
+      .map((bank) => {
       const reservedCents = pesosToCents(
         bank.reservedOperations.reduce(
           (sum, operation) => sum + operation.amount,
