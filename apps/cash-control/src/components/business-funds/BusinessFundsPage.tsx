@@ -714,7 +714,7 @@ function MovementForm({
           </header>
           <div className="scrollbar-hidden min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             <fieldset>
-              <legend className="mb-2 block text-sm font-semibold text-slate-700">
+              <legend className="mb-2 block text-sm font-semibold text-[#0F172A]">
                 Tipo de movimiento
                 <RequiredMark />
               </legend>
@@ -730,7 +730,7 @@ function MovementForm({
                       className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
                         isSelected
                           ? "border-[#2563EB] bg-[#2563EB] text-white font-semibold hover:border-[#1D4ED8] hover:bg-[#1D4ED8]"
-                          : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 font-semibold"
+                          : "border-slate-300 bg-white text-[#0F172A] hover:border-slate-400 hover:bg-slate-50 font-semibold"
                       }`}
                       onClick={() => onChange({ movementType: type })}
                     >
@@ -745,7 +745,7 @@ function MovementForm({
             </fieldset>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">
+              <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
                 Recurso
                 <RequiredMark />
               </span>
@@ -778,6 +778,7 @@ function MovementForm({
               min={0}
               step={0.01}
               error={formErrors.amount}
+              className="[&_label]:text-[#0F172A]"
             />
 
             <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
@@ -805,7 +806,7 @@ function MovementForm({
             </div>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">
+              <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
                 Motivo del movimiento
                 <RequiredMark />
               </span>
@@ -829,7 +830,7 @@ function MovementForm({
 
             {form.mode === "edit" && (
               <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-slate-700">
+                <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
                   Motivo de correccion
                   <RequiredMark />
                 </span>
@@ -853,7 +854,11 @@ function MovementForm({
             </div>
           )}
           <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button
+              type="button"
+              className="btn-secondary !text-[#0F172A]"
+              onClick={onClose}
+            >
               Cancelar
             </button>
             <button type="button" className="btn-primary" onClick={onSubmit}>
