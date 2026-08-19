@@ -702,13 +702,13 @@ function MovementForm({
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
       <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
         <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-[#EEF4FB] shadow-xl">
-          <header className="border-b border-slate-200 p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">
+          <header className="bg-[#0F172A] p-5">
+            <h2 className="text-lg font-bold text-[#F8FAFC]">
               {form.mode === "create"
                 ? "Nuevo movimiento de fondos"
                 : "Corregir movimiento de fondos"}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-300">
               Registra una entrada o salida de dinero del negocio.
             </p>
           </header>
@@ -730,7 +730,7 @@ function MovementForm({
                       className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
                         isSelected
                           ? "border-[#2563EB] bg-[#2563EB] text-white font-semibold hover:border-[#1D4ED8] hover:bg-[#1D4ED8]"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium"
+                          : "border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 font-semibold"
                       }`}
                       onClick={() => onChange({ movementType: type })}
                     >
@@ -781,7 +781,7 @@ function MovementForm({
             />
 
             <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
-              <Info
+              <ModalFinancialInfo
                 label="Disponible actual"
                 value={
                   selectedResource
@@ -789,7 +789,7 @@ function MovementForm({
                     : "Selecciona un recurso"
                 }
               />
-              <Info
+              <ModalFinancialInfo
                 label="Despues del movimiento"
                 value={
                   balanceAfterCents === null
@@ -821,7 +821,7 @@ function MovementForm({
               {formErrors.explanation ? (
                 <FieldError message={formErrors.explanation} />
               ) : (
-                <span className="mt-2 block text-sm text-slate-500">
+                <span className="mt-2 block text-sm text-slate-600">
                   Este texto queda visible para auditoria y consultas futuras.
                 </span>
               )}
@@ -976,6 +976,19 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function ModalFinancialInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">
+        {value}
+      </p>
+    </div>
   );
 }
 
