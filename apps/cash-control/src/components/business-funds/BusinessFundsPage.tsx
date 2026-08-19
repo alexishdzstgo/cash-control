@@ -701,9 +701,9 @@ function MovementForm({
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
       <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
-        <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-          <header className="border-b border-slate-100 p-5">
-            <h2 className="text-lg font-bold text-slate-950">
+        <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-[#EEF4FB] shadow-xl">
+          <header className="border-b border-slate-200 p-5">
+            <h2 className="text-lg font-bold text-[#0F172A]">
               {form.mode === "create"
                 ? "Nuevo movimiento de fondos"
                 : "Corregir movimiento de fondos"}
@@ -729,8 +729,8 @@ function MovementForm({
                       aria-pressed={isSelected}
                       className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
                         isSelected
-                          ? "border-blue-200 bg-blue-100 text-blue-800 shadow-sm font-semibold"
-                          : "border-blue-100/70 bg-blue-50/60 text-slate-600 hover:border-blue-200 hover:bg-blue-50 font-medium"
+                          ? "border-[#2563EB] bg-[#2563EB] text-white font-semibold hover:border-[#1D4ED8] hover:bg-[#1D4ED8]"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium"
                       }`}
                       onClick={() => onChange({ movementType: type })}
                     >
@@ -780,7 +780,7 @@ function MovementForm({
               error={formErrors.amount}
             />
 
-            <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+            <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
               <Info
                 label="Disponible actual"
                 value={
@@ -852,7 +852,7 @@ function MovementForm({
               {formError}
             </div>
           )}
-          <footer className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+          <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
             </button>
