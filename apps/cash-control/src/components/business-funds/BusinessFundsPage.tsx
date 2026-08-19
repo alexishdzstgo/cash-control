@@ -131,7 +131,7 @@ export function BusinessFundsPage() {
     setIsSubmitting(false);
     setForm({
       mode: "create",
-      movementType: "",
+      movementType: "income",
       resourceId: "",
       amount: "",
       explanation: "",
@@ -721,20 +721,16 @@ function MovementForm({
               <div className="grid grid-cols-2 gap-2">
                 {(["income", "withdrawal"] as const).map((type) => {
                   const isSelected = form.movementType === type;
-                  const selectedClass =
-                    type === "income"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-rose-200 bg-rose-50 text-rose-800";
 
                   return (
                     <button
                       key={type}
                       type="button"
                       aria-pressed={isSelected}
-                      className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ${
+                      className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
                         isSelected
-                          ? selectedClass
-                          : "border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+                          ? "border-blue-200 bg-blue-100 text-blue-800 shadow-sm font-semibold"
+                          : "border-blue-100/70 bg-blue-50/60 text-slate-600 hover:border-blue-200 hover:bg-blue-50 font-medium"
                       }`}
                       onClick={() => onChange({ movementType: type })}
                     >
