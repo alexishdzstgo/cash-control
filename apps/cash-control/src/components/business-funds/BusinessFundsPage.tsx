@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { AmountField } from "@/components/shared/AmountField";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import {
@@ -873,58 +874,53 @@ function MovementDetail({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
-        <header className="border-b border-slate-100 p-5">
-          <h2 className="text-lg font-bold text-slate-950">
-            Detalle del movimiento
-          </h2>
-        </header>
-        <div className="grid gap-3 p-5 md:grid-cols-2">
-          <Info label="ID" value={movement.id} />
-          <Info
-            label="Tipo"
-            value={getMovementTypeLabel(movement.movementType)}
-          />
-          <Info label="Recurso" value={movement.resourceName} />
-          <Info label="Monto" value={formatCents(movement.amountCents)} />
-          <Info
-            label="Saldo anterior"
-            value={formatCents(movement.balanceBeforeCents)}
-          />
-          <Info
-            label="Saldo posterior"
-            value={formatCents(movement.balanceAfterCents)}
-          />
-          <Info label="Realizado por" value={movement.createdByUserName} />
-          <Info
-            label="Fecha y hora"
-            value={formatDateTime(movement.createdAt)}
-          />
-          <Info
-            label="Turno"
-            value={movement.shiftId ?? "Sin turno asociado"}
-          />
-          <Info
-            label="Indicador de correccion"
-            value={movement.isEdited ? "Corregido" : "Sin correccion"}
-          />
-          <div className="md:col-span-2">
-            <Info label="Motivo" value={movement.explanation ?? "Sin motivo"} />
-          </div>
-          {movement.editReason && (
-            <div className="md:col-span-2">
-              <Info label="Motivo de correccion" value={movement.editReason} />
-            </div>
-          )}
-        </div>
-        <footer className="flex justify-end border-t border-slate-100 p-5">
-          <button type="button" className="btn-primary" onClick={onClose}>
+    <ModalShell
+      title="Detalle del movimiento"
+      description={`${getMovementTypeLabel(movement.movementType)} - ${movement.resourceName}`}
+      onClose={onClose}
+      maxWidth="lg"
+      zIndex="high"
+      footer={
+        <div className="flex justify-end">
+          <button type="button" className="btn-secondary" onClick={onClose}>
             Cerrar
           </button>
-        </footer>
+        </div>
+      }
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <Info label="ID" value={movement.id} />
+        <Info
+          label="Tipo"
+          value={getMovementTypeLabel(movement.movementType)}
+        />
+        <Info label="Recurso" value={movement.resourceName} />
+        <Info label="Monto" value={formatCents(movement.amountCents)} />
+        <Info
+          label="Saldo anterior"
+          value={formatCents(movement.balanceBeforeCents)}
+        />
+        <Info
+          label="Saldo posterior"
+          value={formatCents(movement.balanceAfterCents)}
+        />
+        <Info label="Realizado por" value={movement.createdByUserName} />
+        <Info label="Fecha y hora" value={formatDateTime(movement.createdAt)} />
+        <Info label="Turno" value={movement.shiftId ?? "Sin turno asociado"} />
+        <Info
+          label="Indicador de correccion"
+          value={movement.isEdited ? "Corregido" : "Sin correccion"}
+        />
+        <div className="md:col-span-2">
+          <Info label="Motivo" value={movement.explanation ?? "Sin motivo"} />
+        </div>
+        {movement.editReason && (
+          <div className="md:col-span-2">
+            <Info label="Motivo de correccion" value={movement.editReason} />
+          </div>
+        )}
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

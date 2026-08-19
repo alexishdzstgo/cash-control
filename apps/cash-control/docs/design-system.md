@@ -49,6 +49,7 @@ Usar los botones existentes:
 
 Para modales nuevos que adopten este sistema:
 
+- Todo modal nuevo de Cash Control debe utilizar `ModalShell`. No se deben construir modales nuevos copiando manualmente overlay, header, body y footer.
 - Contenedor: `.cc-modal-surface`
 - Header: `.cc-modal-header`
 - Titulo: `.cc-modal-title`
@@ -61,6 +62,8 @@ Para modales nuevos que adopten este sistema:
 ## Page Background
 
 El area principal de trabajo usa `--background` = `#EEF4FB`.
+
+Las paginas internas no deben definir fondos generales propios. El area de trabajo hereda `--background`; las superficies blancas se reservan para cards, tablas, inputs y contenido.
 
 El Sidebar es una excepcion aprobada: conserva su fondo oscuro, estados, tamanos y comportamiento.
 

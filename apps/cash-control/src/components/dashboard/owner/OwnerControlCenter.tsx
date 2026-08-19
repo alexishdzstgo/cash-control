@@ -1,21 +1,21 @@
 "use client";
 
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { AuditSummary } from "./AuditSummary";
+import { BusinessHealthPanel } from "./BusinessHealthPanel";
+import { EmployeePerformanceSummary } from "./EmployeePerformanceSummary";
+import { FinancialResourcesPanel } from "./FinancialResourcesPanel";
+import { OperationalConfigurationSummary } from "./OperationalConfigurationSummary";
+import { OwnerAttentionPanel } from "./OwnerAttentionPanel";
+import { OwnerFinancialOverview } from "./OwnerFinancialOverview";
 import { OwnerGreeting } from "./OwnerGreeting";
 import { OwnerQuickActions } from "./OwnerQuickActions";
-import { BusinessHealthPanel } from "./BusinessHealthPanel";
-import { OwnerFinancialOverview } from "./OwnerFinancialOverview";
-import { FinancialResourcesPanel } from "./FinancialResourcesPanel";
-import { OwnerAttentionPanel } from "./OwnerAttentionPanel";
 import { OwnerShiftOverview } from "./OwnerShiftOverview";
 import { ProfitSummary } from "./ProfitSummary";
-import { AuditSummary } from "./AuditSummary";
-import { EmployeePerformanceSummary } from "./EmployeePerformanceSummary";
-import { OperationalConfigurationSummary } from "./OperationalConfigurationSummary";
 
 export function OwnerControlCenter() {
   return (
-    <div className="app-dashboard-bg space-y-8">
+    <div className="space-y-8">
       <OwnerGreeting />
 
       <OwnerQuickActions />

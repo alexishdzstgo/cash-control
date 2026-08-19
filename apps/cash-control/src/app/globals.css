@@ -349,21 +349,6 @@
   Sidebar:           15px
 */
 
-/* Fondo corporativo del dashboard con degradado muy ligero y frío */
-.app-dashboard-bg {
-  background:
-    radial-gradient(
-      1200px 480px at 15% -10%,
-      rgba(37, 99, 235, 0.05),
-      transparent 60%
-    ),
-    radial-gradient(
-      900px 420px at 90% 0%,
-      rgba(124, 58, 237, 0.035),
-      transparent 55%
-    ), linear-gradient(to bottom, #f8fafc 0%, #ffffff 40%, #f8fafc 100%);
-}
-
 /* Fondo estándar de la aplicación */
 .app-surface {
   background-color: var(--background);

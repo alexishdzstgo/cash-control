@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { mockOperations } from "@/components/history/mockOperations";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
@@ -731,125 +732,118 @@ function UserFormPanel({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
-      <div className="mx-auto flex min-h-full w-full max-w-3xl items-center">
-        <div className="w-full rounded-xl bg-white shadow-xl">
-          <header className="border-b border-slate-100 p-5">
-            <p className="text-sm font-medium text-[#2563EB]">
-              {mode === "create" ? "Alta de usuario" : "Edición de usuario"}
-            </p>
-            <h2 className="text-lg font-bold text-slate-950">
-              {mode === "create" ? "Crear usuario" : "Editar usuario"}
-            </h2>
-          </header>
-
-          <div className="p-5">
-            <div className="mb-5 grid grid-cols-2 gap-2">
-              <StepButton active={step === 1} onClick={() => onStepChange(1)}>
-                1. Información personal
-              </StepButton>
-              <StepButton active={step === 2} onClick={() => onStepChange(2)}>
-                2. Cuenta
-              </StepButton>
-            </div>
-
-            {message && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-                {message}
-              </div>
-            )}
-
-            {step === 1 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <TextField
-                  label="Nombre"
-                  value={form.firstName}
-                  onChange={(firstName) => onChange({ firstName })}
-                />
-                <TextField
-                  label="Apellidos"
-                  value={form.lastName}
-                  onChange={(lastName) => onChange({ lastName })}
-                />
-                <SelectField
-                  label="Rol"
-                  value={form.systemRole}
-                  onChange={(value) =>
-                    onChange({ systemRole: value as UserAccount["systemRole"] })
-                  }
-                  options={[
-                    { value: "owner", label: "Dueño" },
-                    { value: "employee", label: "Empleado" },
-                  ]}
-                />
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                <TextField
-                  label="Usuario"
-                  value={form.username}
-                  onChange={(username) => onChange({ username })}
-                />
-                <TextField
-                  label="Contraseña temporal"
-                  value={form.temporaryPassword}
-                  onChange={(temporaryPassword) =>
-                    onChange({ temporaryPassword })
-                  }
-                  disabled={mode === "edit"}
-                />
-                <SelectField
-                  label="Estado"
-                  value={form.status}
-                  onChange={(value) =>
-                    onChange({ status: value as UserAccount["status"] })
-                  }
-                  options={[
-                    { value: "active", label: "Activo" },
-                    { value: "suspended", label: "Suspendido" },
-                  ]}
-                />
-                <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-slate-700">
-                    Observaciones internas
-                  </span>
-                  <textarea
-                    value={form.internalNotes}
-                    onChange={(event) =>
-                      onChange({ internalNotes: event.target.value })
-                    }
-                    rows={4}
-                    className="field-input resize-none"
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-
-          <footer className="flex flex-col gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancelar
+    <ModalShell
+      title={mode === "create" ? "Crear usuario" : "Editar usuario"}
+      description={
+        mode === "create"
+          ? "Registra una cuenta para operar Cash Control."
+          : "Actualiza la informacion de la cuenta."
+      }
+      onClose={onClose}
+      maxWidth="lg"
+      zIndex="high"
+      footer={
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          {step === 1 ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onStepChange(2)}
+            >
+              Continuar
             </button>
-            {step === 1 ? (
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => onStepChange(2)}
-              >
-                Continuar
-              </button>
-            ) : (
-              <button type="button" className="btn-primary" onClick={onSubmit}>
-                {mode === "create" ? "Crear usuario" : "Guardar cambios"}
-              </button>
-            )}
-          </footer>
+          ) : (
+            <button type="button" className="btn-primary" onClick={onSubmit}>
+              {mode === "create" ? "Crear usuario" : "Guardar cambios"}
+            </button>
+          )}
         </div>
+      }
+    >
+      <div className="mb-5 grid grid-cols-2 gap-2">
+        <StepButton active={step === 1} onClick={() => onStepChange(1)}>
+          1. Informacion personal
+        </StepButton>
+        <StepButton active={step === 2} onClick={() => onStepChange(2)}>
+          2. Cuenta
+        </StepButton>
       </div>
-    </div>
+
+      {message && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+          {message}
+        </div>
+      )}
+
+      {step === 1 ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField
+            label="Nombre"
+            value={form.firstName}
+            onChange={(firstName) => onChange({ firstName })}
+          />
+          <TextField
+            label="Apellidos"
+            value={form.lastName}
+            onChange={(lastName) => onChange({ lastName })}
+          />
+          <SelectField
+            label="Rol"
+            value={form.systemRole}
+            onChange={(value) =>
+              onChange({ systemRole: value as UserAccount["systemRole"] })
+            }
+            options={[
+              { value: "owner", label: "Dueno" },
+              { value: "employee", label: "Empleado" },
+            ]}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          <TextField
+            label="Usuario"
+            value={form.username}
+            onChange={(username) => onChange({ username })}
+          />
+          <TextField
+            label="Contrasena temporal"
+            value={form.temporaryPassword}
+            onChange={(temporaryPassword) => onChange({ temporaryPassword })}
+            disabled={mode === "edit"}
+          />
+          <SelectField
+            label="Estado"
+            value={form.status}
+            onChange={(value) =>
+              onChange({ status: value as UserAccount["status"] })
+            }
+            options={[
+              { value: "active", label: "Activo" },
+              { value: "suspended", label: "Suspendido" },
+            ]}
+          />
+          <label className="block">
+            <span className="cc-form-label mb-2 block text-sm font-semibold">
+              Observaciones internas
+            </span>
+            <textarea
+              value={form.internalNotes}
+              onChange={(event) =>
+                onChange({ internalNotes: event.target.value })
+              }
+              rows={4}
+              className="field-input resize-none"
+            />
+          </label>
+        </div>
+      )}
+    </ModalShell>
   );
 }
-
 function ActionButtons({
   user,
   onView,
@@ -1062,35 +1056,32 @@ function PasswordResultDialog({
   password: string;
   onClose: () => void;
 }) {
+  if (!password) return null;
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-        <div className="border-b border-slate-100 p-5">
-          <h2 className="font-semibold text-slate-950">
-            Contraseña temporal generada
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Copia esta contraseña y entrégala al usuario.
-          </p>
-        </div>
-        <div className="p-5">
-          <p className="text-sm font-medium text-slate-600">
-            {user.displayName}
-          </p>
-          <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-lg font-bold text-slate-950">
-            {password}
-          </p>
-        </div>
-        <div className="flex justify-end border-t border-slate-100 p-5">
+    <ModalShell
+      title="Contrasena temporal generada"
+      description="Copia esta contrasena y entregala al usuario."
+      onClose={onClose}
+      maxWidth="sm"
+      zIndex="high"
+      footer={
+        <div className="flex justify-end">
           <button type="button" className="btn-primary" onClick={onClose}>
             Entendido
           </button>
         </div>
+      }
+    >
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-sm font-medium text-slate-600">{user.displayName}</p>
+        <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-lg font-bold text-slate-950">
+          {password}
+        </p>
       </div>
-    </div>
+    </ModalShell>
   );
 }
-
 function getConfirmTitle(confirmState: ConfirmState): string {
   if (!confirmState) return "";
   if (confirmState.type === "reset-password") return "Restablecer contraseña";

@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useMockSession } from "@/components/session/MockSessionContext";
 import { ActivityFeed } from "./ActivityFeed";
-import { CashHero } from "./CashHero";
 import { DashboardGreeting } from "./DashboardGreeting";
 import { HealthAlerts } from "./HealthAlerts";
-import { QuickActions } from "./QuickActions";
 import { OwnerControlCenter } from "./owner/OwnerControlCenter";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { QuickActions } from "./QuickActions";
 
 export function DashboardPage() {
   const router = useRouter();
@@ -33,7 +32,7 @@ export function DashboardPage() {
 
   // ── Employee: Dashboard operativo conservado ──
   return (
-    <div className="app-dashboard-bg space-y-8">
+    <div className="space-y-8">
       <DashboardGreeting />
 
       <QuickActions />
