@@ -11,6 +11,7 @@ type AmountFieldProps = {
   min?: number;
   step?: number;
   className?: string;
+  labelClassName?: string;
   error?: string;
   /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
   colorVariant?: "withdrawal" | "deposit" | "neutral";
@@ -29,13 +30,14 @@ export function AmountField({
   min = 0,
   step = 0.01,
   className = "",
+  labelClassName = "",
   error,
 }: AmountFieldProps) {
   return (
     <div className={className}>
       <label
         htmlFor={id}
-        className="mb-2 block text-sm font-semibold text-slate-700"
+        className={`mb-2 block text-sm font-semibold text-slate-700 ${labelClassName}`}
       >
         {label}
       </label>

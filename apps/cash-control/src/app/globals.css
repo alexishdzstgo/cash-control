@@ -122,6 +122,20 @@
   --color-primary-blue-soft: #eff6ff;
   --color-primary-blue-muted: #dbeafe;
   --color-primary-blue-ring: #93c5fd;
+
+  /* Cash Control Surface System v1 */
+  --color-surface-app: var(--surface-app);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-card: var(--surface-card);
+  --color-surface-neutral: var(--surface-neutral);
+  --color-surface-border: var(--surface-border);
+  --color-surface-border-strong: var(--surface-border-strong);
+  --color-surface-text-primary: var(--surface-text-primary);
+  --color-surface-text-secondary: var(--surface-text-secondary);
+  --color-surface-text-label: var(--surface-text-label);
+  --color-surface-text-subtle: var(--surface-text-subtle);
+  --color-surface-primary-action: var(--surface-primary-action);
+  --color-surface-primary-action-hover: var(--surface-primary-action-hover);
 }
 
 :root {
@@ -157,6 +171,20 @@
   --sidebar-accent-foreground: #f8fafc;
   --sidebar-border: #334155;
   --sidebar-ring: #93c5fd;
+
+  /* Cash Control Surface System v1 */
+  --surface-app: #eef4fb;
+  --surface-dark: #0f172a;
+  --surface-card: #ffffff;
+  --surface-neutral: #f8fafc;
+  --surface-border: #e2e8f0;
+  --surface-border-strong: #cbd5e1;
+  --surface-text-primary: #0f172a;
+  --surface-text-secondary: #64748b;
+  --surface-text-label: #475569;
+  --surface-text-subtle: #94a3b8;
+  --surface-primary-action: #2563eb;
+  --surface-primary-action-hover: #1d4ed8;
 
   /* Retiros: neutro — dinero que sale, sin connotación emocional */
   --withdrawal-50: #f8fafc;
@@ -378,11 +406,11 @@
 }
 
 .field-input::placeholder {
-  color: #94a3b8;
+  color: var(--surface-text-subtle);
 }
 
 .field-input:hover:not(:disabled):not(:focus) {
-  border-color: #cbd5e1;
+  border-color: var(--surface-border-strong);
 }
 
 .field-input:focus {
@@ -394,12 +422,12 @@
 .field-input:disabled {
   cursor: not-allowed;
   border-color: var(--border);
-  background-color: #f8fafc;
-  color: #94a3b8;
+  background-color: var(--surface-neutral);
+  color: var(--surface-text-subtle);
 }
 
 .field-input:read-only {
-  background-color: #f8fafc;
+  background-color: var(--surface-neutral);
 }
 
 /* Tarjeta estándar — borde + sombra muy suave (priorizar borde) */
@@ -422,8 +450,8 @@
   justify-content: center;
   gap: 0.5rem;
   border-radius: 0.5rem;
-  background-color: #2563eb;
-  color: #ffffff;
+  background-color: var(--surface-primary-action);
+  color: var(--primary-foreground);
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -431,7 +459,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #1d4ed8;
+  background-color: var(--surface-primary-action-hover);
 }
 
 .btn-primary:focus-visible {
@@ -453,7 +481,7 @@
   border-radius: 0.5rem;
   border: 1px solid var(--border);
   background-color: var(--card);
-  color: #334155;
+  color: var(--surface-text-primary);
   padding: 0.5rem 0.875rem;
   font-size: 0.875rem;
   font-weight: 500;
@@ -463,8 +491,8 @@
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #f8fafc;
-  border-color: #cbd5e1;
+  background-color: var(--surface-neutral);
+  border-color: var(--surface-border-strong);
 }
 
 .btn-secondary:focus-visible {
@@ -475,6 +503,59 @@
 .btn-secondary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Cash Control Surface System v1 */
+.cc-modal-surface {
+  background-color: var(--surface-app);
+}
+
+.cc-modal-header {
+  background-color: var(--surface-dark);
+}
+
+.cc-modal-title {
+  color: var(--sidebar-foreground);
+}
+
+.cc-modal-description {
+  color: var(--surface-border-strong);
+}
+
+.cc-form-label {
+  color: var(--surface-text-primary);
+}
+
+.cc-segmented-option-selected {
+  border-color: var(--surface-primary-action);
+  background-color: var(--surface-primary-action);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+
+.cc-segmented-option-selected:hover {
+  border-color: var(--surface-primary-action-hover);
+  background-color: var(--surface-primary-action-hover);
+}
+
+.cc-segmented-option-unselected {
+  border-color: var(--surface-border-strong);
+  background-color: var(--surface-card);
+  color: var(--surface-text-primary);
+  font-weight: 600;
+}
+
+.cc-segmented-option-unselected:hover {
+  border-color: var(--surface-text-subtle);
+  background-color: var(--surface-neutral);
+}
+
+.cc-financial-info-label {
+  color: var(--surface-text-label);
+}
+
+.cc-financial-info-value {
+  color: var(--surface-text-primary);
 }
 
 /* Accesibilidad: foco visible consistente */

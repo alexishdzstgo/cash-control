@@ -481,9 +481,7 @@ export function BusinessFundsPage() {
             ? "Registrar ingreso"
             : "Registrar retiro"
         }
-        description={
-          confirmationDescription
-        }
+        description={confirmationDescription}
         confirmLabel="Registrar movimiento"
         cancelLabel="Cancelar"
         onConfirm={submitMovement}
@@ -701,20 +699,20 @@ function MovementForm({
   return (
     <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
       <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
-        <div className="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-[#EEF4FB] shadow-xl">
-          <header className="bg-[#0F172A] p-5">
-            <h2 className="text-lg font-bold text-[#F8FAFC]">
+        <div className="cc-modal-surface flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl shadow-xl">
+          <header className="cc-modal-header p-5">
+            <h2 className="cc-modal-title text-lg font-bold">
               {form.mode === "create"
                 ? "Nuevo movimiento de fondos"
                 : "Corregir movimiento de fondos"}
             </h2>
-            <p className="mt-1 text-sm text-slate-300">
+            <p className="cc-modal-description mt-1 text-sm">
               Registra una entrada o salida de dinero del negocio.
             </p>
           </header>
           <div className="scrollbar-hidden min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             <fieldset>
-              <legend className="mb-2 block text-sm font-semibold text-[#0F172A]">
+              <legend className="cc-form-label mb-2 block text-sm font-semibold">
                 Tipo de movimiento
                 <RequiredMark />
               </legend>
@@ -729,8 +727,8 @@ function MovementForm({
                       aria-pressed={isSelected}
                       className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
                         isSelected
-                          ? "border-[#2563EB] bg-[#2563EB] text-white font-semibold hover:border-[#1D4ED8] hover:bg-[#1D4ED8]"
-                          : "border-slate-300 bg-white text-[#0F172A] hover:border-slate-400 hover:bg-slate-50 font-semibold"
+                          ? "cc-segmented-option-selected"
+                          : "cc-segmented-option-unselected"
                       }`}
                       onClick={() => onChange({ movementType: type })}
                     >
@@ -745,7 +743,7 @@ function MovementForm({
             </fieldset>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
+              <span className="cc-form-label mb-2 block text-sm font-semibold">
                 Recurso
                 <RequiredMark />
               </span>
@@ -778,7 +776,7 @@ function MovementForm({
               min={0}
               step={0.01}
               error={formErrors.amount}
-              className="[&_label]:text-[#0F172A]"
+              labelClassName="cc-form-label"
             />
 
             <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
@@ -806,7 +804,7 @@ function MovementForm({
             </div>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
+              <span className="cc-form-label mb-2 block text-sm font-semibold">
                 Motivo del movimiento
                 <RequiredMark />
               </span>
@@ -830,7 +828,7 @@ function MovementForm({
 
             {form.mode === "edit" && (
               <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[#0F172A]">
+                <span className="cc-form-label mb-2 block text-sm font-semibold">
                   Motivo de correccion
                   <RequiredMark />
                 </span>
@@ -854,11 +852,7 @@ function MovementForm({
             </div>
           )}
           <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              className="btn-secondary !text-[#0F172A]"
-              onClick={onClose}
-            >
+            <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
             </button>
             <button type="button" className="btn-primary" onClick={onSubmit}>
@@ -984,13 +978,19 @@ function IconButton({
   );
 }
 
-function ModalFinancialInfo({ label, value }: { label: string; value: string }) {
+function ModalFinancialInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+      <p className="cc-financial-info-label text-xs font-semibold uppercase tracking-wide">
         {label}
       </p>
-      <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">
+      <p className="cc-financial-info-value mt-1 break-words text-sm font-bold">
         {value}
       </p>
     </div>
