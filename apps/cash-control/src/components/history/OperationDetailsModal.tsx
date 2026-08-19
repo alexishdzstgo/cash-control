@@ -44,20 +44,20 @@ export function OperationDetailsModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="my-6 w-full max-w-2xl animate-in fade-in zoom-in-95 rounded-2xl bg-white shadow-xl duration-200"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4">
+      <button
+        type="button"
+        aria-label="Cerrar detalle"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+      <div className="cc-modal-surface relative z-10 my-6 w-full max-w-2xl animate-in overflow-hidden rounded-2xl shadow-xl fade-in zoom-in-95 duration-200">
+        <div className="cc-modal-header flex items-center justify-between px-5 py-4">
           <div>
-            <p className="text-sm font-medium text-emerald-600">
+            <p className="cc-modal-description text-sm font-medium">
               Detalle de operacion
             </p>
-            <h2 className="text-lg font-bold text-slate-900">
+            <h2 className="cc-modal-title text-lg font-bold">
               Folio {operation.bankFolio}
             </h2>
           </div>
@@ -65,7 +65,7 @@ export function OperationDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-xl p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
@@ -149,12 +149,8 @@ export function OperationDetailsModal({
           </div>
         )}
 
-        <div className="flex justify-end border-t border-slate-100 px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-          >
+        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+          <button type="button" onClick={onClose} className="btn-secondary">
             Cerrar
           </button>
         </div>

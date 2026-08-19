@@ -54,9 +54,9 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="relative z-10 w-full max-w-md rounded-xl bg-white shadow-xl"
+        className="cc-modal-surface relative z-10 w-full max-w-md overflow-hidden rounded-xl shadow-xl"
       >
-        <div className="flex items-start justify-between border-b border-slate-100 p-5">
+        <div className="cc-modal-header flex items-start justify-between p-5">
           <div className="flex gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600">
               <AlertCircle className="h-5 w-5" />
@@ -64,11 +64,11 @@ export function ConfirmDialog({
             <div>
               <h2
                 id="confirm-dialog-title"
-                className="font-semibold text-slate-900"
+                className="cc-modal-title font-semibold"
               >
                 {title}
               </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
+              <p className="cc-modal-description mt-1 text-sm leading-6">
                 {description}
               </p>
             </div>
@@ -77,24 +77,20 @@ export function ConfirmDialog({
             type="button"
             title="Cerrar"
             onClick={onCancel}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="flex justify-end gap-3 p-5">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-          >
+          <button type="button" onClick={onCancel} className="btn-secondary">
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
             disabled={isConfirmDisabled}
-            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
             {confirmLabel}
           </button>

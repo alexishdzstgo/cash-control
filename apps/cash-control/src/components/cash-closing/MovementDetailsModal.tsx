@@ -53,24 +53,24 @@ export function MovementDetailsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6">
       <div
-        className="flex max-h-[90dvh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
+        className="cc-modal-surface flex max-h-[90dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl shadow-xl animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="cc-modal-header flex shrink-0 items-center justify-between px-5 py-4">
           <div className="min-w-0 pr-4">
-            <h2 id={titleId} className="text-lg font-bold text-slate-900">
+            <h2 id={titleId} className="cc-modal-title text-lg font-bold">
               {categoryLabel}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="cc-modal-description mt-1 text-sm">
               {CASH_CLOSING_CATEGORY_META[category].helperText}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="shrink-0 rounded-xl p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white"
             aria-label="Cerrar"
           >
             <X className="h-5 w-5" />
@@ -157,7 +157,7 @@ export function MovementDetailsModal({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-slate-100 px-5 py-4">
+        <div className="shrink-0 border-t border-slate-200 px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center justify-between gap-2 sm:justify-start">
               <span className="text-sm font-semibold text-slate-900">

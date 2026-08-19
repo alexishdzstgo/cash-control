@@ -168,7 +168,6 @@ export function AuditFilters({
   );
 }
 
-const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
+const labelClass = "cc-form-label mb-2 block text-sm font-semibold";
 
-const inputClass =
-  "min-h-11 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 font-sans text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-slate-500 focus:bg-white focus:ring-4 focus:ring-slate-100";
+const inputClass = "field-input min-h-11 rounded-xl px-4 py-2.5 font-sans";

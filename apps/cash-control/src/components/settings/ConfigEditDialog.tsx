@@ -38,21 +38,21 @@ export function ConfigEditDialog({
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+      <div className="cc-modal-surface flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-xl shadow-xl">
+        <header className="cc-modal-header flex items-start justify-between gap-4 p-5">
           <div>
-            <p className="text-sm font-medium text-[#2563EB]">
+            <p className="cc-modal-description text-sm font-medium">
               Centro de configuración
             </p>
             <h2
               ref={titleRef}
               tabIndex={-1}
-              className="text-lg font-bold text-slate-950 outline-none"
+              className="cc-modal-title text-lg font-bold outline-none"
             >
               {title}
             </h2>
             {description && (
-              <p className="mt-1 text-sm leading-6 text-slate-500">
+              <p className="cc-modal-description mt-1 text-sm leading-6">
                 {description}
               </p>
             )}
@@ -61,7 +61,7 @@ export function ConfigEditDialog({
             type="button"
             aria-label="Cerrar"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
@@ -69,7 +69,7 @@ export function ConfigEditDialog({
         <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto p-5">
           {children}
         </div>
-        <footer className="flex justify-end gap-3 border-t border-slate-100 p-5">
+        <footer className="flex justify-end gap-3 border-t border-slate-200 p-5">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Cancelar
           </button>

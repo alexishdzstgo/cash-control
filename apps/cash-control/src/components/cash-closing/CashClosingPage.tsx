@@ -18,8 +18,8 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { buildCashClosingStory } from "@/lib/cashClosing";
 import { formatCurrency } from "@/lib/formatters";
 import type {
-  CashClosingStatus,
   BankClosingStory,
+  CashClosingStatus,
   CashMovement,
   CashMovementCategory,
   FinancialTimeline,
@@ -89,11 +89,14 @@ export function CashClosingPage() {
   );
 
   const countedAvailableNumeric =
-    state.countedAvailableCash === "" ? NaN : Number(state.countedAvailableCash);
+    state.countedAvailableCash === ""
+      ? NaN
+      : Number(state.countedAvailableCash);
   const countedReservedNumeric =
     state.countedReservedCash === "" ? NaN : Number(state.countedReservedCash);
   const countedNumeric =
-    Number.isNaN(countedAvailableNumeric) || Number.isNaN(countedReservedNumeric)
+    Number.isNaN(countedAvailableNumeric) ||
+    Number.isNaN(countedReservedNumeric)
       ? NaN
       : countedAvailableNumeric + countedReservedNumeric;
   const hasCountedValue =
@@ -118,9 +121,7 @@ export function CashClosingPage() {
       bankId: bank.bankId,
       countedValue,
       counted,
-      difference: Number.isNaN(counted)
-        ? NaN
-        : counted - bank.expectedBalance,
+      difference: Number.isNaN(counted) ? NaN : counted - bank.expectedBalance,
     };
   });
   const hasAllBankValues = bankDifferences.every(
@@ -129,7 +130,8 @@ export function CashClosingPage() {
   const totalControlledDifference =
     (hasCountedValue ? difference : 0) +
     bankDifferences.reduce(
-      (sum, bank) => sum + (Number.isNaN(bank.difference) ? 0 : bank.difference),
+      (sum, bank) =>
+        sum + (Number.isNaN(bank.difference) ? 0 : bank.difference),
       0,
     );
 
@@ -155,7 +157,7 @@ export function CashClosingPage() {
     });
   }
 
-  function scrollToSection(ref: RefObject<HTMLDivElement | null>) {
+  function _scrollToSection(ref: RefObject<HTMLDivElement | null>) {
     ref.current?.scrollIntoView({
       behavior: "smooth",
       block: "center",
@@ -169,12 +171,11 @@ export function CashClosingPage() {
       Math.round(availableDifference * 100) !== 0 ||
       Math.round(reservedDifference * 100) !== 0 ||
       bankDifferences.some((bank) => Math.round(bank.difference * 100) !== 0);
-    const nextStatus =
-      !hasAnyDifference
-        ? "balanced"
-        : totalControlledDifference < 0
-          ? "shortage"
-          : "surplus";
+    const nextStatus = !hasAnyDifference
+      ? "balanced"
+      : totalControlledDifference < 0
+        ? "shortage"
+        : "surplus";
 
     setState((current) => ({
       ...current,
@@ -377,7 +378,10 @@ function FinancialTimelineCard({ timeline }: { timeline: FinancialTimeline }) {
   const [selectedEvent, setSelectedEvent] =
     useState<FinancialTimelineEvent | null>(null);
   const visibleEvents = timeline.events.slice(0, 8);
-  const hiddenCount = Math.max(0, timeline.events.length - visibleEvents.length);
+  const hiddenCount = Math.max(
+    0,
+    timeline.events.length - visibleEvents.length,
+  );
 
   return (
     <>
@@ -455,12 +459,19 @@ function TimelineStart({ timeline }: { timeline: FinancialTimeline }) {
             {formatCurrency(timeline.initialCash)}
           </p>
           <div className="mt-3 space-y-2 text-sm">
-            <SplitRow label="Caja física" value={timeline.initialAvailableCash} />
+            <SplitRow
+              label="Caja física"
+              value={timeline.initialAvailableCash}
+            />
             <SplitRow
               label="Caja de retiros apartados"
               value={timeline.initialReservedCash}
             />
-            <SplitRow label="Total en efectivo" value={timeline.initialCash} strong />
+            <SplitRow
+              label="Total en efectivo"
+              value={timeline.initialCash}
+              strong
+            />
           </div>
         </div>
         <div className="border-t border-slate-200 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5">
@@ -575,25 +586,27 @@ function TimelineEventDetailsModal({
   const commissionLocation = getCommissionLocation(event.commissionInfo);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-3 sm:p-6"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-3 sm:p-6">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
       <div
-        className="my-4 flex max-h-[92dvh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
+        className="cc-modal-surface relative z-10 my-4 flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl shadow-xl animate-in fade-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="timeline-event-detail-title"
-        onClick={(clickEvent) => clickEvent.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="cc-modal-header flex shrink-0 items-center justify-between px-5 py-4">
           <div className="min-w-0 pr-4">
-            <p className="text-sm font-medium text-emerald-600">
+            <p className="cc-modal-description text-sm font-medium">
               {getTimelineEventBadge(event)}
             </p>
             <h2
               id="timeline-event-detail-title"
-              className="text-lg font-bold text-slate-900"
+              className="cc-modal-title text-lg font-bold"
             >
               Detalle del movimiento
             </h2>
@@ -601,7 +614,7 @@ function TimelineEventDetailsModal({
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+            className="shrink-0 rounded-xl p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
             aria-label="Cerrar"
           >
             <X className="h-5 w-5" />
@@ -610,7 +623,10 @@ function TimelineEventDetailsModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <div className="grid gap-3 sm:grid-cols-2">
-            <TimelineDetailItem label="Tipo" value={getTimelineEventBadge(event)} />
+            <TimelineDetailItem
+              label="Tipo"
+              value={getTimelineEventBadge(event)}
+            />
             <TimelineDetailItem
               label="Fecha"
               value={formatTimelineCalendarDate(event.occurredAt)}
@@ -664,7 +680,7 @@ function TimelineEventDetailsModal({
           )}
         </div>
 
-        <div className="shrink-0 border-t border-slate-100 px-5 py-4">
+        <div className="shrink-0 border-t border-slate-200 px-5 py-4">
           <div className="flex justify-end">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cerrar
@@ -756,7 +772,11 @@ function TimelineValue({
   );
 }
 
-function LegacyTimelineEventCard({ event }: { event: FinancialTimelineEvent }) {
+function _LegacyTimelineEventCard({
+  event,
+}: {
+  event: FinancialTimelineEvent;
+}) {
   return (
     <article className="hidden rounded-xl border border-slate-100 bg-slate-50 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -786,7 +806,10 @@ function LegacyTimelineEventCard({ event }: { event: FinancialTimelineEvent }) {
 
       <div className="mt-4 grid gap-3 xl:grid-cols-2">
         {event.impacts.map((impact) => (
-          <ImpactCard key={`${event.id}-${impact.resourceId}`} impact={impact} />
+          <ImpactCard
+            key={`${event.id}-${impact.resourceId}`}
+            impact={impact}
+          />
         ))}
       </div>
 
@@ -820,19 +843,27 @@ function ImpactCard({ impact }: { impact: FinancialTimelineImpact }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-bold text-slate-950">{impact.resourceName}</p>
+        <p className="text-sm font-bold text-slate-950">
+          {impact.resourceName}
+        </p>
         <span className="rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-500">
           {impact.resourceType === "bank" ? "Banco" : "Caja"}
         </span>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <TinyTimelineMetric label="Antes" value={formatCurrency(impact.before)} />
+        <TinyTimelineMetric
+          label="Antes"
+          value={formatCurrency(impact.before)}
+        />
         <TinyTimelineMetric
           label="Movimiento"
           value={formatSignedCurrency(impact.amount)}
           className={valueClass}
         />
-        <TinyTimelineMetric label="Después" value={formatCurrency(impact.after)} />
+        <TinyTimelineMetric
+          label="Después"
+          value={formatCurrency(impact.after)}
+        />
       </div>
       {impact.detail && (
         <p className="mt-3 text-xs text-slate-500">{impact.detail}</p>
@@ -855,7 +886,11 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
             label="Caja de retiros apartados"
             value={timeline.finalReservedCash}
           />
-          <SplitRow label="Total en efectivo" value={timeline.finalCash} strong />
+          <SplitRow
+            label="Total en efectivo"
+            value={timeline.finalCash}
+            strong
+          />
         </div>
         <div className="rounded-xl border border-blue-100 bg-white p-4">
           <p className="text-sm font-semibold text-slate-900">Bancos</p>
@@ -868,7 +903,11 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
               />
             ))}
             <div className="border-t border-slate-100 pt-2">
-              <SplitRow label="Total bancos" value={timeline.totalBanks} strong />
+              <SplitRow
+                label="Total bancos"
+                value={timeline.totalBanks}
+                strong
+              />
             </div>
           </div>
         </div>
@@ -889,7 +928,7 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
   );
 }
 
-function CashStoryCard({
+function _CashStoryCard({
   openingBalance,
   totalEntries,
   totalOutputs,
@@ -1393,7 +1432,8 @@ function getTimelineEventMainAmount(event: FinancialTimelineEvent): string {
 
   const largestImpact = event.impacts.reduce<FinancialTimelineImpact | null>(
     (currentLargest, impact) =>
-      !currentLargest || Math.abs(impact.amount) > Math.abs(currentLargest.amount)
+      !currentLargest ||
+      Math.abs(impact.amount) > Math.abs(currentLargest.amount)
         ? impact
         : currentLargest,
     null,

@@ -37,44 +37,47 @@ export function SuccessDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-4">
+      <button
+        type="button"
+        aria-label="Cerrar"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="success-dialog-title"
-        className="w-full max-w-md rounded-xl bg-white shadow-xl"
-        onClick={(event) => event.stopPropagation()}
+        className="cc-modal-surface relative z-10 w-full max-w-md overflow-hidden rounded-xl shadow-xl"
       >
-        <div className="flex items-start justify-between border-b border-slate-100 p-5">
+        <div className="cc-modal-header flex items-start justify-between p-5">
           <div className="flex gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <h2 id="success-dialog-title" className="font-semibold text-slate-900">
+              <h2
+                id="success-dialog-title"
+                className="cc-modal-title font-semibold"
+              >
                 {title}
               </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+              <p className="cc-modal-description mt-1 text-sm leading-6">
+                {description}
+              </p>
             </div>
           </div>
           <button
             type="button"
             title="Cerrar"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="flex justify-end p-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1D4ED8]"
-          >
+          <button type="button" onClick={onClose} className="btn-primary">
             {buttonLabel}
           </button>
         </div>

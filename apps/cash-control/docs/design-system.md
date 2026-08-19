@@ -1,12 +1,12 @@
 # Cash Control Surface System v1
 
-Este sistema captura la direccion visual aprobada en el modal "Nuevo movimiento de fondos". No implica que todas las pantallas ya esten migradas; sirve como base para migraciones futuras.
+Este sistema captura la direccion visual aprobada en el modal "Nuevo movimiento de fondos" y define la base global de superficies para Cash Control.
 
 ## Principio
 
 Cash Control usa una superficie fria, contenido blanco, estructura oscura y azul para acciones.
 
-- Superficie de app/modal: `--surface-app` = `#EEF4FB`
+- Superficie de app/modal: `--background` / `--surface-app` = `#EEF4FB`
 - Estructura oscura: `--surface-dark` = `#0F172A`
 - Card/input: `--surface-card` = `#FFFFFF`
 - Superficie neutral: `--surface-neutral` = `#F8FAFC`
@@ -55,6 +55,14 @@ Para modales nuevos que adopten este sistema:
 - Descripcion: `.cc-modal-description`
 - Footer: integrado visualmente con el cuerpo
 - Cards internas: blancas, solo para grupos conceptuales reales
+
+`ConfirmDialog`, `SuccessDialog`, el modal de Fondos del negocio y modales clave de detalle ya usan este patron.
+
+## Page Background
+
+El area principal de trabajo usa `--background` = `#EEF4FB`.
+
+El Sidebar es una excepcion aprobada: conserva su fondo oscuro, estados, tamanos y comportamiento.
 
 ## Selector Binario
 
