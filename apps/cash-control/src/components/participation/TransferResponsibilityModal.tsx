@@ -50,9 +50,14 @@ export function TransferResponsibilityModal({
       labelledById="transfer-responsibility-title"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <Button variant="outline" onClick={onClose} disabled={isEnding}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isEnding}
+            className="btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+          >
             Cancelar
-          </Button>
+          </button>
           <Button
             onClick={onConfirm}
             disabled={isEnding || transferPin.length !== 4}
@@ -188,18 +193,24 @@ export function TransferResponsibilityModal({
               </div>
             </>
           ) : (
-            <div className="mb-4 rounded-lg bg-violet-50 border border-violet-200 p-4">
-              <p className="text-sm font-medium text-violet-900">
+            <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Nuevo responsable
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
                 {selectedParticipant.userName} será el nuevo responsable del
                 turno.
               </p>
             </div>
           )}
 
-          <div className="rounded-lg bg-blue-50 border-2 border-blue-200 p-4 mb-4">
-            <p className="text-sm font-medium text-blue-900">
+          <div className="mb-4 rounded-lg border border-blue-200 border-l-4 border-l-[#2563EB] bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">
               {selectedParticipant.userName}, ingresa tu PIN para aceptar la
               responsabilidad de esta estación.
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Confirma que recibes la responsabilidad del turno.
             </p>
           </div>
 
