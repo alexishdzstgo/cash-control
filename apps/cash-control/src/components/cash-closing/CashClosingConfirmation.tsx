@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, DollarSign, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
+import { ModalSection, ModalShell } from "@/components/shared/ModalShell";
 import { formatCurrency } from "@/lib/formatters";
 import type {
   BankClosingStory,
@@ -42,7 +43,6 @@ export function CashClosingConfirmation({
   availableCash,
   bankStories,
   isOwner,
-  difference,
   observations,
   onCountedAvailableCashChange,
   onCountedReservedCashChange,
@@ -61,8 +61,7 @@ export function CashClosingConfirmation({
     countedAvailableCash !== "" && !Number.isNaN(countedAvailable);
   const hasReservedValue =
     countedReservedCash !== "" && !Number.isNaN(countedReserved);
-  const hasPhysicalValues =
-    hasAvailableValue && hasReservedValue;
+  const hasPhysicalValues = hasAvailableValue && hasReservedValue;
   const countedPhysical = hasPhysicalValues
     ? countedAvailable + countedReserved
     : NaN;
@@ -72,7 +71,9 @@ export function CashClosingConfirmation({
   const reservedDifference = hasReservedValue
     ? countedReserved - reservedCash
     : NaN;
-  const cashDifference = hasPhysicalValues ? countedPhysical - expectedCash : NaN;
+  const cashDifference = hasPhysicalValues
+    ? countedPhysical - expectedCash
+    : NaN;
   const availableResult = getResultConfig(
     hasAvailableValue ? Math.round(availableDifference * 100) : NaN,
     "Caja física",
@@ -189,7 +190,9 @@ export function CashClosingConfirmation({
                   : "Sin conteo"
               }
               helper={`Esperado: ${formatCurrency(availableCash)} · Contado: ${
-                hasAvailableValue ? formatCurrency(countedAvailable) : "sin conteo"
+                hasAvailableValue
+                  ? formatCurrency(countedAvailable)
+                  : "sin conteo"
               }`}
               valueClassName={availableResult.valueClassName}
             />
@@ -201,7 +204,9 @@ export function CashClosingConfirmation({
                   : "Sin conteo"
               }
               helper={`Esperado: ${formatCurrency(reservedCash)} · Contado: ${
-                hasReservedValue ? formatCurrency(countedReserved) : "sin conteo"
+                hasReservedValue
+                  ? formatCurrency(countedReserved)
+                  : "sin conteo"
               }`}
               valueClassName={reservedResult.valueClassName}
             />
@@ -213,7 +218,9 @@ export function CashClosingConfirmation({
                   : "Sin conteo"
               }
               helper={`Esperado: ${formatCurrency(expectedCash)} · Contado: ${
-                hasPhysicalValues ? formatCurrency(countedPhysical) : "sin conteo"
+                hasPhysicalValues
+                  ? formatCurrency(countedPhysical)
+                  : "sin conteo"
               }`}
               valueClassName={cashResult.valueClassName}
             />
@@ -258,7 +265,9 @@ export function CashClosingConfirmation({
             <span
               className={`text-sm font-bold tabular-nums ${cashResult.valueClassName}`}
             >
-              {hasPhysicalValues ? formatSignedCurrency(cashDifference) : "Sin conteo"}
+              {hasPhysicalValues
+                ? formatSignedCurrency(cashDifference)
+                : "Sin conteo"}
             </span>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3">
@@ -268,7 +277,9 @@ export function CashClosingConfirmation({
             <span
               className={`text-sm font-bold tabular-nums ${
                 getResultConfig(
-                  hasAllBankValues ? Math.round(totalBanksDifference * 100) : NaN,
+                  hasAllBankValues
+                    ? Math.round(totalBanksDifference * 100)
+                    : NaN,
                   "Bancos",
                 ).valueClassName
               }`}
@@ -342,22 +353,31 @@ export function CashClosingConfirmation({
       </div>
 
       {dialogState === "confirming" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6">
-          <div
-            className="flex max-h-[90dvh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl animate-in fade-in zoom-in-95 duration-200"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="border-b border-slate-100 px-5 py-4">
-              <h2 className="text-lg font-bold text-slate-900">
-                Confirmar cierre de caja
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Revisa por última vez los datos antes de cerrar el corte.
-              </p>
+        <ModalShell
+          title="Confirmar cierre de caja"
+          description="Revisa por ultima vez los datos antes de cerrar el corte."
+          maxWidth="lg"
+          footer={
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDialogState("idle")}
+                className="btn-secondary"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                className="btn-primary"
+              >
+                Cerrar corte
+              </button>
             </div>
-
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          }
+        >
+          <div className="space-y-5">
+            <div className="space-y-5">
               <div
                 className={`rounded-xl p-4 ${generalResult.stateBlockClassName}`}
               >
@@ -430,7 +450,7 @@ export function CashClosingConfirmation({
                 differenceClassName={generalResult.valueClassName}
               />
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <ModalSection>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {commissionTitle}
                 </p>
@@ -451,7 +471,7 @@ export function CashClosingConfirmation({
                     </span>
                   </div>
                 </div>
-              </div>
+              </ModalSection>
 
               <div className="border-t border-slate-100 pt-3">
                 <p className="text-sm font-medium text-slate-700">
@@ -462,25 +482,8 @@ export function CashClosingConfirmation({
                 </p>
               </div>
             </div>
-
-            <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setDialogState("idle")}
-                className="btn-secondary"
-              >
-                Volver
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                className="btn-primary"
-              >
-                Cerrar corte
-              </button>
-            </div>
           </div>
-        </div>
+        </ModalShell>
       )}
     </section>
   );
@@ -554,7 +557,10 @@ function BankCountCard({
         onChange={onChange}
       />
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-        <TinyMetric label="Esperado" value={formatCurrency(bank.expectedBalance)} />
+        <TinyMetric
+          label="Esperado"
+          value={formatCurrency(bank.expectedBalance)}
+        />
         <TinyMetric
           label="Capturado"
           value={bank.hasValue ? formatCurrency(bank.counted) : "Sin saldo"}
@@ -612,7 +618,13 @@ function TinyMetric({
   );
 }
 
-function ResultLine({ label, result }: { label: string; result: ResultConfig }) {
+function ResultLine({
+  label,
+  result,
+}: {
+  label: string;
+  result: ResultConfig;
+}) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
       <span className="text-sm text-slate-700">{label}</span>
@@ -645,7 +657,7 @@ function ModalResourceSummary({
   differenceClassName?: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+    <ModalSection>
       <h3 className="text-sm font-bold text-slate-950">{title}</h3>
       <div className="mt-3 space-y-2">
         {rows.map(([label, value], index) => (
@@ -668,7 +680,7 @@ function ModalResourceSummary({
           </div>
         ))}
       </div>
-    </section>
+    </ModalSection>
   );
 }
 

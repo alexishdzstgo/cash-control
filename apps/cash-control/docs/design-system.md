@@ -59,6 +59,18 @@ Para modales nuevos que adopten este sistema:
 
 `ConfirmDialog`, `SuccessDialog`, el modal de Fondos del negocio y modales clave de detalle ya usan este patron.
 
+### Modal Composition
+
+Usar `ModalShell` no basta para considerar un modal migrado. La composicion interna tambien debe seguir el Surface System.
+
+- Form modal: header oscuro, body `#EEF4FB`, labels `.cc-form-label`, campos `.field-input`, ayudas en texto secundario, previews o resumenes en cards blancas, footer con `.btn-secondary` y `.btn-primary`.
+- Detail modal: header oscuro, body `#EEF4FB`, una o varias secciones blancas agrupadas por significado, labels secundarios y valores principales en `#0F172A`. Evitar muchas mini cards sin jerarquia.
+- Confirmation modal: header oscuro, body `#EEF4FB`, mensaje compacto o card blanca, footer con cancelar y confirmar. Si la accion es destructiva, conservar el color destructivo.
+
+`ModalSection` define la card blanca estandar para contenido interno y `ModalInfoItem` define el patron label/value para detalles.
+
+`WorkstationAccessModal` forma parte del sistema visual aunque viva fuera del `AppShell`; el flujo de acceso, seleccion de usuario y PIN debe usar el mismo lenguaje de superficies, labels, controles y botones.
+
 ## Page Background
 
 El area principal de trabajo usa `--background` = `#EEF4FB`.

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ModalSection } from "@/components/shared/ModalShell";
 import { UserAvatar } from "@/components/shared/UserAvatar";
-import { Button } from "@/components/ui/button";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
 
 const VALID_PIN = "1234";
@@ -51,26 +51,26 @@ export function UserPinStep({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-brand-border bg-brand-primary-soft/50 p-4">
+      <ModalSection>
         <div className="flex items-center gap-3">
           <UserAvatar name={selectedUserName} avatar={selectedUserAvatar} />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Usuario seleccionado
             </p>
-            <p className="text-lg font-bold text-brand-text">
+            <p className="text-lg font-bold text-slate-900">
               {selectedUserName}
             </p>
           </div>
         </div>
-      </div>
+      </ModalSection>
 
       <div>
         <label
           htmlFor="user-pin"
-          className="mb-2 block text-sm font-medium text-brand-text"
+          className="cc-form-label mb-2 block text-sm font-semibold"
         >
-          Ingresa tu PIN de 4 dígitos:
+          Ingresa tu PIN de 4 digitos
         </label>
         <input
           id="user-pin"
@@ -83,10 +83,10 @@ export function UserPinStep({
           onKeyDown={handleKeyDown}
           aria-describedby={error ? "pin-error" : undefined}
           aria-invalid={error ? "true" : undefined}
-          className={`block w-full max-w-[180px] rounded-lg border px-4 py-3 text-center text-2xl tracking-[0.5em] shadow-sm transition-colors placeholder:text-brand-text-muted focus:outline-none focus:ring-2 ${
+          className={`field-input block max-w-[180px] text-center text-2xl tracking-[0.5em] ${
             error
               ? "border-red-300 focus:border-red-400 focus:ring-red-200"
-              : "border-brand-border focus:border-brand-primary-ring focus:ring-brand-primary-ring"
+              : ""
           }`}
           placeholder="••••"
         />
@@ -98,21 +98,26 @@ export function UserPinStep({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-brand-border pt-5">
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
         <button
           type="button"
           onClick={onBack}
-          className="text-sm font-medium text-brand-text-muted hover:text-brand-text"
+          className="text-sm font-medium text-slate-600 hover:text-slate-900"
         >
           No soy {selectedUserName}
         </button>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onBack}>
+          <button type="button" className="btn-secondary" onClick={onBack}>
             Volver
-          </Button>
-          <Button onClick={handleConfirm} disabled={pin.length !== 4}>
+          </button>
+          <button
+            type="button"
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleConfirm}
+            disabled={pin.length !== 4}
+          >
             Confirmar
-          </Button>
+          </button>
         </div>
       </div>
     </div>

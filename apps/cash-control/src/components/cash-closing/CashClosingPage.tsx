@@ -9,11 +9,11 @@ import {
   Eye,
   PiggyBank,
   Wallet,
-  X,
 } from "lucide-react";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { buildCashClosingStory } from "@/lib/cashClosing";
 import { formatCurrency } from "@/lib/formatters";
@@ -586,109 +586,75 @@ function TimelineEventDetailsModal({
   const commissionLocation = getCommissionLocation(event.commissionInfo);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-3 sm:p-6">
-      <button
-        type="button"
-        aria-label="Cerrar"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-      />
-      <div
-        className="cc-modal-surface relative z-10 my-4 flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl shadow-xl animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="timeline-event-detail-title"
-      >
-        <div className="cc-modal-header flex shrink-0 items-center justify-between px-5 py-4">
-          <div className="min-w-0 pr-4">
-            <p className="cc-modal-description text-sm font-medium">
-              {getTimelineEventBadge(event)}
-            </p>
-            <h2
-              id="timeline-event-detail-title"
-              className="cc-modal-title text-lg font-bold"
-            >
-              Detalle del movimiento
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-xl p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-            aria-label="Cerrar"
-          >
-            <X className="h-5 w-5" />
+    <ModalShell
+      title="Detalle del movimiento"
+      description={getTimelineEventBadge(event)}
+      onClose={onClose}
+      closeOnOverlayClick
+      maxWidth="xl"
+      labelledById="timeline-event-detail-title"
+      footer={
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Cerrar
           </button>
         </div>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TimelineDetailItem label="Tipo" value={getTimelineEventBadge(event)} />
+        <TimelineDetailItem
+          label="Fecha"
+          value={formatTimelineCalendarDate(event.occurredAt)}
+        />
+        <TimelineDetailItem
+          label="Hora"
+          value={formatTimelineTime(event.occurredAt)}
+        />
+        <TimelineDetailItem
+          label="Monto"
+          value={getTimelineEventMainAmount(event)}
+        />
+        <TimelineDetailItem label="Persona/referencia" value={reference} />
+        {bank && <TimelineDetailItem label="Banco" value={bank} />}
+        {commission && (
+          <TimelineDetailItem label="Comision" value={commission} />
+        )}
+        {commissionLocation && (
+          <TimelineDetailItem label="Quedo en" value={commissionLocation} />
+        )}
+        {reason && <TimelineDetailItem label="Motivo" value={reason} />}
+        <TimelineDetailItem label="Registrado por" value={event.actor} />
+      </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TimelineDetailItem
-              label="Tipo"
-              value={getTimelineEventBadge(event)}
-            />
-            <TimelineDetailItem
-              label="Fecha"
-              value={formatTimelineCalendarDate(event.occurredAt)}
-            />
-            <TimelineDetailItem
-              label="Hora"
-              value={formatTimelineTime(event.occurredAt)}
-            />
-            <TimelineDetailItem
-              label="Monto"
-              value={getTimelineEventMainAmount(event)}
-            />
-            <TimelineDetailItem label="Persona/referencia" value={reference} />
-            {bank && <TimelineDetailItem label="Banco" value={bank} />}
-            {commission && (
-              <TimelineDetailItem label="Comision" value={commission} />
-            )}
-            {commissionLocation && (
-              <TimelineDetailItem label="Quedo en" value={commissionLocation} />
-            )}
-            {reason && <TimelineDetailItem label="Motivo" value={reason} />}
-            <TimelineDetailItem label="Registrado por" value={event.actor} />
-          </div>
+      {event.description && (
+        <p className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {event.description}
+        </p>
+      )}
 
-          {event.description && (
-            <p className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              {event.description}
+      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
+          Impacto del movimiento
+        </h3>
+        <ImpactTable impacts={event.impacts} />
+      </section>
+
+      {(event.commissionInfo || event.note) && (
+        <div className="mt-4 space-y-2 text-xs">
+          {event.commissionInfo && (
+            <p className="inline-flex rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-cyan-800">
+              {event.commissionInfo}
             </p>
           )}
-
-          <section className="mt-5">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
-              Impacto del movimiento
-            </h3>
-            <ImpactTable impacts={event.impacts} />
-          </section>
-
-          {(event.commissionInfo || event.note) && (
-            <div className="mt-4 space-y-2 text-xs">
-              {event.commissionInfo && (
-                <p className="inline-flex rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-2 text-cyan-800">
-                  {event.commissionInfo}
-                </p>
-              )}
-              {event.note && (
-                <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-slate-500">
-                  {event.note}
-                </p>
-              )}
-            </div>
+          {event.note && (
+            <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-slate-500">
+              {event.note}
+            </p>
           )}
         </div>
-
-        <div className="shrink-0 border-t border-slate-200 px-5 py-4">
-          <div className="flex justify-end">
-            <button type="button" onClick={onClose} className="btn-secondary">
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </ModalShell>
   );
 }
 

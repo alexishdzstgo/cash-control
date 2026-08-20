@@ -114,3 +114,38 @@ export function ModalShell({
     </div>
   );
 }
+
+export function ModalSection({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={`rounded-xl border border-slate-200 bg-white p-4 ${className}`}
+    >
+      {children}
+    </section>
+  );
+}
+
+export function ModalInfoItem({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <div className="mt-1 break-words text-sm font-semibold text-slate-900">
+        {value}
+      </div>
+    </div>
+  );
+}

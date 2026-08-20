@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, UserPlus } from "lucide-react";
+import { Check } from "lucide-react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { ModalSection } from "@/components/shared/ModalShell";
 import { UserAvatar } from "@/components/shared/UserAvatar";
-import { Button } from "@/components/ui/button";
 import type { RegisteredUser } from "./types";
 
 interface UserSelectionStepProps {
@@ -30,23 +30,18 @@ export function UserSelectionStep({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-brand-border bg-brand-primary-soft/50 p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary-soft text-brand-primary">
-            <UserPlus className="h-4 w-4" />
-          </div>
-          <span className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
-            Nuevo participante
-          </span>
-        </div>
-        <p className="mt-2 text-sm text-brand-text-muted">
+      <ModalSection>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Nuevo participante
+        </p>
+        <p className="mt-2 text-sm text-slate-600">
           Selecciona tu perfil para incorporarte a la jornada actual.
         </p>
-      </div>
+      </ModalSection>
 
       {inactiveUsers.length === 0 ? (
-        <p className="py-8 text-center text-sm text-brand-text-muted">
-          Todos los usuarios registrados ya están participando activamente.
+        <p className="py-8 text-center text-sm text-slate-600">
+          Todos los usuarios registrados ya estan participando activamente.
         </p>
       ) : (
         <ul className="space-y-2" aria-label="Usuarios disponibles">
@@ -59,8 +54,8 @@ export function UserSelectionStep({
                   onClick={() => onSelect(user.userId)}
                   className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
                     isSelected
-                      ? "border-brand-primary-ring bg-brand-primary-soft ring-2 ring-brand-primary-ring"
-                      : "border-brand-border bg-white hover:border-brand-primary-ring hover:bg-brand-primary-soft/30"
+                      ? "border-[#2563EB] bg-[#EFF6FF] ring-2 ring-blue-100"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
                   }`}
                 >
                   <UserAvatar
@@ -68,12 +63,12 @@ export function UserSelectionStep({
                     avatar={getUserAvatar(user.userId)}
                   />
                   <div className="flex-1">
-                    <p className="font-semibold text-brand-text">
+                    <p className="font-semibold text-slate-900">
                       {user.userName}
                     </p>
                   </div>
                   {isSelected && (
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-white">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#2563EB] text-white">
                       <Check className="h-3.5 w-3.5" />
                     </div>
                   )}
@@ -84,13 +79,18 @@ export function UserSelectionStep({
         </ul>
       )}
 
-      <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
-        <Button variant="outline" onClick={onBack}>
+      <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-5">
+        <button type="button" className="btn-secondary" onClick={onBack}>
           Cancelar
-        </Button>
-        <Button onClick={onContinue} disabled={!selectedUserId}>
+        </button>
+        <button
+          type="button"
+          className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onContinue}
+          disabled={!selectedUserId}
+        >
           Continuar
-        </Button>
+        </button>
       </div>
     </div>
   );

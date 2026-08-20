@@ -696,173 +696,164 @@ function MovementForm({
 }) {
   const resourceBalanceAfterIsNegative =
     balanceAfterCents !== null && balanceAfterCents < 0;
+  const title =
+    form.mode === "create"
+      ? "Nuevo movimiento de fondos"
+      : "Corregir movimiento de fondos";
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/40 p-4">
-      <div className="mx-auto flex min-h-full w-full max-w-2xl items-center">
-        <div className="cc-modal-surface flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl shadow-xl">
-          <header className="cc-modal-header p-5">
-            <h2 className="cc-modal-title text-lg font-bold">
-              {form.mode === "create"
-                ? "Nuevo movimiento de fondos"
-                : "Corregir movimiento de fondos"}
-            </h2>
-            <p className="cc-modal-description mt-1 text-sm">
-              Registra una entrada o salida de dinero del negocio.
-            </p>
-          </header>
-          <div className="scrollbar-hidden min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-            <fieldset>
-              <legend className="cc-form-label mb-2 block text-sm font-semibold">
-                Tipo de movimiento
-                <RequiredMark />
-              </legend>
-              <div className="grid grid-cols-2 gap-2">
-                {(["income", "withdrawal"] as const).map((type) => {
-                  const isSelected = form.movementType === type;
-
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      aria-pressed={isSelected}
-                      className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
-                        isSelected
-                          ? "cc-segmented-option-selected"
-                          : "cc-segmented-option-unselected"
-                      }`}
-                      onClick={() => onChange({ movementType: type })}
-                    >
-                      {getMovementTypeLabel(type)}
-                    </button>
-                  );
-                })}
-              </div>
-              {formErrors.movementType && (
-                <FieldError message={formErrors.movementType} />
-              )}
-            </fieldset>
-
-            <label className="block">
-              <span className="cc-form-label mb-2 block text-sm font-semibold">
-                Recurso
-                <RequiredMark />
-              </span>
-              <select
-                className="field-input"
-                value={form.resourceId}
-                onChange={(event) =>
-                  onChange({ resourceId: event.target.value })
-                }
-              >
-                <option value="">Selecciona un recurso</option>
-                {resources.map((resource) => (
-                  <option key={resource.id} value={resource.id}>
-                    {resource.name}
-                  </option>
-                ))}
-              </select>
-              {formErrors.resourceId && (
-                <FieldError message={formErrors.resourceId} />
-              )}
-            </label>
-
-            <AmountField
-              id="business-funds-amount"
-              value={form.amount}
-              onChange={(amount) => onChange({ amount })}
-              label="Monto"
-              placeholder="0.00"
-              required
-              min={0}
-              step={0.01}
-              error={formErrors.amount}
-              labelClassName="cc-form-label"
-            />
-
-            <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
-              <ModalFinancialInfo
-                label="Disponible actual"
-                value={
-                  selectedResource
-                    ? formatCents(selectedResource.availableCents)
-                    : "Selecciona un recurso"
-                }
-              />
-              <ModalFinancialInfo
-                label="Despues del movimiento"
-                value={
-                  balanceAfterCents === null
-                    ? "Pendiente"
-                    : formatCents(balanceAfterCents)
-                }
-              />
-              {resourceBalanceAfterIsNegative && (
-                <p className="sm:col-span-2 text-sm font-semibold text-red-700">
-                  El recurso seleccionado no tiene fondos suficientes.
-                </p>
-              )}
-            </div>
-
-            <label className="block">
-              <span className="cc-form-label mb-2 block text-sm font-semibold">
-                Motivo del movimiento
-                <RequiredMark />
-              </span>
-              <textarea
-                className="field-input resize-none"
-                rows={3}
-                value={form.explanation}
-                placeholder="Describe brevemente por que aumenta o disminuye este saldo"
-                onChange={(event) =>
-                  onChange({ explanation: event.target.value })
-                }
-              />
-              {formErrors.explanation ? (
-                <FieldError message={formErrors.explanation} />
-              ) : (
-                <span className="mt-2 block text-sm text-slate-600">
-                  Este texto queda visible para auditoria y consultas futuras.
-                </span>
-              )}
-            </label>
-
-            {form.mode === "edit" && (
-              <label className="block">
-                <span className="cc-form-label mb-2 block text-sm font-semibold">
-                  Motivo de correccion
-                  <RequiredMark />
-                </span>
-                <textarea
-                  className="field-input resize-none"
-                  rows={3}
-                  value={form.editReason}
-                  onChange={(event) =>
-                    onChange({ editReason: event.target.value })
-                  }
-                />
-                {formErrors.editReason && (
-                  <FieldError message={formErrors.editReason} />
-                )}
-              </label>
-            )}
-          </div>
-          {formError && (
-            <div className="border-t border-red-100 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700">
-              {formError}
-            </div>
-          )}
-          <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end">
-            <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancelar
-            </button>
-            <button type="button" className="btn-primary" onClick={onSubmit}>
-              Registrar movimiento
-            </button>
-          </footer>
+    <ModalShell
+      title={title}
+      description="Registra una entrada o salida de dinero del negocio."
+      onClose={onClose}
+      maxWidth="lg"
+      zIndex="high"
+      bodyClassName="space-y-4"
+      footer={
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="btn-primary" onClick={onSubmit}>
+            Registrar movimiento
+          </button>
         </div>
+      }
+    >
+      <fieldset>
+        <legend className="cc-form-label mb-2 block text-sm font-semibold">
+          Tipo de movimiento
+          <RequiredMark />
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          {(["income", "withdrawal"] as const).map((type) => {
+            const isSelected = form.movementType === type;
+
+            return (
+              <button
+                key={type}
+                type="button"
+                aria-pressed={isSelected}
+                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
+                  isSelected
+                    ? "cc-segmented-option-selected"
+                    : "cc-segmented-option-unselected"
+                }`}
+                onClick={() => onChange({ movementType: type })}
+              >
+                {getMovementTypeLabel(type)}
+              </button>
+            );
+          })}
+        </div>
+        {formErrors.movementType && (
+          <FieldError message={formErrors.movementType} />
+        )}
+      </fieldset>
+
+      <label className="block">
+        <span className="cc-form-label mb-2 block text-sm font-semibold">
+          Recurso
+          <RequiredMark />
+        </span>
+        <select
+          className="field-input"
+          value={form.resourceId}
+          onChange={(event) => onChange({ resourceId: event.target.value })}
+        >
+          <option value="">Selecciona un recurso</option>
+          {resources.map((resource) => (
+            <option key={resource.id} value={resource.id}>
+              {resource.name}
+            </option>
+          ))}
+        </select>
+        {formErrors.resourceId && (
+          <FieldError message={formErrors.resourceId} />
+        )}
+      </label>
+
+      <AmountField
+        id="business-funds-amount"
+        value={form.amount}
+        onChange={(amount) => onChange({ amount })}
+        label="Monto"
+        placeholder="0.00"
+        required
+        min={0}
+        step={0.01}
+        error={formErrors.amount}
+        labelClassName="cc-form-label"
+      />
+
+      <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
+        <ModalFinancialInfo
+          label="Disponible actual"
+          value={
+            selectedResource
+              ? formatCents(selectedResource.availableCents)
+              : "Selecciona un recurso"
+          }
+        />
+        <ModalFinancialInfo
+          label="Despues del movimiento"
+          value={
+            balanceAfterCents === null
+              ? "Pendiente"
+              : formatCents(balanceAfterCents)
+          }
+        />
+        {resourceBalanceAfterIsNegative && (
+          <p className="sm:col-span-2 text-sm font-semibold text-red-700">
+            El recurso seleccionado no tiene fondos suficientes.
+          </p>
+        )}
       </div>
-    </div>
+
+      <label className="block">
+        <span className="cc-form-label mb-2 block text-sm font-semibold">
+          Motivo del movimiento
+          <RequiredMark />
+        </span>
+        <textarea
+          className="field-input resize-none"
+          rows={3}
+          value={form.explanation}
+          placeholder="Describe brevemente por que aumenta o disminuye este saldo"
+          onChange={(event) => onChange({ explanation: event.target.value })}
+        />
+        {formErrors.explanation ? (
+          <FieldError message={formErrors.explanation} />
+        ) : (
+          <span className="mt-2 block text-sm text-slate-600">
+            Este texto queda visible para auditoria y consultas futuras.
+          </span>
+        )}
+      </label>
+
+      {form.mode === "edit" && (
+        <label className="block">
+          <span className="cc-form-label mb-2 block text-sm font-semibold">
+            Motivo de correccion
+            <RequiredMark />
+          </span>
+          <textarea
+            className="field-input resize-none"
+            rows={3}
+            value={form.editReason}
+            onChange={(event) => onChange({ editReason: event.target.value })}
+          />
+          {formErrors.editReason && (
+            <FieldError message={formErrors.editReason} />
+          )}
+        </label>
+      )}
+      {formError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {formError}
+        </div>
+      )}
+    </ModalShell>
   );
 }
 

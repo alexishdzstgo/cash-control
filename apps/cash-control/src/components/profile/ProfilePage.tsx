@@ -1,9 +1,10 @@
 ﻿"use client";
 
-import { Check, Clock3, KeyRound, Pencil, X } from "lucide-react";
+import { Check, Clock3, KeyRound, Pencil } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { ModalSection, ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -395,11 +396,8 @@ function AvatarPickerDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const titleRef = useRef<HTMLHeadingElement>(null);
-
   useEffect(() => {
     if (!isOpen) return;
-    titleRef.current?.focus();
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -416,91 +414,64 @@ function AvatarPickerDialog({
   const initialsAvatar: UserAvatarModel = { type: "initials" };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 p-3 sm:p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="avatar-dialog-title"
-        className="flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-          <div>
-            <h2
-              id="avatar-dialog-title"
-              ref={titleRef}
-              tabIndex={-1}
-              className="text-lg font-bold text-slate-950 outline-none"
-            >
-              Elige tu avatar
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">
-              Selecciona una imagen para identificar tu cuenta dentro del
-              sistema.
-            </p>
-          </div>
-          <button
-            type="button"
-            aria-label="Cerrar selector de avatar"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </header>
-
-        <div className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto p-5">
-          <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <aside className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">
-                Vista previa
-              </p>
-              <div className="mt-4 flex justify-center">
-                <UserAvatar
-                  name={name}
-                  avatar={selectedAvatar}
-                  size="xl"
-                  className="ring-4 ring-white"
-                />
-              </div>
-              <p className="mt-4 text-center text-sm font-medium text-slate-700">
-                {areSameAvatar(selectedAvatar, currentAvatar)
-                  ? "Avatar actual"
-                  : "Nueva selección"}
-              </p>
-            </aside>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              <AvatarOptionButton
-                label="Usar iniciales como avatar"
-                name={name}
-                avatar={initialsAvatar}
-                selected={areSameAvatar(selectedAvatar, initialsAvatar)}
-                onSelect={() => onSelect(initialsAvatar)}
-              />
-              {options.map((avatar, index) => (
-                <AvatarOptionButton
-                  key={avatar.type === "generated" ? avatar.seed : "initials"}
-                  label={`Seleccionar avatar ${index + 1}`}
-                  name={name}
-                  avatar={avatar}
-                  selected={areSameAvatar(selectedAvatar, avatar)}
-                  onSelect={() => onSelect(avatar)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <footer className="flex flex-col-reverse gap-3 border-t border-slate-100 p-5 sm:flex-row sm:justify-end">
+    <ModalShell
+      title="Elige tu avatar"
+      description="Selecciona una imagen para identificar tu cuenta dentro del sistema."
+      onClose={onClose}
+      closeLabel="Cerrar selector de avatar"
+      maxWidth="xl"
+      zIndex="high"
+      labelledById="avatar-dialog-title"
+      footer={
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Volver
           </button>
           <button type="button" className="btn-primary" onClick={onSave}>
             Guardar avatar
           </button>
-        </footer>
+        </div>
+      }
+    >
+      <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <ModalSection>
+          <p className="text-sm font-semibold text-slate-900">Vista previa</p>
+          <div className="mt-4 flex justify-center">
+            <UserAvatar
+              name={name}
+              avatar={selectedAvatar}
+              size="xl"
+              className="ring-4 ring-white"
+            />
+          </div>
+          <p className="mt-4 text-center text-sm font-medium text-slate-700">
+            {areSameAvatar(selectedAvatar, currentAvatar)
+              ? "Avatar actual"
+              : "Nueva selección"}
+          </p>
+        </ModalSection>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <AvatarOptionButton
+            label="Usar iniciales como avatar"
+            name={name}
+            avatar={initialsAvatar}
+            selected={areSameAvatar(selectedAvatar, initialsAvatar)}
+            onSelect={() => onSelect(initialsAvatar)}
+          />
+          {options.map((avatar, index) => (
+            <AvatarOptionButton
+              key={avatar.type === "generated" ? avatar.seed : "initials"}
+              label={`Seleccionar avatar ${index + 1}`}
+              name={name}
+              avatar={avatar}
+              selected={areSameAvatar(selectedAvatar, avatar)}
+              onSelect={() => onSelect(avatar)}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 
