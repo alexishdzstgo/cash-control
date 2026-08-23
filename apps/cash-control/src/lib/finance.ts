@@ -102,14 +102,18 @@ export function getOperationFinancialImpact(
 
   if (operation.withdrawalCommissionMode === "deducted") {
     return {
-      cashDelta: -(operation.customerCashReceived ?? operation.amount - commission),
+      cashDelta: -(
+        operation.customerCashReceived ?? operation.amount - commission
+      ),
       bankDeltas: bankId ? [{ bankId, amount: operation.amount }] : [],
     };
   }
 
   return {
     cashDelta: -operation.amount,
-    bankDeltas: bankId ? [{ bankId, amount: operation.amount + commission }] : [],
+    bankDeltas: bankId
+      ? [{ bankId, amount: operation.amount + commission }]
+      : [],
   };
 }
 
@@ -222,7 +226,11 @@ export function computeFinancialTotalsFromBalances({
     const used = bank.visibleMovementsUsed;
     let movementStatus: FinancialResourceStatus = "normal";
     let movementReason: AttentionReason | null = null;
-    if (limit !== undefined && used !== undefined) {
+    if (
+      bank.supportsVisibleMovementTracking &&
+      limit !== undefined &&
+      used !== undefined
+    ) {
       const remaining = Math.max(0, limit - used);
       const ratio = limit > 0 ? used / limit : 0;
       if (remaining <= 0) {
@@ -335,7 +343,11 @@ export function computeBankMovementAlertsFromBanks(
     const limit = bank.visibleMovementLimit;
     const used = bank.visibleMovementsUsed;
 
-    if (limit === undefined || used === undefined) {
+    if (
+      !bank.supportsVisibleMovementTracking ||
+      limit === undefined ||
+      used === undefined
+    ) {
       return [];
     }
 

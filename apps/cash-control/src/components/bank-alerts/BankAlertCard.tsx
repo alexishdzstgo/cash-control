@@ -1,6 +1,7 @@
 import { Landmark, Wallet } from "lucide-react";
 import type { FinancialResourceView } from "@/lib/financialAlerts";
 import { formatCurrency } from "@/lib/formatters";
+import { alertToneStyles } from "./alertToneStyles";
 
 type BankAlertCardProps = {
   resource: FinancialResourceView;
@@ -10,18 +11,18 @@ type BankAlertCardProps = {
 const statusConfig = {
   normal: {
     label: "Correcto",
-    badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    accentClass: "border-l-emerald-400",
+    badgeClass: alertToneStyles.success.badge,
+    accentClass: alertToneStyles.success.accentBorder,
   },
   warning: {
     label: "Atención",
-    badgeClass: "border-amber-200 bg-amber-50 text-amber-700",
-    accentClass: "border-l-amber-400",
+    badgeClass: alertToneStyles.warning.badge,
+    accentClass: alertToneStyles.warning.accentBorder,
   },
   critical: {
     label: "Crítico",
-    badgeClass: "border-red-200 bg-red-50 text-red-700",
-    accentClass: "border-l-red-400",
+    badgeClass: alertToneStyles.critical.badge,
+    accentClass: alertToneStyles.critical.accentBorder,
   },
 };
 

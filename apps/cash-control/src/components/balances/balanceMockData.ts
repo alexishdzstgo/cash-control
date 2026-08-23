@@ -1,4 +1,4 @@
-import type { CashBalance, BankAccountBalance } from "@/types/balance";
+import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 export const cashBalance: CashBalance = {
   physicalBalance: 12450,
@@ -50,6 +50,7 @@ export const bankAccounts: BankAccountBalance[] = [
       },
     ],
     status: "available",
+    supportsVisibleMovementTracking: true,
     visibleMovementLimit: 60,
     visibleMovementsUsed: 52,
     movementWarningThreshold: 0.8,

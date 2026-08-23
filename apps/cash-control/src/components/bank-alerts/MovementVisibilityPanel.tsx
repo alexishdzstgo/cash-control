@@ -1,5 +1,6 @@
 import { Eye } from "lucide-react";
 import type { FinancialResourceView } from "@/lib/financialAlerts";
+import { alertToneStyles } from "./alertToneStyles";
 
 type MovementVisibilityPanelProps = {
   resources: FinancialResourceView[];
@@ -11,6 +12,7 @@ export function MovementVisibilityPanel({
   const bankResources = resources.filter(
     (resource) =>
       resource.type === "bank" &&
+      resource.supportsVisibleMovementTracking &&
       resource.visibleMovementLimit !== undefined &&
       resource.visibleMovementsUsed !== undefined,
   );
@@ -85,8 +87,8 @@ function getMovementTone(
 ): { badge: string; bar: string; label: string } {
   if (remaining <= 0) {
     return {
-      badge: "border-red-200 bg-red-50 text-red-700",
-      bar: "bg-red-500",
+      badge: alertToneStyles.critical.badge,
+      bar: alertToneStyles.critical.progress,
       label: "Límite alcanzado.",
     };
   }
@@ -96,15 +98,15 @@ function getMovementTone(
     remaining <= resource.movementWarningRemaining
   ) {
     return {
-      badge: "border-amber-200 bg-amber-50 text-amber-700",
-      bar: "bg-amber-500",
+      badge: alertToneStyles.warning.badge,
+      bar: alertToneStyles.warning.progress,
       label: "Cerca del límite configurado.",
     };
   }
 
   return {
-    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    bar: "bg-emerald-500",
+    badge: alertToneStyles.success.badge,
+    bar: alertToneStyles.success.progress,
     label: "Dentro del rango normal.",
   };
 }

@@ -21,6 +21,7 @@ import {
 } from "@/lib/financialAlerts";
 import { formatCurrency } from "@/lib/formatters";
 import { AlertConfigurationSummary } from "./AlertConfigurationSummary";
+import { alertToneStyles } from "./alertToneStyles";
 import { BankAlertCard } from "./BankAlertCard";
 import { MovementVisibilityPanel } from "./MovementVisibilityPanel";
 
@@ -53,10 +54,13 @@ export function BankAlertsPage() {
         bank.id,
         {
           lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-          visibleMovementLimit:
-            bank.visibleMovementLimit ?? DEFAULT_VISIBLE_MOVEMENT_LIMIT,
-          visibleMovementsUsed: bank.visibleMovementsUsed ?? 0,
-          movementWarningRemaining: DEFAULT_MOVEMENT_WARNING_REMAINING,
+          ...(bank.supportsVisibleMovementTracking
+            ? {
+                visibleMovementLimit: DEFAULT_VISIBLE_MOVEMENT_LIMIT,
+                visibleMovementsUsed: bank.visibleMovementsUsed ?? 0,
+                movementWarningRemaining: DEFAULT_MOVEMENT_WARNING_REMAINING,
+              }
+            : {}),
         },
       ]),
     ),
@@ -129,7 +133,9 @@ export function BankAlertsPage() {
 
         <MovementVisibilityPanel resources={overview.resources} />
 
-        <section className="rounded-lg border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-900">
+        <section
+          className={`rounded-lg border p-4 text-sm ${alertToneStyles.review.softPanel}`}
+        >
           <div className="flex gap-3">
             <AlertCircle
               className="mt-0.5 h-4 w-4 shrink-0"
@@ -137,7 +143,7 @@ export function BankAlertsPage() {
             />
             <div>
               <p className="font-semibold">Alertas preparadas para corte</p>
-              <p className="mt-1 text-blue-800">
+              <p className="mt-1 text-surface-text-secondary">
                 La pantalla ya reserva el lugar funcional para faltantes o
                 sobrantes del último corte. Falta una fuente persistida de
                 cierres anteriores para activar esa alerta sin inventar datos.
@@ -153,14 +159,18 @@ export function BankAlertsPage() {
 function AttentionSection({ items }: { items: AttentionItem[] }) {
   if (items.length === 0) {
     return (
-      <section className="rounded-lg border border-emerald-100 bg-emerald-50 p-5">
+      <section
+        className={`rounded-lg border p-5 ${alertToneStyles.success.softPanel}`}
+      >
         <div className="flex items-start gap-3">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-600" />
+          <CheckCircle2
+            className={`mt-0.5 h-5 w-5 ${alertToneStyles.success.text}`}
+          />
           <div>
-            <h2 className="text-lg font-semibold text-emerald-950">
+            <h2 className="text-lg font-semibold text-surface-text-primary">
               Todo está en orden
             </h2>
-            <p className="mt-1 text-sm text-emerald-800">
+            <p className="mt-1 text-sm text-surface-text-secondary">
               No hay alertas que requieran atención.
             </p>
           </div>
@@ -312,15 +322,15 @@ const levelWeight: Record<AttentionLevel, number> = {
 
 const levelStyles: Record<AttentionLevel, { border: string; icon: string }> = {
   critical: {
-    border: "border-red-200",
-    icon: "bg-red-50 text-red-600",
+    border: alertToneStyles.critical.border,
+    icon: alertToneStyles.critical.icon,
   },
   warning: {
-    border: "border-amber-200",
-    icon: "bg-amber-50 text-amber-600",
+    border: alertToneStyles.warning.border,
+    icon: alertToneStyles.warning.icon,
   },
   review: {
-    border: "border-blue-200",
-    icon: "bg-blue-50 text-blue-600",
+    border: alertToneStyles.review.border,
+    icon: alertToneStyles.review.icon,
   },
 };

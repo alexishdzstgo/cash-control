@@ -42,6 +42,7 @@ export type FinancialResourceView = {
   visibleMovementsUsed?: number;
   remainingVisibleMovements?: number;
   movementWarningRemaining?: number;
+  supportsVisibleMovementTracking?: boolean;
   alerts: FinancialAlert[];
 };
 
@@ -112,15 +113,21 @@ export function getFinancialAlertsOverview({
     ...totals.bankBreakdown.map((bank) => {
       const account = banks.find((item) => item.id === bank.bankId);
       const bankConfig = config?.banks[bank.bankId] ?? {};
+      const supportsVisibleMovementTracking =
+        account?.supportsVisibleMovementTracking === true;
       const lowBalanceThreshold =
         bankConfig.lowBalanceThreshold ?? bank.lowBalanceThreshold;
       const criticalBalanceThreshold =
         bankConfig.criticalBalanceThreshold ?? bank.criticalBalanceThreshold;
-      const visibleMovementLimit =
-        bankConfig.visibleMovementLimit ?? account?.visibleMovementLimit;
-      const visibleMovementsUsed =
-        bankConfig.visibleMovementsUsed ?? account?.visibleMovementsUsed;
-      const movementWarningRemaining = bankConfig.movementWarningRemaining;
+      const visibleMovementLimit = supportsVisibleMovementTracking
+        ? (bankConfig.visibleMovementLimit ?? account?.visibleMovementLimit)
+        : undefined;
+      const visibleMovementsUsed = supportsVisibleMovementTracking
+        ? (bankConfig.visibleMovementsUsed ?? account?.visibleMovementsUsed)
+        : undefined;
+      const movementWarningRemaining = supportsVisibleMovementTracking
+        ? bankConfig.movementWarningRemaining
+        : undefined;
       const balanceHealth = getBalanceHealth({
         available: bank.available,
         lowBalanceThreshold,
@@ -153,6 +160,7 @@ export function getFinancialAlertsOverview({
         visibleMovementsUsed,
         remainingVisibleMovements,
         movementWarningRemaining,
+        supportsVisibleMovementTracking,
         alerts: [],
       };
     }),
@@ -305,6 +313,7 @@ function getMovementAlertForResource(
 ): BankMovementAlert | undefined {
   if (
     resource.type !== "bank" ||
+    !resource.supportsVisibleMovementTracking ||
     resource.remainingVisibleMovements === undefined
   ) {
     return undefined;

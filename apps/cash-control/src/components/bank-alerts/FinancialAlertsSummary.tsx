@@ -1,5 +1,11 @@
-import { AlertOctagon, AlertTriangle, CheckCircle2, BellRing } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  BellRing,
+  CheckCircle2,
+} from "lucide-react";
 import type { FinancialAlertsOverview } from "@/lib/financialAlerts";
+import { alertToneStyles } from "./alertToneStyles";
 
 type FinancialAlertsSummaryProps = {
   overview: FinancialAlertsOverview;
@@ -50,15 +56,17 @@ function SummaryCard({
   tone: "normal" | "warning" | "critical";
 }) {
   const toneClass = {
-    normal: "bg-emerald-50 text-emerald-700",
-    warning: "bg-amber-50 text-amber-700",
-    critical: "bg-red-50 text-red-700",
+    normal: alertToneStyles.success.icon,
+    warning: alertToneStyles.warning.icon,
+    critical: alertToneStyles.critical.icon,
   }[tone];
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-2 text-slate-500">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}>
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}
+        >
           {icon}
         </div>
         <p className="text-sm font-medium">{label}</p>

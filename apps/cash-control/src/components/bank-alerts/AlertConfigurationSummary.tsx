@@ -32,7 +32,7 @@ export function AlertConfigurationSummary({
   }
 
   function saveConfiguration() {
-    const nextErrors = validateConfig(draft);
+    const nextErrors = validateConfig(draft, banks);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -111,7 +111,13 @@ export function AlertConfigurationSummary({
                   <h3 className="text-sm font-semibold uppercase text-surface-text-label">
                     {bank.name}
                   </h3>
-                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div
+                    className={`mt-4 grid gap-4 ${
+                      bank.supportsVisibleMovementTracking
+                        ? "md:grid-cols-3"
+                        : "md:grid-cols-1"
+                    }`}
+                  >
                     <NumberField
                       label="Saldo mínimo para operar"
                       value={bankConfig.lowBalanceThreshold ?? 0}
@@ -126,32 +132,38 @@ export function AlertConfigurationSummary({
                         })
                       }
                     />
-                    <NumberField
-                      label="Límite visible"
-                      value={bankConfig.visibleMovementLimit ?? 0}
-                      error={errors[`${bank.id}.visibleMovementLimit`]}
-                      onChange={(value) =>
-                        setBankValue({
-                          bankId: bank.id,
-                          key: "visibleMovementLimit",
-                          value,
-                          setDraft,
-                        })
-                      }
-                    />
-                    <NumberField
-                      label="Avisar cuando queden"
-                      value={bankConfig.movementWarningRemaining ?? 0}
-                      error={errors[`${bank.id}.movementWarningRemaining`]}
-                      onChange={(value) =>
-                        setBankValue({
-                          bankId: bank.id,
-                          key: "movementWarningRemaining",
-                          value,
-                          setDraft,
-                        })
-                      }
-                    />
+                    {bank.supportsVisibleMovementTracking && (
+                      <>
+                        <NumberField
+                          label="Límite de movimientos visibles"
+                          helpText="Máximo de movimientos que la app del banco permite consultar."
+                          value={bankConfig.visibleMovementLimit ?? 0}
+                          error={errors[`${bank.id}.visibleMovementLimit`]}
+                          onChange={(value) =>
+                            setBankValue({
+                              bankId: bank.id,
+                              key: "visibleMovementLimit",
+                              value,
+                              setDraft,
+                            })
+                          }
+                        />
+                        <NumberField
+                          label="Avisar cuando queden"
+                          helpText="Genera una alerta cuando resten esta cantidad de movimientos antes de llegar al límite."
+                          value={bankConfig.movementWarningRemaining ?? 0}
+                          error={errors[`${bank.id}.movementWarningRemaining`]}
+                          onChange={(value) =>
+                            setBankValue({
+                              bankId: bank.id,
+                              key: "movementWarningRemaining",
+                              value,
+                              setDraft,
+                            })
+                          }
+                        />
+                      </>
+                    )}
                   </div>
                 </ModalSection>
               );
@@ -169,12 +181,14 @@ function NumberField({
   onChange,
   error,
   prefix,
+  helpText,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   error?: string;
   prefix?: string;
+  helpText?: string;
 }) {
   return (
     <label className="block">
@@ -195,6 +209,11 @@ function NumberField({
       </div>
       {error && (
         <p className="mt-1 text-xs font-medium text-red-600">{error}</p>
+      )}
+      {helpText && !error && (
+        <p className="mt-1 text-xs leading-5 text-surface-text-secondary">
+          {helpText}
+        </p>
       )}
     </label>
   );
@@ -223,7 +242,10 @@ function setBankValue({
   }));
 }
 
-function validateConfig(config: FinancialAlertConfig): ValidationErrors {
+function validateConfig(
+  config: FinancialAlertConfig,
+  banks: FinancialResourceView[],
+): ValidationErrors {
   const errors: ValidationErrors = {};
 
   if ((config.cash.lowBalanceThreshold ?? 0) < 0) {
@@ -235,6 +257,9 @@ function validateConfig(config: FinancialAlertConfig): ValidationErrors {
       errors[`${bankId}.lowBalanceThreshold`] =
         "El saldo mínimo no puede ser negativo.";
     }
+
+    const bank = banks.find((resource) => resource.id === bankId);
+    if (!bank?.supportsVisibleMovementTracking) continue;
 
     const limit = bankConfig.visibleMovementLimit ?? 0;
     const warningRemaining = bankConfig.movementWarningRemaining ?? 0;
