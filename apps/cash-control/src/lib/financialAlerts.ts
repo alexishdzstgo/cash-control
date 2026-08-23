@@ -4,6 +4,7 @@ import type {
   FinancialResourceStatus,
   FinancialTotals,
 } from "@/lib/finance";
+import { getBalanceHealth } from "@/lib/finance";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 export type FinancialAlertSeverity = "warning" | "critical";
@@ -40,7 +41,21 @@ export type FinancialResourceView = {
   visibleMovementLimit?: number;
   visibleMovementsUsed?: number;
   remainingVisibleMovements?: number;
+  movementWarningRemaining?: number;
   alerts: FinancialAlert[];
+};
+
+export type AlertResourceConfig = {
+  lowBalanceThreshold?: number;
+  criticalBalanceThreshold?: number;
+  visibleMovementLimit?: number;
+  visibleMovementsUsed?: number;
+  movementWarningRemaining?: number;
+};
+
+export type FinancialAlertConfig = {
+  cash: AlertResourceConfig;
+  banks: Record<string, AlertResourceConfig>;
 };
 
 export type FinancialAlertsOverview = {
@@ -57,15 +72,26 @@ export function getFinancialAlertsOverview({
   banks,
   totals,
   movementAlerts,
+  config,
 }: {
   cash: CashBalance;
   banks: BankAccountBalance[];
   totals: FinancialTotals;
   movementAlerts: BankMovementAlert[];
+  config?: FinancialAlertConfig;
 }): FinancialAlertsOverview {
-  const cashStatus: FinancialResourceStatus = totals.cashIsCritical
+  const cashLowBalanceThreshold =
+    config?.cash.lowBalanceThreshold ?? cash.lowBalanceThreshold;
+  const cashCriticalBalanceThreshold =
+    config?.cash.criticalBalanceThreshold ?? cash.criticalBalanceThreshold;
+  const cashHealth = getBalanceHealth({
+    available: totals.cashAvailable,
+    lowBalanceThreshold: cashLowBalanceThreshold,
+    criticalBalanceThreshold: cashCriticalBalanceThreshold,
+  });
+  const cashStatus: FinancialResourceStatus = cashHealth.isCritical
     ? "critical"
-    : totals.cashIsLow
+    : cashHealth.isLow
       ? "warning"
       : "normal";
 
@@ -77,17 +103,40 @@ export function getFinancialAlertsOverview({
       available: totals.cashAvailable,
       reserved: totals.cashReserved,
       realBalance: totals.cashPhysical,
-      lowBalanceThreshold: cash.lowBalanceThreshold,
-      criticalBalanceThreshold: cash.criticalBalanceThreshold,
-      balanceStatus: totals.cashBalanceStatus,
+      lowBalanceThreshold: cashLowBalanceThreshold,
+      criticalBalanceThreshold: cashCriticalBalanceThreshold,
+      balanceStatus: cashHealth.status,
       status: cashStatus,
       alerts: [],
     },
     ...totals.bankBreakdown.map((bank) => {
       const account = banks.find((item) => item.id === bank.bankId);
-      const movementAlert = movementAlerts.find(
-        (alert) => alert.bankId === bank.bankId,
-      );
+      const bankConfig = config?.banks[bank.bankId] ?? {};
+      const lowBalanceThreshold =
+        bankConfig.lowBalanceThreshold ?? bank.lowBalanceThreshold;
+      const criticalBalanceThreshold =
+        bankConfig.criticalBalanceThreshold ?? bank.criticalBalanceThreshold;
+      const visibleMovementLimit =
+        bankConfig.visibleMovementLimit ?? account?.visibleMovementLimit;
+      const visibleMovementsUsed =
+        bankConfig.visibleMovementsUsed ?? account?.visibleMovementsUsed;
+      const movementWarningRemaining = bankConfig.movementWarningRemaining;
+      const balanceHealth = getBalanceHealth({
+        available: bank.available,
+        lowBalanceThreshold,
+        criticalBalanceThreshold,
+      });
+      const remainingVisibleMovements = getRemainingMovements({
+        visibleMovementLimit,
+        visibleMovementsUsed,
+      });
+      const movementStatus = getMovementStatus({
+        remainingVisibleMovements,
+        visibleMovementLimit,
+        visibleMovementsUsed,
+        movementWarningRemaining,
+      });
+      const status = mergeStatuses(balanceHealth.status, movementStatus);
 
       return {
         id: bank.bankId,
@@ -96,15 +145,14 @@ export function getFinancialAlertsOverview({
         available: bank.available,
         reserved: bank.reserved,
         realBalance: bank.realBalance,
-        lowBalanceThreshold: bank.lowBalanceThreshold,
-        criticalBalanceThreshold: bank.criticalBalanceThreshold,
-        balanceStatus: bank.balanceStatus,
-        status: bank.resourceStatus,
-        visibleMovementLimit: account?.visibleMovementLimit,
-        visibleMovementsUsed: account?.visibleMovementsUsed,
-        remainingVisibleMovements:
-          movementAlert?.remainingVisibleMovements ??
-          getRemainingMovements(account),
+        lowBalanceThreshold,
+        criticalBalanceThreshold,
+        balanceStatus: balanceHealth.status,
+        status,
+        visibleMovementLimit,
+        visibleMovementsUsed,
+        remainingVisibleMovements,
+        movementWarningRemaining,
         alerts: [],
       };
     }),
@@ -171,9 +219,9 @@ function getAlertsForResource(
     });
   }
 
-  const movementAlert = movementAlerts.find(
-    (alert) => alert.bankId === resource.id,
-  );
+  const movementAlert =
+    movementAlerts.find((alert) => alert.bankId === resource.id) ??
+    getMovementAlertForResource(resource);
 
   if (movementAlert?.isAtLimit) {
     alerts.push({
@@ -202,13 +250,87 @@ function getAlertsForResource(
   return alerts;
 }
 
-function getRemainingMovements(account?: BankAccountBalance): number | undefined {
+function getRemainingMovements({
+  visibleMovementLimit,
+  visibleMovementsUsed,
+}: {
+  visibleMovementLimit?: number;
+  visibleMovementsUsed?: number;
+}): number | undefined {
   if (
-    account?.visibleMovementLimit === undefined ||
-    account.visibleMovementsUsed === undefined
+    visibleMovementLimit === undefined ||
+    visibleMovementsUsed === undefined
   ) {
     return undefined;
   }
 
-  return Math.max(0, account.visibleMovementLimit - account.visibleMovementsUsed);
+  return Math.max(0, visibleMovementLimit - visibleMovementsUsed);
+}
+
+function getMovementStatus({
+  remainingVisibleMovements,
+  visibleMovementLimit,
+  visibleMovementsUsed,
+  movementWarningRemaining,
+}: {
+  remainingVisibleMovements?: number;
+  visibleMovementLimit?: number;
+  visibleMovementsUsed?: number;
+  movementWarningRemaining?: number;
+}): FinancialResourceStatus {
+  if (
+    remainingVisibleMovements === undefined ||
+    visibleMovementLimit === undefined ||
+    visibleMovementsUsed === undefined
+  ) {
+    return "normal";
+  }
+
+  if (remainingVisibleMovements <= 0) return "critical";
+
+  if (movementWarningRemaining !== undefined) {
+    return remainingVisibleMovements <= movementWarningRemaining
+      ? "warning"
+      : "normal";
+  }
+
+  return visibleMovementLimit > 0 &&
+    visibleMovementsUsed / visibleMovementLimit >= 0.8
+    ? "warning"
+    : "normal";
+}
+
+function getMovementAlertForResource(
+  resource: FinancialResourceView,
+): BankMovementAlert | undefined {
+  if (
+    resource.type !== "bank" ||
+    resource.remainingVisibleMovements === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    bankId: resource.id,
+    bankName: resource.name,
+    remainingVisibleMovements: resource.remainingVisibleMovements,
+    isAtLimit: resource.remainingVisibleMovements <= 0,
+    isNearLimit:
+      resource.remainingVisibleMovements > 0 &&
+      resource.movementWarningRemaining !== undefined &&
+      resource.remainingVisibleMovements <= resource.movementWarningRemaining,
+  };
+}
+
+function mergeStatuses(
+  balanceStatus: BalanceHealthStatus,
+  movementStatus: FinancialResourceStatus,
+): FinancialResourceStatus {
+  if (balanceStatus === "critical" || movementStatus === "critical") {
+    return "critical";
+  }
+  if (balanceStatus === "warning" || movementStatus === "warning") {
+    return "warning";
+  }
+  return "normal";
 }

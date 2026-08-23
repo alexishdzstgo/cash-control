@@ -108,11 +108,11 @@ export const navigationGroups: NavigationGroup[] = [
         roles: ["owner"],
       },
       {
-        label: "Bancos y alertas",
+        label: "Alertas",
         href: "/bank-alerts",
         icon: BellRing,
         enabled: true,
-        roles: ["owner"],
+        roles: ["owner", "employee"],
       },
       {
         label: "Turno actual",

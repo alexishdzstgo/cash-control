@@ -1,65 +1,257 @@
-import { LockKeyhole } from "lucide-react";
-import type { FinancialResourceView } from "@/lib/financialAlerts";
-import { formatCurrency } from "@/lib/formatters";
+"use client";
+
+import { Save, Settings2, X } from "lucide-react";
+import { type Dispatch, type SetStateAction, useState } from "react";
+import { ModalSection, ModalShell } from "@/components/shared/ModalShell";
+import type {
+  FinancialAlertConfig,
+  FinancialResourceView,
+} from "@/lib/financialAlerts";
 
 type AlertConfigurationSummaryProps = {
   resources: FinancialResourceView[];
+  config: FinancialAlertConfig;
+  onSave: (config: FinancialAlertConfig) => void;
 };
+
+type ValidationErrors = Record<string, string>;
 
 export function AlertConfigurationSummary({
   resources,
+  config,
+  onSave,
 }: AlertConfigurationSummaryProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [draft, setDraft] = useState(config);
+  const [errors, setErrors] = useState<ValidationErrors>({});
+
+  function openModal() {
+    setDraft(config);
+    setErrors({});
+    setIsOpen(true);
+  }
+
+  function saveConfiguration() {
+    const nextErrors = validateConfig(draft);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    onSave(draft);
+    setIsOpen(false);
+  }
+
+  const banks = resources.filter((resource) => resource.type === "bank");
+
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-950">
-            Configuración de alertas
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Umbrales actuales de saldo bajo y crítico por recurso.
-          </p>
-        </div>
-        <button
-          type="button"
-          disabled
-          className="inline-flex min-h-10 w-fit cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400"
+    <>
+      <button
+        type="button"
+        onClick={openModal}
+        className="btn-primary min-h-10"
+      >
+        <Settings2 className="h-4 w-4" aria-hidden="true" />
+        Configurar alertas
+      </button>
+
+      {isOpen && (
+        <ModalShell
+          title="Configurar alertas"
+          description="Ajusta umbrales operativos temporales. Esta configuración vive en memoria hasta conectar persistencia."
+          onClose={() => setIsOpen(false)}
+          maxWidth="xl"
+          footer={
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="btn-secondary"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveConfiguration}
+                className="btn-primary"
+              >
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Guardar configuración
+              </button>
+            </div>
+          }
         >
-          <LockKeyhole className="h-4 w-4" aria-hidden="true" />
-          Editar configuración
-        </button>
-      </div>
+          <div className="space-y-4">
+            <ModalSection>
+              <h3 className="text-sm font-semibold uppercase text-surface-text-label">
+                Caja física
+              </h3>
+              <div className="mt-4">
+                <NumberField
+                  label="Avisarme cuando el disponible sea menor o igual a"
+                  value={draft.cash.lowBalanceThreshold ?? 0}
+                  prefix="$"
+                  error={errors.cashLowBalanceThreshold}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      cash: {
+                        ...current.cash,
+                        lowBalanceThreshold: value,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            </ModalSection>
 
-      <div className="divide-y divide-slate-100">
-        {resources.map((resource) => (
-          <div
-            key={resource.id}
-            className="grid gap-3 px-6 py-4 text-sm sm:grid-cols-[1fr_auto_auto]"
-          >
-            <p className="font-medium text-slate-900">{resource.name}</p>
-            <p className="text-slate-500">
-              Bajo:{" "}
-              <span className="font-semibold text-slate-800 tabular-nums">
-                {resource.lowBalanceThreshold !== undefined
-                  ? formatCurrency(resource.lowBalanceThreshold)
-                  : "No configurado"}
-              </span>
-            </p>
-            <p className="text-slate-500">
-              Crítico:{" "}
-              <span className="font-semibold text-slate-800 tabular-nums">
-                {resource.criticalBalanceThreshold !== undefined
-                  ? formatCurrency(resource.criticalBalanceThreshold)
-                  : "No configurado"}
-              </span>
-            </p>
+            {banks.map((bank) => {
+              const bankConfig = draft.banks[bank.id] ?? {};
+              return (
+                <ModalSection key={bank.id}>
+                  <h3 className="text-sm font-semibold uppercase text-surface-text-label">
+                    {bank.name}
+                  </h3>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <NumberField
+                      label="Saldo mínimo para operar"
+                      value={bankConfig.lowBalanceThreshold ?? 0}
+                      prefix="$"
+                      error={errors[`${bank.id}.lowBalanceThreshold`]}
+                      onChange={(value) =>
+                        setBankValue({
+                          bankId: bank.id,
+                          key: "lowBalanceThreshold",
+                          value,
+                          setDraft,
+                        })
+                      }
+                    />
+                    <NumberField
+                      label="Límite visible"
+                      value={bankConfig.visibleMovementLimit ?? 0}
+                      error={errors[`${bank.id}.visibleMovementLimit`]}
+                      onChange={(value) =>
+                        setBankValue({
+                          bankId: bank.id,
+                          key: "visibleMovementLimit",
+                          value,
+                          setDraft,
+                        })
+                      }
+                    />
+                    <NumberField
+                      label="Avisar cuando queden"
+                      value={bankConfig.movementWarningRemaining ?? 0}
+                      error={errors[`${bank.id}.movementWarningRemaining`]}
+                      onChange={(value) =>
+                        setBankValue({
+                          bankId: bank.id,
+                          key: "movementWarningRemaining",
+                          value,
+                          setDraft,
+                        })
+                      }
+                    />
+                  </div>
+                </ModalSection>
+              );
+            })}
           </div>
-        ))}
-      </div>
-
-      <div className="border-t border-slate-100 px-6 py-4 text-xs text-slate-500">
-        Disponible al conectar la base de datos.
-      </div>
-    </section>
+        </ModalShell>
+      )}
+    </>
   );
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+  error,
+  prefix,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  error?: string;
+  prefix?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="cc-form-label text-sm font-semibold">{label}</span>
+      <div className="mt-2 flex items-center rounded-lg border border-surface-border bg-white focus-within:border-primary-blue focus-within:ring-3 focus-within:ring-primary-blue/15">
+        {prefix && (
+          <span className="pl-3 text-sm font-semibold text-surface-text-secondary">
+            {prefix}
+          </span>
+        )}
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="min-h-10 w-full rounded-lg bg-white px-3 text-sm font-semibold text-surface-text-primary outline-none"
+        />
+      </div>
+      {error && (
+        <p className="mt-1 text-xs font-medium text-red-600">{error}</p>
+      )}
+    </label>
+  );
+}
+
+function setBankValue({
+  bankId,
+  key,
+  value,
+  setDraft,
+}: {
+  bankId: string;
+  key: keyof FinancialAlertConfig["banks"][string];
+  value: number;
+  setDraft: Dispatch<SetStateAction<FinancialAlertConfig>>;
+}) {
+  setDraft((current) => ({
+    ...current,
+    banks: {
+      ...current.banks,
+      [bankId]: {
+        ...current.banks[bankId],
+        [key]: value,
+      },
+    },
+  }));
+}
+
+function validateConfig(config: FinancialAlertConfig): ValidationErrors {
+  const errors: ValidationErrors = {};
+
+  if ((config.cash.lowBalanceThreshold ?? 0) < 0) {
+    errors.cashLowBalanceThreshold = "El saldo mínimo no puede ser negativo.";
+  }
+
+  for (const [bankId, bankConfig] of Object.entries(config.banks)) {
+    if ((bankConfig.lowBalanceThreshold ?? 0) < 0) {
+      errors[`${bankId}.lowBalanceThreshold`] =
+        "El saldo mínimo no puede ser negativo.";
+    }
+
+    const limit = bankConfig.visibleMovementLimit ?? 0;
+    const warningRemaining = bankConfig.movementWarningRemaining ?? 0;
+
+    if (limit <= 0) {
+      errors[`${bankId}.visibleMovementLimit`] =
+        "El límite de movimientos debe ser mayor a cero.";
+    }
+
+    if (warningRemaining < 0) {
+      errors[`${bankId}.movementWarningRemaining`] =
+        "El aviso de movimientos no puede ser negativo.";
+    } else if (warningRemaining > limit) {
+      errors[`${bankId}.movementWarningRemaining`] =
+        "El aviso no puede ser mayor que el límite total.";
+    }
+  }
+
+  return errors;
 }

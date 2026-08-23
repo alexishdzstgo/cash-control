@@ -19,7 +19,7 @@ const moduleSummaries = [
     href: "/users",
   },
   {
-    label: "Bancos y alertas",
+    label: "Alertas",
     detail: `${bankAccounts.length} bancos configurados`,
     href: "/bank-alerts",
   },
