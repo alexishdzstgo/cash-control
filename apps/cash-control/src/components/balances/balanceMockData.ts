@@ -50,7 +50,7 @@ export const bankAccounts: BankAccountBalance[] = [
       },
     ],
     status: "available",
-    supportsVisibleMovementTracking: true,
+    visibleMovementTrackingEnabled: true,
     visibleMovementLimit: 60,
     visibleMovementsUsed: 52,
     movementWarningThreshold: 0.8,

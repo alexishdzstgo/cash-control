@@ -12,7 +12,7 @@ export function MovementVisibilityPanel({
   const bankResources = resources.filter(
     (resource) =>
       resource.type === "bank" &&
-      resource.supportsVisibleMovementTracking &&
+      resource.visibleMovementTrackingEnabled &&
       resource.visibleMovementLimit !== undefined &&
       resource.visibleMovementsUsed !== undefined,
   );

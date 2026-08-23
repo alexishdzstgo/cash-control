@@ -54,7 +54,9 @@ export function BankAlertsPage() {
         bank.id,
         {
           lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-          ...(bank.supportsVisibleMovementTracking
+          visibleMovementTrackingEnabled:
+            bank.visibleMovementTrackingEnabled === true,
+          ...(bank.visibleMovementTrackingEnabled
             ? {
                 visibleMovementLimit: DEFAULT_VISIBLE_MOVEMENT_LIMIT,
                 visibleMovementsUsed: bank.visibleMovementsUsed ?? 0,
@@ -212,7 +214,12 @@ function AttentionSection({ items }: { items: AttentionItem[] }) {
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-surface-text-primary">
+                  <span
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase ${levelStyles[item.level].badge}`}
+                  >
+                    {levelStyles[item.level].label}
+                  </span>
+                  <p className="mt-2 text-sm font-semibold text-surface-text-primary">
                     {item.subject}
                   </p>
                   <h3 className="mt-1 text-base font-semibold text-surface-text-primary">
@@ -320,17 +327,26 @@ const levelWeight: Record<AttentionLevel, number> = {
   review: 2,
 };
 
-const levelStyles: Record<AttentionLevel, { border: string; icon: string }> = {
+const levelStyles: Record<
+  AttentionLevel,
+  { badge: string; border: string; icon: string; label: string }
+> = {
   critical: {
+    badge: alertToneStyles.critical.badge,
     border: alertToneStyles.critical.border,
     icon: alertToneStyles.critical.icon,
+    label: "Crítico",
   },
   warning: {
+    badge: alertToneStyles.warning.badge,
     border: alertToneStyles.warning.border,
     icon: alertToneStyles.warning.icon,
+    label: "Atención",
   },
   review: {
+    badge: alertToneStyles.review.badge,
     border: alertToneStyles.review.border,
     icon: alertToneStyles.review.icon,
+    label: "Revisión",
   },
 };

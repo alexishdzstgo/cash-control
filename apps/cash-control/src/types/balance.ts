@@ -24,8 +24,8 @@ export type BankAccountBalance = {
   realBalance: number;
   reservedOperations: ReservedOperation[];
   status: BalanceStatus;
-  /** Indica si este banco tiene un límite de movimientos visibles consultables. */
-  supportsVisibleMovementTracking?: boolean;
+  /** Configuración por cuenta para controlar límites de movimientos visibles. */
+  visibleMovementTrackingEnabled?: boolean;
   /** Límite de movimientos visibles permitidos por el banco */
   visibleMovementLimit?: number;
   /** Movimientos visibles utilizados en el mes */

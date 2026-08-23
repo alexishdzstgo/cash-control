@@ -227,7 +227,7 @@ export function computeFinancialTotalsFromBalances({
     let movementStatus: FinancialResourceStatus = "normal";
     let movementReason: AttentionReason | null = null;
     if (
-      bank.supportsVisibleMovementTracking &&
+      bank.visibleMovementTrackingEnabled &&
       limit !== undefined &&
       used !== undefined
     ) {
@@ -344,7 +344,7 @@ export function computeBankMovementAlertsFromBanks(
     const used = bank.visibleMovementsUsed;
 
     if (
-      !bank.supportsVisibleMovementTracking ||
+      !bank.visibleMovementTrackingEnabled ||
       limit === undefined ||
       used === undefined
     ) {

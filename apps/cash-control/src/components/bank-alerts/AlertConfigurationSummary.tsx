@@ -16,6 +16,9 @@ type AlertConfigurationSummaryProps = {
 
 type ValidationErrors = Record<string, string>;
 
+const DEFAULT_VISIBLE_MOVEMENT_LIMIT = 20;
+const DEFAULT_MOVEMENT_WARNING_REMAINING = 5;
+
 export function AlertConfigurationSummary({
   resources,
   config,
@@ -32,7 +35,7 @@ export function AlertConfigurationSummary({
   }
 
   function saveConfiguration() {
-    const nextErrors = validateConfig(draft, banks);
+    const nextErrors = validateConfig(draft);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -113,7 +116,7 @@ export function AlertConfigurationSummary({
                   </h3>
                   <div
                     className={`mt-4 grid gap-4 ${
-                      bank.supportsVisibleMovementTracking
+                      bankConfig.visibleMovementTrackingEnabled
                         ? "md:grid-cols-3"
                         : "md:grid-cols-1"
                     }`}
@@ -132,7 +135,22 @@ export function AlertConfigurationSummary({
                         })
                       }
                     />
-                    {bank.supportsVisibleMovementTracking && (
+                    <div className="md:col-span-full">
+                      <TrackingSwitch
+                        checked={
+                          bankConfig.visibleMovementTrackingEnabled === true
+                        }
+                        onChange={(checked) =>
+                          toggleMovementTracking({
+                            bankId: bank.id,
+                            checked,
+                            currentConfig: bankConfig,
+                            setDraft,
+                          })
+                        }
+                      />
+                    </div>
+                    {bankConfig.visibleMovementTrackingEnabled && (
                       <>
                         <NumberField
                           label="Límite de movimientos visibles"
@@ -242,10 +260,7 @@ function setBankValue({
   }));
 }
 
-function validateConfig(
-  config: FinancialAlertConfig,
-  banks: FinancialResourceView[],
-): ValidationErrors {
+function validateConfig(config: FinancialAlertConfig): ValidationErrors {
   const errors: ValidationErrors = {};
 
   if ((config.cash.lowBalanceThreshold ?? 0) < 0) {
@@ -258,8 +273,7 @@ function validateConfig(
         "El saldo mínimo no puede ser negativo.";
     }
 
-    const bank = banks.find((resource) => resource.id === bankId);
-    if (!bank?.supportsVisibleMovementTracking) continue;
+    if (!bankConfig.visibleMovementTrackingEnabled) continue;
 
     const limit = bankConfig.visibleMovementLimit ?? 0;
     const warningRemaining = bankConfig.movementWarningRemaining ?? 0;
@@ -279,4 +293,77 @@ function validateConfig(
   }
 
   return errors;
+}
+
+function TrackingSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center justify-between gap-4 rounded-lg border border-surface-border bg-white px-3 py-2 text-left transition hover:border-surface-border-strong"
+    >
+      <span>
+        <span className="block text-sm font-semibold text-surface-text-primary">
+          Controlar movimientos visibles
+        </span>
+        <span className="mt-0.5 block text-xs leading-5 text-surface-text-secondary">
+          Activa alertas cuando esta cuenta se acerque al límite consultable en
+          la app del banco.
+        </span>
+      </span>
+      <span
+        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+          checked ? "bg-primary-blue" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition ${
+            checked ? "left-5" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+function toggleMovementTracking({
+  bankId,
+  checked,
+  currentConfig,
+  setDraft,
+}: {
+  bankId: string;
+  checked: boolean;
+  currentConfig: FinancialAlertConfig["banks"][string];
+  setDraft: Dispatch<SetStateAction<FinancialAlertConfig>>;
+}) {
+  setDraft((current) => ({
+    ...current,
+    banks: {
+      ...current.banks,
+      [bankId]: {
+        ...current.banks[bankId],
+        visibleMovementTrackingEnabled: checked,
+        visibleMovementLimit: checked
+          ? (currentConfig.visibleMovementLimit ??
+            DEFAULT_VISIBLE_MOVEMENT_LIMIT)
+          : undefined,
+        visibleMovementsUsed: checked
+          ? (currentConfig.visibleMovementsUsed ?? 0)
+          : undefined,
+        movementWarningRemaining: checked
+          ? (currentConfig.movementWarningRemaining ??
+            DEFAULT_MOVEMENT_WARNING_REMAINING)
+          : undefined,
+      },
+    },
+  }));
 }

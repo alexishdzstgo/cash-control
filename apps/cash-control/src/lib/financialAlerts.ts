@@ -42,7 +42,7 @@ export type FinancialResourceView = {
   visibleMovementsUsed?: number;
   remainingVisibleMovements?: number;
   movementWarningRemaining?: number;
-  supportsVisibleMovementTracking?: boolean;
+  visibleMovementTrackingEnabled?: boolean;
   alerts: FinancialAlert[];
 };
 
@@ -52,6 +52,7 @@ export type AlertResourceConfig = {
   visibleMovementLimit?: number;
   visibleMovementsUsed?: number;
   movementWarningRemaining?: number;
+  visibleMovementTrackingEnabled?: boolean;
 };
 
 export type FinancialAlertConfig = {
@@ -113,19 +114,20 @@ export function getFinancialAlertsOverview({
     ...totals.bankBreakdown.map((bank) => {
       const account = banks.find((item) => item.id === bank.bankId);
       const bankConfig = config?.banks[bank.bankId] ?? {};
-      const supportsVisibleMovementTracking =
-        account?.supportsVisibleMovementTracking === true;
+      const visibleMovementTrackingEnabled =
+        bankConfig.visibleMovementTrackingEnabled ??
+        account?.visibleMovementTrackingEnabled === true;
       const lowBalanceThreshold =
         bankConfig.lowBalanceThreshold ?? bank.lowBalanceThreshold;
       const criticalBalanceThreshold =
         bankConfig.criticalBalanceThreshold ?? bank.criticalBalanceThreshold;
-      const visibleMovementLimit = supportsVisibleMovementTracking
+      const visibleMovementLimit = visibleMovementTrackingEnabled
         ? (bankConfig.visibleMovementLimit ?? account?.visibleMovementLimit)
         : undefined;
-      const visibleMovementsUsed = supportsVisibleMovementTracking
+      const visibleMovementsUsed = visibleMovementTrackingEnabled
         ? (bankConfig.visibleMovementsUsed ?? account?.visibleMovementsUsed)
         : undefined;
-      const movementWarningRemaining = supportsVisibleMovementTracking
+      const movementWarningRemaining = visibleMovementTrackingEnabled
         ? bankConfig.movementWarningRemaining
         : undefined;
       const balanceHealth = getBalanceHealth({
@@ -160,7 +162,7 @@ export function getFinancialAlertsOverview({
         visibleMovementsUsed,
         remainingVisibleMovements,
         movementWarningRemaining,
-        supportsVisibleMovementTracking,
+        visibleMovementTrackingEnabled,
         alerts: [],
       };
     }),
@@ -313,7 +315,7 @@ function getMovementAlertForResource(
 ): BankMovementAlert | undefined {
   if (
     resource.type !== "bank" ||
-    !resource.supportsVisibleMovementTracking ||
+    !resource.visibleMovementTrackingEnabled ||
     resource.remainingVisibleMovements === undefined
   ) {
     return undefined;
