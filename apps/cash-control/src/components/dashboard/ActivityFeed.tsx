@@ -6,17 +6,21 @@ import {
   ArrowRight,
   ArrowUpFromLine,
   Pencil,
+  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { AdministrativeMovementDetailsModal } from "@/components/business-funds/AdministrativeMovementDetailsModal";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { OperationDetailsModal } from "@/components/history/OperationDetailsModal";
 import { OperationStatusBadge } from "@/components/history/OperationStatusBadge";
 import { OperationTypeBadge } from "@/components/history/OperationTypeBadge";
+import { centsToPesos } from "@/lib/administrativeMovements";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import type { AdministrativeMovement } from "@/types/administrativeMovement";
 import type { Operation } from "@/types/operation";
 
-const MAX_RECENT_OPERATIONS = 3;
+const MAX_RECENT_ACTIVITY = 5;
 
 const operationTypeConfig = {
   deposito: {
@@ -35,21 +39,71 @@ const operationTypeConfig = {
 
 type OperationType = keyof typeof operationTypeConfig;
 
+const fundMovementConfig = {
+  income: {
+    icon: WalletCards,
+    accent: "bg-[#2563EB]",
+    iconBg: "bg-[#EFF6FF]",
+    iconText: "text-[#1D4ED8]",
+    label: "Fondo agregado",
+    amountPrefix: "+",
+  },
+  withdrawal: {
+    icon: WalletCards,
+    accent: "bg-slate-500",
+    iconBg: "bg-slate-100",
+    iconText: "text-slate-600",
+    label: "Fondo retirado",
+    amountPrefix: "-",
+  },
+} as const;
+
+type RecentActivityItem =
+  | {
+      id: string;
+      source: "operation";
+      timestamp: string;
+      operation: Operation;
+    }
+  | {
+      id: string;
+      source: "fund";
+      timestamp: string;
+      movement: AdministrativeMovement;
+    };
+
 export function ActivityFeed() {
   const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
     null,
   );
-  const { operations } = useBusinessFunds();
+  const [selectedMovement, setSelectedMovement] =
+    useState<AdministrativeMovement | null>(null);
+  const { operations, movements } = useBusinessFunds();
 
-  const recentOperations = useMemo(() => {
-    return [...operations]
+  const recentActivity = useMemo(() => {
+    const operationItems: RecentActivityItem[] = operations.map(
+      (operation) => ({
+        id: `operation-${operation.id}`,
+        source: "operation",
+        timestamp: operation.createdAt,
+        operation,
+      }),
+    );
+    const movementItems: RecentActivityItem[] = movements.map((movement) => ({
+      id: `fund-${movement.id}`,
+      source: "fund",
+      timestamp: movement.createdAt,
+      movement,
+    }));
+
+    return [...operationItems, ...movementItems]
       .sort(
-        (firstOperation, secondOperation) =>
-          new Date(secondOperation.createdAt).getTime() -
-          new Date(firstOperation.createdAt).getTime(),
+        (firstItem, secondItem) =>
+          new Date(secondItem.timestamp).getTime() -
+          new Date(firstItem.timestamp).getTime(),
       )
-      .slice(0, MAX_RECENT_OPERATIONS);
-  }, [operations]);
+      .slice(0, MAX_RECENT_ACTIVITY);
+  }, [operations, movements]);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -67,85 +121,29 @@ export function ActivityFeed() {
           href="/history"
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
         >
-          Ver historial completo
+          Ver historial de operaciones
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
 
       <div className="divide-y divide-slate-100">
-        {recentOperations.map((operation) => {
-          const typeConfig =
-            operationTypeConfig[operation.type as OperationType];
-          const TypeIcon = typeConfig.icon;
+        {recentActivity.map((item) =>
+          item.source === "operation" ? (
+            <OperationActivityRow
+              key={item.id}
+              operation={item.operation}
+              onView={() => setSelectedOperation(item.operation)}
+            />
+          ) : (
+            <FundActivityRow
+              key={item.id}
+              movement={item.movement}
+              onView={() => setSelectedMovement(item.movement)}
+            />
+          ),
+        )}
 
-          return (
-            <article
-              key={operation.id}
-              className="group relative overflow-hidden px-6 py-5 transition-colors duration-200 hover:bg-slate-50/70"
-            >
-              <div
-                className={`absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full ${typeConfig.accent}`}
-              />
-
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div
-                      className={`inline-flex items-center justify-center rounded-lg p-1.5 ${typeConfig.iconBg} ${typeConfig.iconText}`}
-                    >
-                      <TypeIcon className="h-4 w-4" aria-hidden="true" />
-                    </div>
-
-                    <OperationTypeBadge type={operation.type} />
-
-                    <OperationStatusBadge status={operation.status} />
-
-                    {operation.isEdited && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700">
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                        Editado
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-3">
-                    <p className="text-lg font-bold tracking-tight text-slate-950 tabular-nums">
-                      {formatCurrency(operation.amount)}
-                    </p>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-                    <span className="font-mono tabular-nums">
-                      Folio {operation.bankFolio}
-                    </span>
-                    <span className="text-slate-300" aria-hidden="true">
-                      ·
-                    </span>
-                    <span>Registró {operation.createdBy}</span>
-                    <span className="text-slate-300" aria-hidden="true">
-                      ·
-                    </span>
-                    <span>{formatDateTime(operation.createdAt)}</span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedOperation(operation)}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
-                >
-                  Ver detalle
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </button>
-              </div>
-            </article>
-          );
-        })}
-
-        {recentOperations.length === 0 && (
+        {recentActivity.length === 0 && (
           <div className="px-6 py-12 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
               <Activity className="h-6 w-6" aria-hidden="true" />
@@ -164,6 +162,154 @@ export function ActivityFeed() {
         operation={selectedOperation}
         onClose={() => setSelectedOperation(null)}
       />
+      <AdministrativeMovementDetailsModal
+        movement={selectedMovement}
+        onClose={() => setSelectedMovement(null)}
+      />
     </section>
+  );
+}
+
+function OperationActivityRow({
+  operation,
+  onView,
+}: {
+  operation: Operation;
+  onView: () => void;
+}) {
+  const typeConfig = operationTypeConfig[operation.type as OperationType];
+  const TypeIcon = typeConfig.icon;
+  const resourceName =
+    operation.type === "deposito"
+      ? operation.bankTo
+      : (operation.bankFrom ?? "Banco");
+
+  return (
+    <article className="group relative overflow-hidden px-6 py-5 transition-colors duration-200 hover:bg-slate-50/70">
+      <div
+        className={`absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full ${typeConfig.accent}`}
+      />
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={`inline-flex items-center justify-center rounded-lg p-1.5 ${typeConfig.iconBg} ${typeConfig.iconText}`}
+            >
+              <TypeIcon className="h-4 w-4" aria-hidden="true" />
+            </div>
+
+            <OperationTypeBadge type={operation.type} />
+            <OperationStatusBadge status={operation.status} />
+
+            {operation.isEdited && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Editado
+              </span>
+            )}
+          </div>
+
+          <p className="mt-3 text-lg font-bold tracking-tight text-slate-950 tabular-nums">
+            {formatCurrency(operation.amount)}
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+            <span>{resourceName}</span>
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span className="font-mono tabular-nums">
+              Folio {operation.bankFolio}
+            </span>
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span>{formatDateTime(operation.createdAt)}</span>
+          </div>
+        </div>
+
+        <ActivityDetailButton onClick={onView} />
+      </div>
+    </article>
+  );
+}
+
+function FundActivityRow({
+  movement,
+  onView,
+}: {
+  movement: AdministrativeMovement;
+  onView: () => void;
+}) {
+  const typeConfig = fundMovementConfig[movement.movementType];
+  const TypeIcon = typeConfig.icon;
+  const amount = `${typeConfig.amountPrefix}${formatCurrency(
+    centsToPesos(movement.amountCents),
+  )}`;
+
+  return (
+    <article className="group relative overflow-hidden px-6 py-5 transition-colors duration-200 hover:bg-slate-50/70">
+      <div
+        className={`absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full ${typeConfig.accent}`}
+      />
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className={`inline-flex items-center justify-center rounded-lg p-1.5 ${typeConfig.iconBg} ${typeConfig.iconText}`}
+            >
+              <TypeIcon className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <span className="inline-flex rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-semibold text-[#2563EB]">
+              {typeConfig.label}
+            </span>
+          </div>
+
+          <p className="mt-3 text-lg font-bold tracking-tight text-slate-950 tabular-nums">
+            {amount}
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
+            <span>{movement.resourceName}</span>
+            {movement.explanation && (
+              <>
+                <span className="text-slate-300" aria-hidden="true">
+                  ·
+                </span>
+                <span>{movement.explanation}</span>
+              </>
+            )}
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span>Registró {movement.createdByUserName}</span>
+            <span className="text-slate-300" aria-hidden="true">
+              ·
+            </span>
+            <span>{formatDateTime(movement.createdAt)}</span>
+          </div>
+        </div>
+
+        <ActivityDetailButton onClick={onView} />
+      </div>
+    </article>
+  );
+}
+
+function ActivityDetailButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex shrink-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
+    >
+      Ver detalle
+      <ArrowRight
+        className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+        aria-hidden="true"
+      />
+    </button>
   );
 }

@@ -22,6 +22,7 @@ import type {
   AdministrativeMovementType,
   AdministrativeResource,
 } from "@/types/administrativeMovement";
+import { AdministrativeMovementDetailsModal } from "./AdministrativeMovementDetailsModal";
 import { useBusinessFunds } from "./BusinessFundsContext";
 
 type FormState = {
@@ -30,6 +31,7 @@ type FormState = {
   movementType: AdministrativeMovementType | "";
   resourceId: string;
   amount: string;
+  reasonMode: "preset" | "custom";
   explanation: string;
   editReason: string;
 };
@@ -135,7 +137,8 @@ export function BusinessFundsPage() {
       movementType: "income",
       resourceId: "",
       amount: "",
-      explanation: "",
+      reasonMode: "preset",
+      explanation: getDefaultMovementReason("income"),
       editReason: "",
     });
   }
@@ -155,6 +158,12 @@ export function BusinessFundsPage() {
       movementType: movement.movementType,
       resourceId: movement.resourceId,
       amount: String(centsToPesos(movement.amountCents)),
+      reasonMode: isDefaultMovementReason(
+        movement.movementType,
+        movement.explanation,
+      )
+        ? "preset"
+        : "custom",
       explanation: movement.explanation ?? "",
       editReason: "",
     });
@@ -493,9 +502,10 @@ export function BusinessFundsPage() {
         isConfirmDisabled={isSubmitting}
       />
 
-      {detail && (
-        <MovementDetail movement={detail} onClose={() => setDetail(null)} />
-      )}
+      <AdministrativeMovementDetailsModal
+        movement={detail}
+        onClose={() => setDetail(null)}
+      />
 
       <SuccessDialog
         isOpen={successMessage !== null}
@@ -739,7 +749,13 @@ function MovementForm({
                     ? "cc-segmented-option-selected"
                     : "cc-segmented-option-unselected"
                 }`}
-                onClick={() => onChange({ movementType: type })}
+                onClick={() =>
+                  onChange({
+                    movementType: type,
+                    reasonMode: "preset",
+                    explanation: getDefaultMovementReason(type),
+                  })
+                }
               >
                 {getMovementTypeLabel(type)}
               </button>
@@ -810,18 +826,49 @@ function MovementForm({
         )}
       </div>
 
-      <label className="block">
-        <span className="cc-form-label mb-2 block text-sm font-semibold">
+      <fieldset>
+        <legend className="cc-form-label mb-2 block text-sm font-semibold">
           Motivo del movimiento
           <RequiredMark />
-        </span>
-        <textarea
-          className="field-input resize-none"
-          rows={3}
-          value={form.explanation}
-          placeholder="Describe brevemente por que aumenta o disminuye este saldo"
-          onChange={(event) => onChange({ explanation: event.target.value })}
-        />
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          {getReasonOptions(form.movementType).map((option) => {
+            const isSelected = form.reasonMode === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isSelected}
+                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
+                  isSelected
+                    ? "cc-segmented-option-selected"
+                    : "cc-segmented-option-unselected"
+                }`}
+                onClick={() =>
+                  onChange({
+                    reasonMode: option.value,
+                    explanation:
+                      option.value === "preset"
+                        ? getDefaultMovementReason(form.movementType)
+                        : "",
+                  })
+                }
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        {form.reasonMode === "custom" && (
+          <textarea
+            className="field-input mt-3 resize-none"
+            rows={3}
+            value={form.explanation}
+            placeholder="Describe brevemente por que aumenta o disminuye este saldo"
+            onChange={(event) => onChange({ explanation: event.target.value })}
+          />
+        )}
         {formErrors.explanation ? (
           <FieldError message={formErrors.explanation} />
         ) : (
@@ -829,7 +876,7 @@ function MovementForm({
             Este texto queda visible para auditoria y consultas futuras.
           </span>
         )}
-      </label>
+      </fieldset>
 
       {form.mode === "edit" && (
         <label className="block">
@@ -853,64 +900,6 @@ function MovementForm({
           {formError}
         </div>
       )}
-    </ModalShell>
-  );
-}
-
-function MovementDetail({
-  movement,
-  onClose,
-}: {
-  movement: AdministrativeMovement;
-  onClose: () => void;
-}) {
-  return (
-    <ModalShell
-      title="Detalle del movimiento"
-      description={`${getMovementTypeLabel(movement.movementType)} - ${movement.resourceName}`}
-      onClose={onClose}
-      maxWidth="lg"
-      zIndex="high"
-      footer={
-        <div className="flex justify-end">
-          <button type="button" className="btn-secondary" onClick={onClose}>
-            Cerrar
-          </button>
-        </div>
-      }
-    >
-      <div className="grid gap-3 md:grid-cols-2">
-        <Info label="ID" value={movement.id} />
-        <Info
-          label="Tipo"
-          value={getMovementTypeLabel(movement.movementType)}
-        />
-        <Info label="Recurso" value={movement.resourceName} />
-        <Info label="Monto" value={formatCents(movement.amountCents)} />
-        <Info
-          label="Saldo anterior"
-          value={formatCents(movement.balanceBeforeCents)}
-        />
-        <Info
-          label="Saldo posterior"
-          value={formatCents(movement.balanceAfterCents)}
-        />
-        <Info label="Realizado por" value={movement.createdByUserName} />
-        <Info label="Fecha y hora" value={formatDateTime(movement.createdAt)} />
-        <Info label="Turno" value={movement.shiftId ?? "Sin turno asociado"} />
-        <Info
-          label="Indicador de correccion"
-          value={movement.isEdited ? "Corregido" : "Sin correccion"}
-        />
-        <div className="md:col-span-2">
-          <Info label="Motivo" value={movement.explanation ?? "Sin motivo"} />
-        </div>
-        {movement.editReason && (
-          <div className="md:col-span-2">
-            <Info label="Motivo de correccion" value={movement.editReason} />
-          </div>
-        )}
-      </div>
     </ModalShell>
   );
 }
@@ -1048,6 +1037,37 @@ function getMovementConfirmationDescription({
       : "";
 
   return `${getMovementTypeLabel(movementType)} en ${resource.name}. Monto: ${formatCents(amountCents)}. Motivo: ${explanation.trim()}. ${currentBalanceLabel}: ${formatCents(resource.availableCents)}. Saldo despues: ${formatCents(balanceAfterCents)}.${reservedDetail}`;
+}
+
+function getDefaultMovementReason(
+  movementType: FormState["movementType"],
+): string {
+  return movementType === "withdrawal"
+    ? "Retiro de fondos"
+    : "Fondeo del negocio";
+}
+
+function isDefaultMovementReason(
+  movementType: AdministrativeMovementType,
+  explanation?: string,
+): boolean {
+  return explanation === getDefaultMovementReason(movementType);
+}
+
+function getReasonOptions(movementType: FormState["movementType"]): Array<{
+  value: FormState["reasonMode"];
+  label: string;
+}> {
+  return [
+    {
+      value: "preset",
+      label: getDefaultMovementReason(movementType),
+    },
+    {
+      value: "custom",
+      label: "Otro",
+    },
+  ];
 }
 
 function formatCents(value: number): string {
