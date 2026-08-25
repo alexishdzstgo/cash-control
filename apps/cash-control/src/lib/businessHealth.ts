@@ -1,6 +1,10 @@
-import { computeFinancialTotals, computeBankMovementAlerts } from "@/lib/finance";
-import { mockOperations } from "@/components/history/mockOperations";
 import { activeShift } from "@/components/shifts/shiftsMockData";
+import {
+  computeBankMovementAlertsFromBanks,
+  computeFinancialTotalsFromBalances,
+} from "@/lib/finance";
+import type { BankAccountBalance, CashBalance } from "@/types/balance";
+import type { Operation } from "@/types/operation";
 
 export type BusinessHealthStatus = "stable" | "attention" | "critical";
 
@@ -29,9 +33,17 @@ export type BusinessHealth = {
  *
  * Prioridad: critical > attention > stable
  */
-export function computeBusinessHealth(): BusinessHealth {
-  const totals = computeFinancialTotals();
-  const bankAlerts = computeBankMovementAlerts();
+export function computeBusinessHealth({
+  cash,
+  banks,
+  operations,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  operations: Operation[];
+}): BusinessHealth {
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
+  const bankAlerts = computeBankMovementAlertsFromBanks(banks);
 
   const causes: HealthCause[] = [];
 
@@ -88,11 +100,13 @@ export function computeBusinessHealth(): BusinessHealth {
   }
 
   // ── Operaciones pendientes ──
-  const pendingWithdrawals = mockOperations.filter(
-    (operation) => operation.type === "retiro" && operation.status === "pendiente",
+  const pendingWithdrawals = operations.filter(
+    (operation) =>
+      operation.type === "retiro" && operation.status === "pendiente",
   );
-  const pendingDeposits = mockOperations.filter(
-    (operation) => operation.type === "deposito" && operation.status === "pendiente",
+  const pendingDeposits = operations.filter(
+    (operation) =>
+      operation.type === "deposito" && operation.status === "pendiente",
   );
 
   if (pendingWithdrawals.length > 0) {
@@ -135,10 +149,14 @@ export function computeBusinessHealth(): BusinessHealth {
     status = "attention";
   }
 
-  const summaries: Record<BusinessHealthStatus, { title: string; description: string }> = {
+  const summaries: Record<
+    BusinessHealthStatus,
+    { title: string; description: string }
+  > = {
     stable: {
       title: "Todo bajo control",
-      description: "Caja con saldo suficiente, bancos disponibles y turno activo.",
+      description:
+        "Caja con saldo suficiente, bancos disponibles y turno activo.",
     },
     attention: {
       title: "Hay situaciones que revisar",
@@ -146,7 +164,8 @@ export function computeBusinessHealth(): BusinessHealth {
     },
     critical: {
       title: "Se requiere atención antes del cierre",
-      description: "Hay señales críticas que deben resolverse antes de cerrar el turno.",
+      description:
+        "Hay señales críticas que deben resolverse antes de cerrar el turno.",
     },
   };
 

@@ -1,13 +1,14 @@
 "use client";
 
-import { TrendingUp, Wallet, Landmark } from "lucide-react";
+import { Landmark, TrendingUp, Wallet } from "lucide-react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { formatCurrency } from "@/lib/formatters";
-import { mockOperations } from "@/components/history/mockOperations";
-import { profitHistory, demoDataNotice } from "./ownerDashboardMockData";
+import { demoDataNotice, profitHistory } from "./ownerDashboardMockData";
 
 export function ProfitSummary() {
+  const { operations } = useBusinessFunds();
   // Ganancia estimada derivada únicamente de comisiones de operaciones completadas
-  const completedOperations = mockOperations.filter(
+  const completedOperations = operations.filter(
     (operation) => operation.status === "entregado",
   );
 

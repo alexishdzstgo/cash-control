@@ -251,6 +251,13 @@ export function computeFinancialTotalsFromBalances({
       attentionReasons.push("critical_balance");
     } else if (health.isLow) {
       resourceStatus = "warning";
+    }
+
+    if (
+      bank.lowBalanceThreshold !== undefined &&
+      available <= bank.lowBalanceThreshold
+    ) {
+      if (resourceStatus !== "critical") resourceStatus = "warning";
       attentionReasons.push("low_balance");
     }
 

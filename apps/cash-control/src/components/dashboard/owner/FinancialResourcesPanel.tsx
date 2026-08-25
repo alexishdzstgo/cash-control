@@ -1,13 +1,14 @@
 "use client";
 
-import { Landmark, Wallet, ArrowRight } from "lucide-react";
+import { ArrowRight, Landmark, Wallet } from "lucide-react";
 import Link from "next/link";
-import { formatCurrency } from "@/lib/formatters";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import {
-  computeFinancialTotals,
-  computeBankMovementAlerts,
+  computeBankMovementAlertsFromBanks,
+  computeFinancialTotalsFromBalances,
   type FinancialResourceStatus,
 } from "@/lib/finance";
+import { formatCurrency } from "@/lib/formatters";
 
 const statusConfig: Record<
   FinancialResourceStatus,
@@ -31,8 +32,9 @@ const statusConfig: Record<
 };
 
 export function FinancialResourcesPanel() {
-  const totals = computeFinancialTotals();
-  const bankAlerts = computeBankMovementAlerts();
+  const { cash, banks } = useBusinessFunds();
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
+  const bankAlerts = computeBankMovementAlertsFromBanks(banks);
 
   const cashStatus: FinancialResourceStatus = totals.cashIsCritical
     ? "critical"
@@ -44,7 +46,9 @@ export function FinancialResourcesPanel() {
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-2 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Caja y bancos</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Caja y bancos
+          </h2>
           <p className="mt-1 text-sm text-slate-500">¿Dónde está tu dinero?</p>
         </div>
         <Link
@@ -63,7 +67,6 @@ export function FinancialResourcesPanel() {
           title="Caja física"
           available={totals.cashAvailable}
           reserved={totals.cashReserved}
-          total={totals.cashPhysical}
           status={cashStatus}
           subtitle="Disponible y reservado para retiros"
         />
@@ -77,7 +80,6 @@ export function FinancialResourcesPanel() {
               title={bank.bankName}
               available={bank.available}
               reserved={bank.reserved}
-              total={bank.realBalance}
               status={bank.resourceStatus}
               subtitle={
                 alert && (alert.isAtLimit || alert.isNearLimit)
@@ -97,7 +99,6 @@ function ResourceRow({
   title,
   available,
   reserved,
-  total,
   status,
   subtitle,
 }: {
@@ -105,7 +106,6 @@ function ResourceRow({
   title: string;
   available: number;
   reserved: number;
-  total: number;
   status: FinancialResourceStatus;
   subtitle?: string;
 }) {

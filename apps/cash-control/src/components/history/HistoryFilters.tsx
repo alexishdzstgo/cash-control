@@ -84,7 +84,7 @@ export function HistoryFilters({
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Buscar por folio, remitente o destinatario"
-              className={`${inputClass} pl-11`}
+              className="field-input history-search-input min-h-11 rounded-xl py-2.5 font-sans"
             />
           </div>
         </div>

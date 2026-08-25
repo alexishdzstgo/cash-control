@@ -1,34 +1,13 @@
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 export const cashBalance: CashBalance = {
-  physicalBalance: 12450,
+  physicalBalance: 0,
   lowBalanceThreshold: 3000,
   criticalBalanceThreshold: 1000,
-  reservedOperations: [
-    {
-      id: "withdrawal-1",
-      folio: "RET-00125",
-      type: "retiro",
-      customerName: "Carlos Gómez",
-      amount: 2000,
-      registeredAt: "Hoy, 9:15 a. m.",
-      registeredBy: "Ana López",
-      status: "pending",
-    },
-    {
-      id: "withdrawal-2",
-      folio: "RET-00126",
-      type: "retiro",
-      customerName: "María López",
-      amount: 1500,
-      registeredAt: "Hoy, 9:42 a. m.",
-      registeredBy: "Ana López",
-      status: "pending",
-    },
-  ],
+  reservedOperations: [],
   shiftName: "Turno matutino",
   responsibleName: "Ana López",
-  updatedAt: "Hoy, 10:42 a. m.",
+  updatedAt: "Día 1",
 };
 
 export const bankAccounts: BankAccountBalance[] = [
@@ -36,23 +15,12 @@ export const bankAccounts: BankAccountBalance[] = [
     id: "bank-azteca",
     bankName: "Banco Azteca",
     accountName: "Cuenta principal",
-    realBalance: 25000,
-    reservedOperations: [
-      {
-        id: "deposit-1",
-        folio: "DEP-00218",
-        type: "deposito",
-        customerName: "Juan Pérez",
-        amount: 4000,
-        registeredAt: "Hoy, 10:05 a. m.",
-        registeredBy: "Carlos Ruiz",
-        status: "pending",
-      },
-    ],
+    realBalance: 0,
+    reservedOperations: [],
     status: "available",
     visibleMovementTrackingEnabled: true,
     visibleMovementLimit: 60,
-    visibleMovementsUsed: 52,
+    visibleMovementsUsed: 0,
     movementWarningThreshold: 0.8,
     lowBalanceThreshold: 5000,
     criticalBalanceThreshold: 2000,
@@ -61,8 +29,7 @@ export const bankAccounts: BankAccountBalance[] = [
     id: "bank-bbva",
     bankName: "BBVA",
     accountName: "Cuenta principal",
-    // Demostrativo: saldo bajo para verificar estado warning por saldo
-    realBalance: 2500,
+    realBalance: 0,
     reservedOperations: [],
     status: "available",
     lowBalanceThreshold: 3000,
@@ -72,8 +39,28 @@ export const bankAccounts: BankAccountBalance[] = [
     id: "mercado-pago",
     bankName: "Mercado Pago",
     accountName: "Cuenta principal",
-    realBalance: 8500,
+    realBalance: 0,
     reservedOperations: [],
     status: "available",
   },
 ];
+
+export function buildInitialZeroCash(): CashBalance {
+  return {
+    ...cashBalance,
+    physicalBalance: 0,
+    reservedOperations: [],
+    updatedAt: "Día 1",
+  };
+}
+
+export function buildInitialZeroBanks(): BankAccountBalance[] {
+  return bankAccounts.map((bank) => ({
+    ...bank,
+    realBalance: 0,
+    reservedOperations: [],
+    visibleMovementsUsed: bank.visibleMovementTrackingEnabled
+      ? 0
+      : bank.visibleMovementsUsed,
+  }));
+}

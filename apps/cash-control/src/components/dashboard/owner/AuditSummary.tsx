@@ -1,11 +1,15 @@
 "use client";
 
-import { Pencil, ArrowRight } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import Link from "next/link";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { formatDateTime } from "@/lib/formatters";
-import { editedOperations } from "./ownerDashboardMockData";
 
 export function AuditSummary() {
+  const { operations } = useBusinessFunds();
+  const editedOperations = operations.filter(
+    (operation) => operation.isEdited === true,
+  );
   const latestEdit =
     editedOperations.length > 0
       ? [...editedOperations].sort(

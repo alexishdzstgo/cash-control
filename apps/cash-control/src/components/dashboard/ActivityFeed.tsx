@@ -1,9 +1,15 @@
 "use client";
 
-import { Activity, ArrowRight, ArrowDownToLine, ArrowUpFromLine, Pencil } from "lucide-react";
+import {
+  Activity,
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpFromLine,
+  Pencil,
+} from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { mockOperations } from "@/components/history/mockOperations";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { OperationDetailsModal } from "@/components/history/OperationDetailsModal";
 import { OperationStatusBadge } from "@/components/history/OperationStatusBadge";
 import { OperationTypeBadge } from "@/components/history/OperationTypeBadge";
@@ -11,7 +17,6 @@ import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { Operation } from "@/types/operation";
 
 const MAX_RECENT_OPERATIONS = 3;
-
 
 const operationTypeConfig = {
   deposito: {
@@ -31,23 +36,28 @@ const operationTypeConfig = {
 type OperationType = keyof typeof operationTypeConfig;
 
 export function ActivityFeed() {
-  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
+    null,
+  );
+  const { operations } = useBusinessFunds();
 
   const recentOperations = useMemo(() => {
-    return [...mockOperations]
+    return [...operations]
       .sort(
         (firstOperation, secondOperation) =>
           new Date(secondOperation.createdAt).getTime() -
           new Date(firstOperation.createdAt).getTime(),
       )
       .slice(0, MAX_RECENT_OPERATIONS);
-  }, []);
+  }, [operations]);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Actividad reciente</h2>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Actividad reciente
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
             Últimos movimientos registrados en el negocio.
           </p>
@@ -64,7 +74,8 @@ export function ActivityFeed() {
 
       <div className="divide-y divide-slate-100">
         {recentOperations.map((operation) => {
-          const typeConfig = operationTypeConfig[operation.type as OperationType];
+          const typeConfig =
+            operationTypeConfig[operation.type as OperationType];
           const TypeIcon = typeConfig.icon;
 
           return (
@@ -72,12 +83,16 @@ export function ActivityFeed() {
               key={operation.id}
               className="group relative overflow-hidden px-6 py-5 transition-colors duration-200 hover:bg-slate-50/70"
             >
-              <div className={`absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full ${typeConfig.accent}`} />
+              <div
+                className={`absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-r-full ${typeConfig.accent}`}
+              />
 
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className={`inline-flex items-center justify-center rounded-lg p-1.5 ${typeConfig.iconBg} ${typeConfig.iconText}`}>
+                    <div
+                      className={`inline-flex items-center justify-center rounded-lg p-1.5 ${typeConfig.iconBg} ${typeConfig.iconText}`}
+                    >
                       <TypeIcon className="h-4 w-4" aria-hidden="true" />
                     </div>
 
@@ -103,9 +118,13 @@ export function ActivityFeed() {
                     <span className="font-mono tabular-nums">
                       Folio {operation.bankFolio}
                     </span>
-                    <span className="text-slate-300" aria-hidden="true">·</span>
+                    <span className="text-slate-300" aria-hidden="true">
+                      ·
+                    </span>
                     <span>Registró {operation.createdBy}</span>
-                    <span className="text-slate-300" aria-hidden="true">·</span>
+                    <span className="text-slate-300" aria-hidden="true">
+                      ·
+                    </span>
                     <span>{formatDateTime(operation.createdAt)}</span>
                   </div>
                 </div>
@@ -116,7 +135,10 @@ export function ActivityFeed() {
                   className="inline-flex shrink-0 items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-[#2563EB] transition-colors hover:text-[#1D4ED8] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#93C5FD]"
                 >
                   Ver detalle
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
                 </button>
               </div>
             </article>
@@ -128,7 +150,9 @@ export function ActivityFeed() {
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
               <Activity className="h-6 w-6" aria-hidden="true" />
             </div>
-            <p className="font-medium text-slate-700">No hay actividad reciente</p>
+            <p className="font-medium text-slate-700">
+              No hay actividad reciente
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Los movimientos registrados aparecerán en esta sección.
             </p>

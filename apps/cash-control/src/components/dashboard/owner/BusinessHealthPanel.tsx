@@ -1,8 +1,17 @@
 "use client";
 
-import { CheckCircle2, AlertTriangle, AlertOctagon, ArrowRight } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+} from "lucide-react";
 import Link from "next/link";
-import { computeBusinessHealth, type BusinessHealthStatus } from "@/lib/businessHealth";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import {
+  type BusinessHealthStatus,
+  computeBusinessHealth,
+} from "@/lib/businessHealth";
 
 const statusConfig: Record<
   BusinessHealthStatus,
@@ -38,7 +47,8 @@ const statusConfig: Record<
 };
 
 export function BusinessHealthPanel() {
-  const health = computeBusinessHealth();
+  const { cash, banks, operations } = useBusinessFunds();
+  const health = computeBusinessHealth({ cash, banks, operations });
   const config = statusConfig[health.status];
   const StatusIcon = config.icon;
 
@@ -67,7 +77,9 @@ export function BusinessHealthPanel() {
                   <li key={cause.id} className="flex items-start gap-2 text-sm">
                     <span
                       className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
-                        cause.severity === "critical" ? "bg-red-500" : "bg-amber-500"
+                        cause.severity === "critical"
+                          ? "bg-red-500"
+                          : "bg-amber-500"
                       }`}
                       aria-hidden="true"
                     />

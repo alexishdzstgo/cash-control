@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import { useEffect, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
@@ -12,8 +12,8 @@ import {
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
+import { type DepositFormData, initialDepositFormData } from "@/types/deposit";
 import type { Operation } from "@/types/operation";
-import { initialDepositFormData, type DepositFormData } from "@/types/deposit";
 import { DepositForm } from "./DepositForm";
 import { DepositSummary } from "./DepositSummary";
 
@@ -32,9 +32,9 @@ function buildInitialForm(number: number): DepositFormData {
 
 export function DepositPage() {
   const { rules: commissionRules } = useCommissionRules();
-  const { registerClientOperation } = useBusinessFunds();
+  const { registerClientOperation, resetVersion } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
-  const [nextFolioNumber, setNextFolioNumber] = useState(FIRST_DEPOSIT_FOLIO);
+  const [, setNextFolioNumber] = useState(FIRST_DEPOSIT_FOLIO);
   const [formData, setFormData] = useState<DepositFormData>(() =>
     buildInitialForm(FIRST_DEPOSIT_FOLIO),
   );
@@ -58,9 +58,7 @@ export function DepositPage() {
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
 
-  const isAccountLast4Valid = /^\d{4}$/.test(
-    formData.destinationAccountLast4,
-  );
+  const isAccountLast4Valid = /^\d{4}$/.test(formData.destinationAccountLast4);
   const isReadyToRegister =
     amount > 0 &&
     commissionCalculation !== null &&
@@ -75,6 +73,14 @@ export function DepositPage() {
         hasCommissionRule: commissionCalculation !== null,
       })
     : {};
+
+  useEffect(() => {
+    if (resetVersion === 0) return;
+    setNextFolioNumber(FIRST_DEPOSIT_FOLIO);
+    setFormData(buildInitialForm(FIRST_DEPOSIT_FOLIO));
+    setOperationError(null);
+    setShowValidationErrors(false);
+  }, [resetVersion]);
 
   function resetForm() {
     setNextFolioNumber((current) => {
@@ -202,8 +208,7 @@ function getDepositValidationErrors({
       : {}),
     ...(!/^\d{4}$/.test(formData.destinationAccountLast4)
       ? {
-          destinationAccountLast4:
-            "Captura exactamente los ultimos 4 digitos.",
+          destinationAccountLast4: "Captura exactamente los ultimos 4 digitos.",
         }
       : {}),
   };

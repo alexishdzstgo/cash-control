@@ -1,15 +1,15 @@
 "use client";
 
-import { Settings2, AlertTriangle, ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowRight, Settings2 } from "lucide-react";
 import Link from "next/link";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { computeBankMovementAlertsFromBanks } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
-import { computeFinancialTotals, computeBankMovementAlerts } from "@/lib/finance";
-import { cashBalance, bankAccounts } from "@/components/balances/balanceMockData";
 import { commissionSettings } from "./ownerDashboardMockData";
 
 export function OperationalConfigurationSummary() {
-  const totals = computeFinancialTotals();
-  const bankAlerts = computeBankMovementAlerts();
+  const { cash, banks } = useBusinessFunds();
+  const bankAlerts = computeBankMovementAlertsFromBanks(banks);
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -40,14 +40,19 @@ export function OperationalConfigurationSummary() {
           </div>
           <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+              <AlertTriangle
+                className="h-4 w-4 text-amber-600"
+                aria-hidden="true"
+              />
               <p className="text-sm font-medium text-amber-800">
                 {commissionSettings.status === "pending_configuration"
                   ? "Comisiones sin configurar"
                   : "Comisiones configuradas"}
               </p>
             </div>
-            <p className="mt-1 text-xs text-amber-700">{commissionSettings.note}</p>
+            <p className="mt-1 text-xs text-amber-700">
+              {commissionSettings.note}
+            </p>
             <Link
               href="#"
               className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 hover:text-amber-900"
@@ -60,24 +65,28 @@ export function OperationalConfigurationSummary() {
 
         {/* Alertas de saldo por recurso */}
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Alertas de saldo</h3>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Alertas de saldo
+          </h3>
           <div className="mt-2 space-y-2">
             <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-4 py-3">
               <p className="text-sm font-medium text-slate-700">Caja física</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                Advertencia: {formatCurrency(cashBalance.lowBalanceThreshold ?? 0)} · Crítico:{" "}
-                {formatCurrency(cashBalance.criticalBalanceThreshold ?? 0)}
+                Advertencia: {formatCurrency(cash.lowBalanceThreshold ?? 0)} ·
+                Crítico: {formatCurrency(cash.criticalBalanceThreshold ?? 0)}
               </p>
             </div>
-            {bankAccounts.map((bank) => (
+            {banks.map((bank) => (
               <div
                 key={bank.id}
                 className="rounded-lg border border-slate-100 bg-slate-50/60 px-4 py-3"
               >
-                <p className="text-sm font-medium text-slate-700">{bank.bankName}</p>
+                <p className="text-sm font-medium text-slate-700">
+                  {bank.bankName}
+                </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Advertencia: {formatCurrency(bank.lowBalanceThreshold ?? 0)} · Crítico:{" "}
-                  {formatCurrency(bank.criticalBalanceThreshold ?? 0)}
+                  Advertencia: {formatCurrency(bank.lowBalanceThreshold ?? 0)} ·
+                  Crítico: {formatCurrency(bank.criticalBalanceThreshold ?? 0)}
                 </p>
               </div>
             ))}
@@ -101,7 +110,7 @@ export function OperationalConfigurationSummary() {
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     Límite visible:{" "}
-                    {bankAccounts.find((bank) => bank.id === alert.bankId)
+                    {banks.find((bank) => bank.id === alert.bankId)
                       ?.visibleMovementLimit ?? "—"}{" "}
                     {alert.remainingVisibleMovements > 0 && (
                       <> · {alert.remainingVisibleMovements} restantes</>

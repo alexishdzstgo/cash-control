@@ -8,10 +8,9 @@ import {
   useState,
 } from "react";
 import {
-  bankAccounts,
-  cashBalance,
+  buildInitialZeroBanks,
+  buildInitialZeroCash,
 } from "@/components/balances/balanceMockData";
-import { mockOperations } from "@/components/history/mockOperations";
 import {
   applyAdministrativeMovement,
   calculateAdministrativeCorrectionImpact,
@@ -56,6 +55,7 @@ type BusinessFundsContextValue = {
   banks: BankAccountBalance[];
   operations: Operation[];
   movements: AdministrativeMovement[];
+  resetVersion: number;
   resources: ReturnType<typeof getAdministrativeResources>;
   registerClientOperation: (operation: Operation) => {
     success: boolean;
@@ -72,6 +72,7 @@ type BusinessFundsContextValue = {
     movement?: AdministrativeMovement;
     error?: string;
   };
+  resetFinancialState: () => void;
 };
 
 const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
@@ -79,12 +80,15 @@ const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
 );
 
 export function BusinessFundsProvider({ children }: { children: ReactNode }) {
-  const [cash, setCash] = useState<CashBalance>(cashBalance);
-  const [banks, setBanks] = useState<BankAccountBalance[]>(bankAccounts);
+  const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
+  const [banks, setBanks] = useState<BankAccountBalance[]>(() =>
+    buildInitialZeroBanks(),
+  );
   const [movements, setMovements] = useState<AdministrativeMovement[]>(
     initialAdministrativeMovements,
   );
-  const [operations, setOperations] = useState<Operation[]>(mockOperations);
+  const [operations, setOperations] = useState<Operation[]>([]);
+  const [resetVersion, setResetVersion] = useState(0);
 
   const resources = useMemo(
     () => getAdministrativeResources(cash, banks),
@@ -135,7 +139,6 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setBanks(nextBalances.banks);
     setMovements((current) => [movement, ...current]);
     return { success: true, movement };
-
   }
 
   function registerClientOperation(operation: Operation): {
@@ -161,7 +164,6 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     setOperations((current) => [operation, ...current]);
 
     return { success: true, operation };
-
   }
 
   function correctMovement(input: CorrectAdministrativeMovementInput): {
@@ -246,6 +248,14 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, movement: corrected };
   }
 
+  function resetFinancialState() {
+    setCash(buildInitialZeroCash());
+    setBanks(buildInitialZeroBanks());
+    setMovements([]);
+    setOperations([]);
+    setResetVersion((current) => current + 1);
+  }
+
   return (
     <BusinessFundsContext.Provider
       value={{
@@ -253,10 +263,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         banks,
         operations,
         movements,
+        resetVersion,
         resources,
         registerClientOperation,
         registerMovement,
         correctMovement,
+        resetFinancialState,
       }}
     >
       {children}

@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { mockOperations } from "@/components/history/mockOperations";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import {
   hasCommissionRuleBeenApplied,
@@ -17,14 +17,14 @@ import { CommissionCoverageAlert } from "./CommissionCoverageAlert";
 import { CommissionDeleteDialog } from "./CommissionDeleteDialog";
 import { CommissionPreview } from "./CommissionPreview";
 import {
-  CommissionRuleDialog,
   type CommissionDialogMode,
+  CommissionRuleDialog,
   type CommissionRuleFormResult,
 } from "./CommissionRuleDialog";
+import { useCommissionRules } from "./CommissionRulesContext";
 import { CommissionRulesTable } from "./CommissionRulesTable";
 import { CommissionSummary } from "./CommissionSummary";
 import { CommissionTabs } from "./CommissionTabs";
-import { useCommissionRules } from "./CommissionRulesContext";
 import { demoAppliedCommissionRuleIds } from "./commissionMockData";
 
 type DialogState = {
@@ -36,6 +36,7 @@ export function CommissionsPage() {
   const [operationType, setOperationType] =
     useState<CommissionOperationType>("deposito");
   const { rules, setRules } = useCommissionRules();
+  const { operations } = useBusinessFunds();
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [ruleToDelete, setRuleToDelete] = useState<CommissionRule | null>(null);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
@@ -45,10 +46,10 @@ export function CommissionsPage() {
       rules.map((rule) => ({
         ...rule,
         hasBeenApplied:
-          hasCommissionRuleBeenApplied(rule.id, mockOperations) ||
+          hasCommissionRuleBeenApplied(rule.id, operations) ||
           demoAppliedCommissionRuleIds.has(rule.id),
       })),
-    [rules],
+    [rules, operations],
   );
 
   const scopedRules = useMemo(
@@ -191,14 +192,23 @@ export function CommissionsPage() {
     setRules((currentRules) =>
       currentRules.map((rule) =>
         rule.id === ruleToActivate.id
-          ? { ...rule, status: "active", validTo: undefined, updatedBy: "Owner" }
+          ? {
+              ...rule,
+              status: "active",
+              validTo: undefined,
+              updatedBy: "Owner",
+            }
           : rule,
       ),
     );
   }
 
   function confirmDeleteRule() {
-    if (!ruleToDelete || ruleToDelete.hasBeenApplied || ruleToDelete.replacedByRuleId) {
+    if (
+      !ruleToDelete ||
+      ruleToDelete.hasBeenApplied ||
+      ruleToDelete.replacedByRuleId
+    ) {
       return;
     }
 

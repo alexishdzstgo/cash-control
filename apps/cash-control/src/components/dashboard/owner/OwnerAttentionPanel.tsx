@@ -1,27 +1,44 @@
 "use client";
 
-import { Clock3, Pencil, AlertTriangle, ArrowRight, AlertOctagon } from "lucide-react";
+import {
+  AlertOctagon,
+  AlertTriangle,
+  ArrowRight,
+  Clock3,
+  Pencil,
+} from "lucide-react";
 import Link from "next/link";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import {
+  computeBankMovementAlertsFromBanks,
+  computeFinancialTotalsFromBalances,
+} from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
-import { computeFinancialTotals, computeBankMovementAlerts } from "@/lib/finance";
-import { mockOperations } from "@/components/history/mockOperations";
-import { editedOperations } from "./ownerDashboardMockData";
 
 export function OwnerAttentionPanel() {
-  const totals = computeFinancialTotals();
-  const bankAlerts = computeBankMovementAlerts();
-
-  const pendingWithdrawals = mockOperations.filter(
-    (operation) => operation.type === "retiro" && operation.status === "pendiente",
+  const { cash, banks, operations } = useBusinessFunds();
+  const totals = computeFinancialTotalsFromBalances({ cash, banks });
+  const bankAlerts = computeBankMovementAlertsFromBanks(banks);
+  const editedOperations = operations.filter(
+    (operation) => operation.isEdited === true,
   );
-  const pendingDeposits = mockOperations.filter(
-    (operation) => operation.type === "deposito" && operation.status === "pendiente",
+
+  const pendingWithdrawals = operations.filter(
+    (operation) =>
+      operation.type === "retiro" && operation.status === "pendiente",
+  );
+  const pendingDeposits = operations.filter(
+    (operation) =>
+      operation.type === "deposito" && operation.status === "pendiente",
   );
   const pendingWithdrawalsAmount = pendingWithdrawals.reduce(
     (sum, op) => sum + op.amount,
     0,
   );
-  const pendingDepositsAmount = pendingDeposits.reduce((sum, op) => sum + op.amount, 0);
+  const pendingDepositsAmount = pendingDeposits.reduce(
+    (sum, op) => sum + op.amount,
+    0,
+  );
 
   const items: Array<{
     id: string;
@@ -144,9 +161,14 @@ export function OwnerAttentionPanel() {
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {item.title}
                   </p>
-                  <p className="truncate text-xs text-slate-500">{item.detail}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    {item.detail}
+                  </p>
                 </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
+                <ArrowRight
+                  className="h-4 w-4 shrink-0 text-slate-300"
+                  aria-hidden="true"
+                />
               </Link>
             );
           })}

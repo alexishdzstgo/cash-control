@@ -213,9 +213,11 @@ function getAlertsForResource(
       threshold: resource.criticalBalanceThreshold,
       reason: "Saldo crítico.",
     });
-  } else if (
-    resource.balanceStatus === "warning" &&
-    resource.lowBalanceThreshold !== undefined
+  }
+
+  if (
+    resource.lowBalanceThreshold !== undefined &&
+    resource.available <= resource.lowBalanceThreshold
   ) {
     alerts.push({
       resourceId: resource.id,

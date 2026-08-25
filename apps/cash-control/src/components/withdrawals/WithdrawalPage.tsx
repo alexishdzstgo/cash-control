@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
-import { ReceiptPreviewDialog } from "@/components/receipts/ReceiptPreviewDialog";
 import { useReceiptPreferences } from "@/components/receipts/ReceiptPreferencesContext";
+import { ReceiptPreviewDialog } from "@/components/receipts/ReceiptPreviewDialog";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
@@ -26,11 +26,11 @@ import { WithdrawalSummary } from "./WithdrawalSummary";
 
 export function WithdrawalPage() {
   const { rules: commissionRules } = useCommissionRules();
-  const { registerClientOperation } = useBusinessFunds();
+  const { registerClientOperation, resetVersion } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
   const { businessIdentity, preferences } = useReceiptPreferences();
-  const [formData, setFormData] = useState<WithdrawalFormData>(() =>
-    initialWithdrawalFormData,
+  const [formData, setFormData] = useState<WithdrawalFormData>(
+    () => initialWithdrawalFormData,
   );
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -56,9 +56,7 @@ export function WithdrawalPage() {
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
   const commissionAmount = commission ?? 0;
-  const hasCommissionMode = isWithdrawalCommissionMode(
-    formData.commissionMode,
-  );
+  const hasCommissionMode = isWithdrawalCommissionMode(formData.commissionMode);
   const bankMovementAmount =
     formData.commissionMode === "deposited"
       ? amount + commissionAmount
@@ -82,6 +80,14 @@ export function WithdrawalPage() {
         hasCommissionRule: commissionCalculation !== null,
       })
     : {};
+
+  useEffect(() => {
+    if (resetVersion === 0) return;
+    setFormData(initialWithdrawalFormData);
+    setOperationError(null);
+    setShowValidationErrors(false);
+    setReceiptOperation(null);
+  }, [resetVersion]);
 
   function resetForm() {
     setFormData(initialWithdrawalFormData);
@@ -120,8 +126,7 @@ export function WithdrawalPage() {
         location: commissionMode === "deposited" ? "bank" : "cash",
         appliedAt: now,
       },
-      commissionLocation:
-        commissionMode === "deposited" ? "bank" : "cash",
+      commissionLocation: commissionMode === "deposited" ? "bank" : "cash",
       commissionStatus: "realized",
       senderName: formData.receiverName.trim(),
       receiverName: formData.receiverName.trim(),

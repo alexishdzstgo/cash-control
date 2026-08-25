@@ -9,7 +9,7 @@ export const mockCashClosingData: CashClosingData = {
     scheduledEndAt: "Hoy, 4:00 p. m.",
     currentDuration: "7 h 42 min",
   },
-  openingBalance: 5000,
+  openingBalance: 0,
   reservedCash: 0,
   movements: [],
 };

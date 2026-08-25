@@ -1,6 +1,9 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import type {
@@ -23,11 +26,17 @@ type EditableSection = "business" | "system" | "operation";
 const successDescription =
   "Los cambios se mantendrán en esta sesión mock y serán permanentes cuando el sistema esté conectado a la base de datos.";
 
+type SuccessState = {
+  title: string;
+  description: string;
+} | null;
+
 function buildFolioPreview(prefix: string, length: number, seed: number) {
   return `${prefix}-${String(seed).padStart(length, "0")}`;
 }
 
 export function SettingsPage() {
+  const { resetFinancialState } = useBusinessFunds();
   const [settings, setSettings] = useState<SettingsState>(initialSettingsState);
   const [editingSection, setEditingSection] = useState<EditableSection | null>(
     null,
@@ -41,7 +50,9 @@ export function SettingsPage() {
   const [operationDraft, setOperationDraft] = useState<OperationSettings>(
     initialSettingsState.operation,
   );
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [successState, setSuccessState] = useState<SuccessState>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   const dialogTitle = useMemo(() => {
     if (editingSection === "business") {
@@ -106,7 +117,20 @@ export function SettingsPage() {
       }));
     }
     setEditingSection(null);
-    setIsSuccessOpen(true);
+    setSuccessState({
+      title: "Configuración actualizada correctamente.",
+      description: successDescription,
+    });
+  }
+
+  function confirmResetFinancialState() {
+    resetFinancialState();
+    setIsResetConfirmOpen(false);
+    setSuccessState({
+      title: "Datos de prueba restablecidos.",
+      description:
+        "El módulo financiero volvió al estado inicial: caja, bancos, operaciones, pendientes, comisiones operadas y movimientos administrativos en cero.",
+    });
   }
 
   return (
@@ -132,6 +156,9 @@ export function SettingsPage() {
         <ModulesSummaryCard />
         <SecuritySettingsCard />
         <SystemInformationCard />
+        {isDevelopment && (
+          <DevelopmentToolsCard onReset={() => setIsResetConfirmOpen(true)} />
+        )}
       </div>
 
       <ConfigEditDialog
@@ -159,12 +186,48 @@ export function SettingsPage() {
       </ConfigEditDialog>
 
       <SuccessDialog
-        isOpen={isSuccessOpen}
-        title="Configuración actualizada correctamente."
-        description={successDescription}
-        onClose={() => setIsSuccessOpen(false)}
+        isOpen={successState !== null}
+        title={successState?.title ?? ""}
+        description={successState?.description ?? ""}
+        onClose={() => setSuccessState(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={isResetConfirmOpen}
+        title="Restablecer datos de prueba"
+        description="Esta acción dejará en cero caja, bancos, operaciones, pendientes, comisiones operadas y movimientos administrativos. No eliminará usuarios, bancos configurados, reglas ni configuración del sistema."
+        confirmLabel="Restablecer datos"
+        cancelLabel="Cancelar"
+        onConfirm={confirmResetFinancialState}
+        onCancel={() => setIsResetConfirmOpen(false)}
       />
     </>
+  );
+}
+
+function DevelopmentToolsCard({ onReset }: { onReset: () => void }) {
+  return (
+    <section className="rounded-xl border border-dashed border-slate-300 bg-white p-5 shadow-sm xl:col-span-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">
+            Herramientas de desarrollo
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            Restablece los datos operativos mock para iniciar una prueba desde
+            el Día 1.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 focus-visible:ring-offset-2"
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          Restablecer datos
+        </button>
+      </div>
+    </section>
   );
 }
 

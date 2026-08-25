@@ -1,14 +1,12 @@
-import type { ShiftParticipant } from "@/types/shift";
 import { activeShift } from "@/components/shifts/shiftsMockData";
-import { mockOperations } from "@/components/history/mockOperations";
+import type { ShiftParticipant } from "@/types/shift";
 
 /**
  * Datos de demostración para el Centro de Control del owner.
  *
  * Regla: NO duplicar fuentes de verdad existentes.
- * - Saldos: `balanceMockData` + `computeFinancialTotals()`.
+ * - Saldos y operaciones: `BusinessFundsContext`.
  * - Turno: `shiftsMockData` + `MockSessionContext`.
- * - Operaciones: `mockOperations`.
  *
  * Este archivo SOLO centraliza datos que aún no existen en otra fuente
  * y son necesarios para la demostración visual.
@@ -17,9 +15,7 @@ import { mockOperations } from "@/components/history/mockOperations";
 // ─────────────────────────────────────────────────────────────
 // Comisiones — aún no existe estructura real
 // ─────────────────────────────────────────────────────────────
-export type CommissionConfigStatus =
-  | "pending_configuration"
-  | "configured";
+export type CommissionConfigStatus = "pending_configuration" | "configured";
 
 export const commissionSettings: {
   status: CommissionConfigStatus;
@@ -62,7 +58,8 @@ export const employeeMetricsPlaceholder: {
   label: string;
 } = {
   status: "pending_db",
-  label: "Las métricas por empleado estarán disponibles al conectar la base de datos.",
+  label:
+    "Las métricas por empleado estarán disponibles al conectar la base de datos.",
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -104,7 +101,8 @@ export const pendingAdminActions: Array<{
 // ─────────────────────────────────────────────────────────────
 // Participantes de demostración del turno activo
 // ─────────────────────────────────────────────────────────────
-export const ownerShiftParticipants: ShiftParticipant[] = activeShift.participants;
+export const ownerShiftParticipants: ShiftParticipant[] =
+  activeShift.participants;
 
 // ─────────────────────────────────────────────────────────────
 // Datos derivados para el resumen de empleados
@@ -128,13 +126,6 @@ export const employeeActivityFromShift: EmployeeActivitySummary[] =
     shiftRole: participant.shiftRole,
     joinedAt: participant.joinedAt,
   }));
-
-// ─────────────────────────────────────────────────────────────
-// Auditoría: operaciones editadas derivadas de mockOperations
-// ─────────────────────────────────────────────────────────────
-export const editedOperations = mockOperations.filter(
-  (operation) => operation.isEdited === true,
-);
 
 // ─────────────────────────────────────────────────────────────
 // Nota visual de desarrollo para datos simulados

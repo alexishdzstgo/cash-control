@@ -1,34 +1,28 @@
 "use client";
 
-import {
-  Banknote,
-  CheckCircle2,
-  Eye,
-  ListChecks,
-} from "lucide-react";
+import { Banknote, CheckCircle2, Eye, ListChecks } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { OperationDetailsModal } from "@/components/history/OperationDetailsModal";
-import { mockOperations } from "@/components/history/mockOperations";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import {
-  formatCurrency,
-  formatDateTime,
-} from "@/lib/formatters";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { Operation } from "@/types/operation";
 
 export function PendingWithdrawalsPage() {
-  const [operations, setOperations] = useState<Operation[]>(mockOperations);
+  const { operations } = useBusinessFunds();
 
-  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
+    null,
+  );
 
-  const [operationToDeliver, setOperationToDeliver] = useState<Operation | null>(null);
+  const [operationToDeliver, setOperationToDeliver] =
+    useState<Operation | null>(null);
 
   const pendingWithdrawals = useMemo(() => {
     return operations
       .filter(
         (operation) =>
-          operation.type === "retiro" &&
-          operation.status === "pendiente",
+          operation.type === "retiro" && operation.status === "pendiente",
       )
       .sort(
         (firstOperation, secondOperation) =>
@@ -44,15 +38,7 @@ export function PendingWithdrawalsPage() {
     );
   }, [pendingWithdrawals]);
 
-  function markAsDelivered(operationId: string) {
-    setOperations((currentOperations) =>
-      currentOperations.map((operation) =>
-        operation.id === operationId
-          ? { ...operation, status: "entregado" }
-          : operation,
-      ),
-    );
-
+  function markAsDelivered(_operationId: string) {
     setOperationToDeliver(null);
   }
 
@@ -91,7 +77,10 @@ export function PendingWithdrawalsPage() {
 
             <tbody className="divide-y divide-slate-100">
               {pendingWithdrawals.map((operation) => (
-                <tr key={operation.id} className="bg-white transition-colors duration-200 hover:bg-slate-50/70">
+                <tr
+                  key={operation.id}
+                  className="bg-white transition-colors duration-200 hover:bg-slate-50/70"
+                >
                   <td className="px-4 py-3 font-mono font-medium tabular-nums text-slate-800">
                     {operation.bankFolio}
                   </td>
@@ -143,7 +132,10 @@ export function PendingWithdrawalsPage() {
 
               {pendingWithdrawals.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
+                  <td
+                    colSpan={7}
+                    className="px-4 py-12 text-center text-slate-500"
+                  >
                     No hay retiros pendientes de entrega.
                   </td>
                 </tr>
@@ -187,27 +179,16 @@ type SummaryCardProps = {
   icon: React.ReactNode;
 };
 
-function SummaryCard({
-  title,
-  value,
-  description,
-  icon,
-}: SummaryCardProps) {
+function SummaryCard({ title, value, description, icon }: SummaryCardProps) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-500">
-            {title}
-          </p>
+          <p className="text-sm font-medium text-slate-500">{title}</p>
 
-          <p className="mt-2 text-2xl font-bold text-slate-900">
-            {value}
-          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
 
-          <p className="mt-1 text-sm text-slate-500">
-            {description}
-          </p>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
 
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { mockOperations } from "@/components/history/mockOperations";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ModalShell } from "@/components/shared/ModalShell";
@@ -71,6 +71,7 @@ const filters: Array<{ value: UserFilter; label: string }> = [
 
 export function UsersPage() {
   const { getUserAvatar, participants } = useMockSession();
+  const { operations } = useBusinessFunds();
   const [users, setUsers] = useState<UserAccount[]>(initialUserAccounts);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
@@ -318,6 +319,7 @@ export function UsersPage() {
             onResetPassword={(user) =>
               setConfirmState({ type: "reset-password", user })
             }
+            operations={operations}
           />
         </div>
       </div>
@@ -517,6 +519,7 @@ function UserDetails({
   onEdit,
   onStatusChange,
   onResetPassword,
+  operations,
 }: {
   user: UserAccount | null;
   tab: DetailTab;
@@ -526,6 +529,7 @@ function UserDetails({
   onEdit: (user: UserAccount) => void;
   onStatusChange: (user: UserAccount) => void;
   onResetPassword: (user: UserAccount) => void;
+  operations: ReturnType<typeof useBusinessFunds>["operations"];
 }) {
   if (!user) {
     return (
@@ -536,8 +540,8 @@ function UserDetails({
   }
 
   const participation = getUserParticipation(user, participants);
-  const activities = getUserActivityEvents(user, mockOperations);
-  const stats = getUserStats(user, mockOperations, participants);
+  const activities = getUserActivityEvents(user, operations);
+  const stats = getUserStats(user, operations, participants);
 
   return (
     <aside className="rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-6 xl:self-start">

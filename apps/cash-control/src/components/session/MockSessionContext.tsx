@@ -226,23 +226,19 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getTransferSummary = useCallback(() => {
-    // Mock data for transfer summary
     return {
-      cashOnHand: 15000.0,
-      bankBalances: [
-        { bank: "BBVA", account: "****4521", balance: 8500.0 },
-        { bank: "Santander", account: "****7832", balance: 12300.0 },
-      ],
+      cashOnHand: 0,
+      bankBalances: [],
       pendingWithdrawals: {
-        count: 3,
-        total: 4500.0,
+        count: 0,
+        total: 0,
       },
       pendingDeposits: {
-        count: 2,
-        total: 6700.0,
+        count: 0,
+        total: 0,
       },
-      editedOperations: 1,
-      operationsSinceLastTransfer: 12,
+      editedOperations: 0,
+      operationsSinceLastTransfer: 0,
       transferTime: getCurrentTime(),
     };
   }, []);
