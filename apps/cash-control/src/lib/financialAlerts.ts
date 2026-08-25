@@ -7,7 +7,8 @@ import type {
 import { getBalanceHealth } from "@/lib/finance";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
-export const DEFAULT_LOW_BALANCE_THRESHOLD = 10000;
+export const DEFAULT_CRITICAL_BALANCE_THRESHOLD = 10000;
+export const DEFAULT_HEALTHY_BALANCE_THRESHOLD = 15000;
 export const DEFAULT_VISIBLE_MOVEMENT_LIMIT = 20;
 export const DEFAULT_MOVEMENT_WARNING_REMAINING = 5;
 
@@ -82,15 +83,15 @@ export function buildDefaultFinancialAlertConfig({
 }): FinancialAlertConfig {
   return {
     cash: {
-      lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-      criticalBalanceThreshold: cash.criticalBalanceThreshold,
+      lowBalanceThreshold: DEFAULT_HEALTHY_BALANCE_THRESHOLD,
+      criticalBalanceThreshold: DEFAULT_CRITICAL_BALANCE_THRESHOLD,
     },
     banks: Object.fromEntries(
       banks.map((bank) => [
         bank.id,
         {
-          lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-          criticalBalanceThreshold: bank.criticalBalanceThreshold,
+          lowBalanceThreshold: DEFAULT_HEALTHY_BALANCE_THRESHOLD,
+          criticalBalanceThreshold: DEFAULT_CRITICAL_BALANCE_THRESHOLD,
           visibleMovementTrackingEnabled:
             bank.visibleMovementTrackingEnabled === true,
           ...(bank.visibleMovementTrackingEnabled
@@ -122,9 +123,13 @@ export function getFinancialAlertsOverview({
   config?: FinancialAlertConfig;
 }): FinancialAlertsOverview {
   const cashLowBalanceThreshold =
-    config?.cash.lowBalanceThreshold ?? cash.lowBalanceThreshold;
+    config?.cash.lowBalanceThreshold ??
+    cash.lowBalanceThreshold ??
+    DEFAULT_HEALTHY_BALANCE_THRESHOLD;
   const cashCriticalBalanceThreshold =
-    config?.cash.criticalBalanceThreshold ?? cash.criticalBalanceThreshold;
+    config?.cash.criticalBalanceThreshold ??
+    cash.criticalBalanceThreshold ??
+    DEFAULT_CRITICAL_BALANCE_THRESHOLD;
   const cashHealth = getBalanceHealth({
     available: totals.cashAvailable,
     lowBalanceThreshold: cashLowBalanceThreshold,
@@ -157,9 +162,13 @@ export function getFinancialAlertsOverview({
         bankConfig.visibleMovementTrackingEnabled ??
         account?.visibleMovementTrackingEnabled === true;
       const lowBalanceThreshold =
-        bankConfig.lowBalanceThreshold ?? bank.lowBalanceThreshold;
+        bankConfig.lowBalanceThreshold ??
+        bank.lowBalanceThreshold ??
+        DEFAULT_HEALTHY_BALANCE_THRESHOLD;
       const criticalBalanceThreshold =
-        bankConfig.criticalBalanceThreshold ?? bank.criticalBalanceThreshold;
+        bankConfig.criticalBalanceThreshold ??
+        bank.criticalBalanceThreshold ??
+        DEFAULT_CRITICAL_BALANCE_THRESHOLD;
       const visibleMovementLimit = visibleMovementTrackingEnabled
         ? (bankConfig.visibleMovementLimit ?? account?.visibleMovementLimit)
         : undefined;

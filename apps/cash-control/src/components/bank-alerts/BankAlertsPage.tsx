@@ -222,9 +222,9 @@ function buildAttentionItems({
     const detail = isMovement
       ? `${alert.remainingVisibleMovements ?? 0} movimientos visibles restantes.`
       : showAmounts
-        ? `${formatCurrency(alert.available)} disponibles para operar. Mínimo configurado: ${
+        ? `${formatCurrency(alert.available)} disponibles para operar. ${
             alert.threshold !== undefined
-              ? formatCurrency(alert.threshold)
+              ? `${alert.type === "critical_balance" ? "Crítico" : "Saludable desde"}: ${formatCurrency(alert.threshold)}`
               : "No configurado"
           }.`
         : "Saldo disponible bajo para operar.";

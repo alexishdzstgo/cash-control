@@ -10,17 +10,17 @@ type BankAlertCardProps = {
 
 const statusConfig = {
   normal: {
-    label: "Correcto",
+    label: "Saldo saludable",
     badgeClass: alertToneStyles.success.badge,
     accentClass: alertToneStyles.success.accentBorder,
   },
   warning: {
-    label: "Atención",
+    label: "Saldo bajo",
     badgeClass: alertToneStyles.warning.badge,
     accentClass: alertToneStyles.warning.accentBorder,
   },
   critical: {
-    label: "Crítico",
+    label: "Saldo crítico",
     badgeClass: alertToneStyles.critical.badge,
     accentClass: alertToneStyles.critical.accentBorder,
   },
@@ -77,9 +77,15 @@ export function BankAlertCard({ resource, showAmounts }: BankAlertCardProps) {
         <Metric label="Estado" value={status.label} />
       </div>
 
-      {showAmounts && resource.lowBalanceThreshold !== undefined && (
+      {showAmounts &&
+        resource.criticalBalanceThreshold !== undefined &&
+        resource.lowBalanceThreshold !== undefined && (
         <p className="mt-4 rounded-lg bg-surface-neutral px-3 py-2 text-xs text-surface-text-secondary">
-          Mínimo configurado:{" "}
+          Crítico:{" "}
+          <span className="font-semibold text-surface-text-primary tabular-nums">
+            {formatCurrency(resource.criticalBalanceThreshold)}
+          </span>{" "}
+          · Saludable desde:{" "}
           <span className="font-semibold text-surface-text-primary tabular-nums">
             {formatCurrency(resource.lowBalanceThreshold)}
           </span>
@@ -103,7 +109,5 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function getRestrictedValue(status: FinancialResourceView["status"]): string {
-  if (status === "normal") return "Suficiente";
-  if (status === "critical") return "No usar sin revisión";
-  return "Saldo disponible bajo";
+  return statusConfig[status].label;
 }

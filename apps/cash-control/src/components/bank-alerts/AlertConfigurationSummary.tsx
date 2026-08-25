@@ -88,9 +88,26 @@ export function AlertConfigurationSummary({
               <h3 className="text-sm font-semibold uppercase text-surface-text-label">
                 Caja física
               </h3>
-              <div className="mt-4">
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <NumberField
-                  label="Avisarme cuando el disponible sea menor o igual a"
+                  label="Saldo crítico"
+                  helpText="Por debajo de esta cantidad el saldo se considera crítico."
+                  value={draft.cash.criticalBalanceThreshold ?? 0}
+                  prefix="$"
+                  error={errors.cashCriticalBalanceThreshold}
+                  onChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      cash: {
+                        ...current.cash,
+                        criticalBalanceThreshold: value,
+                      },
+                    }))
+                  }
+                />
+                <NumberField
+                  label="Saldo saludable"
+                  helpText="A partir de esta cantidad el saldo se considera saludable."
                   value={draft.cash.lowBalanceThreshold ?? 0}
                   prefix="$"
                   error={errors.cashLowBalanceThreshold}
@@ -118,11 +135,27 @@ export function AlertConfigurationSummary({
                     className={`mt-4 grid gap-4 ${
                       bankConfig.visibleMovementTrackingEnabled
                         ? "md:grid-cols-3"
-                        : "md:grid-cols-1"
+                        : "md:grid-cols-2"
                     }`}
                   >
                     <NumberField
-                      label="Saldo mínimo para operar"
+                      label="Saldo crítico"
+                      helpText="Por debajo de esta cantidad el saldo se considera crítico."
+                      value={bankConfig.criticalBalanceThreshold ?? 0}
+                      prefix="$"
+                      error={errors[`${bank.id}.criticalBalanceThreshold`]}
+                      onChange={(value) =>
+                        setBankValue({
+                          bankId: bank.id,
+                          key: "criticalBalanceThreshold",
+                          value,
+                          setDraft,
+                        })
+                      }
+                    />
+                    <NumberField
+                      label="Saldo saludable"
+                      helpText="A partir de esta cantidad el saldo se considera saludable."
                       value={bankConfig.lowBalanceThreshold ?? 0}
                       prefix="$"
                       error={errors[`${bank.id}.lowBalanceThreshold`]}
@@ -220,6 +253,7 @@ function NumberField({
         <input
           type="number"
           min="0"
+          step="0.01"
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           className="min-h-10 w-full rounded-lg bg-white px-3 text-sm font-semibold text-surface-text-primary outline-none"
@@ -263,15 +297,22 @@ function setBankValue({
 function validateConfig(config: FinancialAlertConfig): ValidationErrors {
   const errors: ValidationErrors = {};
 
-  if ((config.cash.lowBalanceThreshold ?? 0) < 0) {
-    errors.cashLowBalanceThreshold = "El saldo mínimo no puede ser negativo.";
-  }
+  validateBalanceThresholds({
+    critical: config.cash.criticalBalanceThreshold,
+    healthy: config.cash.lowBalanceThreshold,
+    criticalKey: "cashCriticalBalanceThreshold",
+    healthyKey: "cashLowBalanceThreshold",
+    errors,
+  });
 
   for (const [bankId, bankConfig] of Object.entries(config.banks)) {
-    if ((bankConfig.lowBalanceThreshold ?? 0) < 0) {
-      errors[`${bankId}.lowBalanceThreshold`] =
-        "El saldo mínimo no puede ser negativo.";
-    }
+    validateBalanceThresholds({
+      critical: bankConfig.criticalBalanceThreshold,
+      healthy: bankConfig.lowBalanceThreshold,
+      criticalKey: `${bankId}.criticalBalanceThreshold`,
+      healthyKey: `${bankId}.lowBalanceThreshold`,
+      errors,
+    });
 
     if (!bankConfig.visibleMovementTrackingEnabled) continue;
 
@@ -293,6 +334,40 @@ function validateConfig(config: FinancialAlertConfig): ValidationErrors {
   }
 
   return errors;
+}
+
+function validateBalanceThresholds({
+  critical,
+  healthy,
+  criticalKey,
+  healthyKey,
+  errors,
+}: {
+  critical?: number;
+  healthy?: number;
+  criticalKey: string;
+  healthyKey: string;
+  errors: ValidationErrors;
+}) {
+  const criticalValue = critical ?? 0;
+  const healthyValue = healthy ?? 0;
+
+  if (!Number.isFinite(criticalValue) || criticalValue < 0) {
+    errors[criticalKey] = "El saldo crítico debe ser un monto válido.";
+  }
+
+  if (!Number.isFinite(healthyValue) || healthyValue < 0) {
+    errors[healthyKey] = "El saldo saludable debe ser un monto válido.";
+  }
+
+  if (
+    errors[criticalKey] === undefined &&
+    errors[healthyKey] === undefined &&
+    healthyValue <= criticalValue
+  ) {
+    errors[healthyKey] =
+      "El saldo saludable debe ser mayor que el saldo crítico.";
+  }
 }
 
 function TrackingSwitch({

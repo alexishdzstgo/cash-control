@@ -342,9 +342,8 @@ export function getBalanceAlertStatus({
   criticalBalanceThreshold?: number;
 }): BalanceHealthStatus {
   if (
-    available <= 0 ||
-    (criticalBalanceThreshold !== undefined &&
-      available <= criticalBalanceThreshold)
+    criticalBalanceThreshold !== undefined &&
+    available < criticalBalanceThreshold
   ) {
     return "critical";
   }
