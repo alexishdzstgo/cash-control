@@ -14,6 +14,7 @@ import {
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
+import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import { buildReceiptData } from "@/lib/receipt";
 import type { Operation } from "@/types/operation";
 import {
@@ -23,6 +24,14 @@ import {
 } from "@/types/withdrawal";
 import { WithdrawalForm } from "./WithdrawalForm";
 import { WithdrawalSummary } from "./WithdrawalSummary";
+
+const withdrawalFieldOrder = [
+  "bankFolio",
+  "amount",
+  "bank",
+  "receiverName",
+  "commissionMode",
+] as const;
 
 export function WithdrawalPage() {
   const { rules: commissionRules } = useCommissionRules();
@@ -101,7 +110,23 @@ export function WithdrawalPage() {
       commissionCalculation === null ||
       !isWithdrawalCommissionMode(formData.commissionMode)
     ) {
+      const errors = getWithdrawalValidationErrors({
+        formData,
+        amount,
+        hasCommissionRule: commissionCalculation !== null,
+      });
       setShowValidationErrors(true);
+      focusFirstInvalidField({
+        errors,
+        fieldOrder: withdrawalFieldOrder,
+        fieldSelector: {
+          bankFolio: "#withdrawal-bank-folio",
+          amount: "#withdrawal-amount",
+          bank: "#withdrawal-bank",
+          receiverName: "#withdrawal-receiver",
+          commissionMode: '[data-validation-field="commissionMode"]',
+        },
+      });
       return;
     }
 

@@ -13,24 +13,24 @@ import { useFinancialAlerts } from "@/components/bank-alerts/FinancialAlertsCont
 const statusConfig = {
   normal: {
     icon: CheckCircle2,
-    borderClass: "border-emerald-200",
-    bgClass: "bg-emerald-50/50",
+    badgeClass: "bg-emerald-50 text-emerald-700",
+    accentClass: "bg-emerald-500",
     iconClass: "text-emerald-600",
-    titleClass: "text-emerald-900",
+    titleClass: "text-slate-950",
   },
   warning: {
     icon: AlertTriangle,
-    borderClass: "border-amber-200",
-    bgClass: "bg-amber-50/50",
+    badgeClass: "bg-amber-50 text-amber-700",
+    accentClass: "bg-amber-500",
     iconClass: "text-amber-600",
-    titleClass: "text-amber-900",
+    titleClass: "text-slate-950",
   },
   critical: {
     icon: AlertOctagon,
-    borderClass: "border-red-200",
-    bgClass: "bg-red-50/50",
+    badgeClass: "bg-red-50 text-red-700",
+    accentClass: "bg-red-500",
     iconClass: "text-red-600",
-    titleClass: "text-red-900",
+    titleClass: "text-slate-950",
   },
 };
 
@@ -72,21 +72,26 @@ export function CurrentStatusCard() {
 
   return (
     <section
-      className={`rounded-xl border ${config.borderClass} ${config.bgClass} p-5`}
+      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
       aria-label="Estado actual"
     >
+      <div className="mb-4 flex items-center gap-2">
+        <span
+          className={`h-2 w-2 rounded-full ${config.accentClass}`}
+          aria-hidden="true"
+        />
+        <p className="text-sm font-semibold text-slate-700">Estado actual</p>
+      </div>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ${config.iconClass}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${config.badgeClass}`}
           >
             <StatusIcon className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-700">
-              Estado actual
-            </p>
-            <h2 className={`mt-1 text-lg font-semibold ${config.titleClass}`}>
+            <h2 className={`text-lg font-semibold ${config.titleClass}`}>
               {title}
             </h2>
             <p className="mt-1 text-sm text-slate-600">{description}</p>

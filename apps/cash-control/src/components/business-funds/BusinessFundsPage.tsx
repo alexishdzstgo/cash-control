@@ -16,6 +16,10 @@ import {
   parseCurrencyToCents,
 } from "@/lib/administrativeMovements";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import {
+  focusFirstInvalidField,
+  getValidationFieldProps,
+} from "@/lib/formValidationFocus";
 import type {
   AdministrativeMovement,
   AdministrativeMovementFilters,
@@ -31,7 +35,7 @@ type FormState = {
   movementType: AdministrativeMovementType | "";
   resourceId: string;
   amount: string;
-  reasonMode: "preset" | "custom";
+  reasonMode: "" | "preset" | "custom";
   explanation: string;
   editReason: string;
 };
@@ -50,6 +54,14 @@ const defaultFilters: AdministrativeMovementFilters = {
   userName: "all",
   date: "",
 };
+
+const movementFormFieldOrder = [
+  "movementType",
+  "resourceId",
+  "amount",
+  "explanation",
+  "editReason",
+] as const;
 
 export function BusinessFundsPage() {
   const {
@@ -137,8 +149,8 @@ export function BusinessFundsPage() {
       movementType: "income",
       resourceId: "",
       amount: "",
-      reasonMode: "preset",
-      explanation: getDefaultMovementReason("income"),
+      reasonMode: "",
+      explanation: "",
       editReason: "",
     });
   }
@@ -183,6 +195,16 @@ export function BusinessFundsPage() {
     setFormError(validation.formError);
 
     if (!validation.isValid) {
+      focusFirstInvalidField({
+        errors: validation.errors,
+        fieldOrder: movementFormFieldOrder,
+        fieldSelector: {
+          explanation:
+            form.reasonMode === "custom"
+              ? "#business-funds-explanation"
+              : '[data-validation-field="explanation"]',
+        },
+      });
       return;
     }
 
@@ -202,9 +224,14 @@ export function BusinessFundsPage() {
 
     const parsedAmountCents = parseCurrencyToCents(form.amount);
     if (parsedAmountCents === null) {
-      setFormErrors({ amount: "Ingresa un monto valido." });
+      const errors: FormErrors = { amount: "Ingresa un monto valido." };
+      setFormErrors(errors);
       setFormError(null);
       setConfirming(false);
+      focusFirstInvalidField({
+        errors,
+        fieldOrder: movementFormFieldOrder,
+      });
       return;
     }
 
@@ -548,8 +575,12 @@ function validateForm({
   } else if (amountCents <= 0) {
     errors.amount = "El monto debe ser mayor que cero.";
   }
-  if (!form.explanation.trim()) {
-    errors.explanation = "Indica el motivo del movimiento.";
+  if (form.reasonMode === "") {
+    errors.explanation = "Selecciona un motivo.";
+  } else if (form.reasonMode === "custom" && !form.explanation.trim()) {
+    errors.explanation = "Este campo es obligatorio.";
+  } else if (!form.explanation.trim()) {
+    errors.explanation = "Selecciona un motivo.";
   }
   if (form.mode === "edit" && !form.editReason.trim()) {
     errors.editReason = "El motivo de correccion es obligatorio.";
@@ -735,7 +766,14 @@ function MovementForm({
           Tipo de movimiento
           <RequiredMark />
         </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <div
+          className="grid grid-cols-2 gap-2"
+          aria-invalid={formErrors.movementType ? true : undefined}
+          aria-describedby={
+            formErrors.movementType ? "business-funds-type-error" : undefined
+          }
+          {...getValidationFieldProps("movementType")}
+        >
           {(["income", "withdrawal"] as const).map((type) => {
             const isSelected = form.movementType === type;
 
@@ -752,8 +790,8 @@ function MovementForm({
                 onClick={() =>
                   onChange({
                     movementType: type,
-                    reasonMode: "preset",
-                    explanation: getDefaultMovementReason(type),
+                    reasonMode: "",
+                    explanation: "",
                   })
                 }
               >
@@ -763,7 +801,10 @@ function MovementForm({
           })}
         </div>
         {formErrors.movementType && (
-          <FieldError message={formErrors.movementType} />
+          <FieldError
+            id="business-funds-type-error"
+            message={formErrors.movementType}
+          />
         )}
       </fieldset>
 
@@ -776,6 +817,11 @@ function MovementForm({
           className="field-input"
           value={form.resourceId}
           onChange={(event) => onChange({ resourceId: event.target.value })}
+          aria-invalid={formErrors.resourceId ? true : undefined}
+          aria-describedby={
+            formErrors.resourceId ? "business-funds-resource-error" : undefined
+          }
+          {...getValidationFieldProps("resourceId")}
         >
           <option value="">Selecciona un recurso</option>
           {resources.map((resource) => (
@@ -785,22 +831,27 @@ function MovementForm({
           ))}
         </select>
         {formErrors.resourceId && (
-          <FieldError message={formErrors.resourceId} />
+          <FieldError
+            id="business-funds-resource-error"
+            message={formErrors.resourceId}
+          />
         )}
       </label>
 
-      <AmountField
-        id="business-funds-amount"
-        value={form.amount}
-        onChange={(amount) => onChange({ amount })}
-        label="Monto"
-        placeholder="0.00"
-        required
-        min={0}
-        step={0.01}
-        error={formErrors.amount}
-        labelClassName="cc-form-label"
-      />
+      <div {...getValidationFieldProps("amount")}>
+        <AmountField
+          id="business-funds-amount"
+          value={form.amount}
+          onChange={(amount) => onChange({ amount })}
+          label="Monto"
+          placeholder="0.00"
+          required
+          min={0}
+          step={0.01}
+          error={formErrors.amount}
+          labelClassName="cc-form-label"
+        />
+      </div>
 
       <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
         <ModalFinancialInfo
@@ -831,7 +882,16 @@ function MovementForm({
           Motivo del movimiento
           <RequiredMark />
         </legend>
-        <div className="grid grid-cols-2 gap-2">
+        <div
+          className="grid grid-cols-2 gap-2"
+          aria-invalid={formErrors.explanation ? true : undefined}
+          aria-describedby={
+            formErrors.explanation
+              ? "business-funds-explanation-error"
+              : undefined
+          }
+          {...getValidationFieldProps("explanation")}
+        >
           {getReasonOptions(form.movementType).map((option) => {
             const isSelected = form.reasonMode === option.value;
 
@@ -862,15 +922,26 @@ function MovementForm({
         </div>
         {form.reasonMode === "custom" && (
           <textarea
+            id="business-funds-explanation"
             className="field-input mt-3 resize-none"
             rows={3}
             value={form.explanation}
             placeholder="Describe brevemente por que aumenta o disminuye este saldo"
             onChange={(event) => onChange({ explanation: event.target.value })}
+            aria-invalid={formErrors.explanation ? true : undefined}
+            aria-describedby={
+              formErrors.explanation
+                ? "business-funds-explanation-error"
+                : undefined
+            }
+            {...getValidationFieldProps("explanation")}
           />
         )}
         {formErrors.explanation ? (
-          <FieldError message={formErrors.explanation} />
+          <FieldError
+            id="business-funds-explanation-error"
+            message={formErrors.explanation}
+          />
         ) : (
           <span className="mt-2 block text-sm text-slate-600">
             Este texto queda visible para auditoria y consultas futuras.
@@ -889,9 +960,19 @@ function MovementForm({
             rows={3}
             value={form.editReason}
             onChange={(event) => onChange({ editReason: event.target.value })}
+            aria-invalid={formErrors.editReason ? true : undefined}
+            aria-describedby={
+              formErrors.editReason
+                ? "business-funds-edit-reason-error"
+                : undefined
+            }
+            {...getValidationFieldProps("editReason")}
           />
           {formErrors.editReason && (
-            <FieldError message={formErrors.editReason} />
+            <FieldError
+              id="business-funds-edit-reason-error"
+              message={formErrors.editReason}
+            />
           )}
         </label>
       )}
@@ -1012,8 +1093,12 @@ function RequiredMark() {
   return <span className="ml-1 text-red-500">*</span>;
 }
 
-function FieldError({ message }: { message: string }) {
-  return <p className="mt-2 text-sm font-medium text-red-600">{message}</p>;
+function FieldError({ id, message }: { id?: string; message: string }) {
+  return (
+    <p id={id} className="mt-2 text-sm font-medium text-red-600">
+      {message}
+    </p>
+  );
 }
 
 function getMovementConfirmationDescription({
@@ -1055,7 +1140,7 @@ function isDefaultMovementReason(
 }
 
 function getReasonOptions(movementType: FormState["movementType"]): Array<{
-  value: FormState["reasonMode"];
+  value: Exclude<FormState["reasonMode"], "">;
   label: string;
 }> {
   return [

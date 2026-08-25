@@ -3,6 +3,7 @@
 import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
 import { PersonNameField } from "@/components/shared/PersonNameField";
+import { getValidationFieldProps } from "@/lib/formValidationFocus";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
@@ -74,9 +75,7 @@ export function WithdrawalForm({
         <div>
           <label htmlFor="withdrawal-bank-folio" className={labelClass}>
             Folio bancario
-            <span className="ml-1 text-red-500" aria-label="Campo obligatorio">
-              *
-            </span>
+            <span className="ml-1 text-red-500">*</span>
           </label>
           <input
             id="withdrawal-bank-folio"
@@ -133,12 +132,19 @@ export function WithdrawalForm({
           error={errors.receiverName}
         />
 
-        <fieldset className="md:col-span-2">
+        <fieldset
+          className="md:col-span-2"
+          aria-invalid={errors.commissionMode ? true : undefined}
+          aria-describedby={
+            errors.commissionMode
+              ? "withdrawal-commission-mode-error"
+              : undefined
+          }
+          {...getValidationFieldProps("commissionMode")}
+        >
           <legend className={labelClass}>
             Forma de cobrar la comision
-            <span className="ml-1 text-red-500" aria-label="Campo obligatorio">
-              *
-            </span>
+            <span className="ml-1 text-red-500">*</span>
           </legend>
           <div className="grid gap-3 lg:grid-cols-3">
             {commissionModeOptions.map((option) => {
@@ -169,7 +175,10 @@ export function WithdrawalForm({
             })}
           </div>
           {errors.commissionMode && (
-            <p className="mt-2 text-sm font-medium text-red-600">
+            <p
+              id="withdrawal-commission-mode-error"
+              className="mt-2 text-sm font-medium text-red-600"
+            >
               {errors.commissionMode}
             </p>
           )}
@@ -184,7 +193,9 @@ export function WithdrawalForm({
             id="withdrawal-observations"
             rows={3}
             value={formData.observations}
-            onChange={(event) => updateField("observations", event.target.value)}
+            onChange={(event) =>
+              updateField("observations", event.target.value)
+            }
             placeholder="Agrega alguna nota interna"
             className={inputClass}
           />

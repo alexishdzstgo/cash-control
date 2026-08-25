@@ -46,7 +46,7 @@ export function QuickActions() {
 
   if (!userHasActiveParticipation) {
     return (
-      <section>
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-900">
             Acciones rápidas
@@ -67,7 +67,7 @@ export function QuickActions() {
   }
 
   return (
-    <section>
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-slate-900">
           Acciones rápidas
@@ -78,36 +78,34 @@ export function QuickActions() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
 
-            return (
-              <Link
-                key={action.href}
-                href={action.href}
-                className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
-                  <Icon className="h-4 w-4" />
-                </div>
+          return (
+            <Link
+              key={action.href}
+              href={action.href}
+              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
+                <Icon className="h-4 w-4" />
+              </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {action.title}
-                  </p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  {action.title}
+                </p>
 
-                  <p className="truncate text-xs text-slate-500">
-                    {action.description}
-                  </p>
-                </div>
+                <p className="truncate text-xs text-slate-500">
+                  {action.description}
+                </p>
+              </div>
 
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" />
-              </Link>
-            );
-          })}
-        </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" />
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

@@ -12,12 +12,19 @@ import {
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
+import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import { type DepositFormData, initialDepositFormData } from "@/types/deposit";
 import type { Operation } from "@/types/operation";
 import { DepositForm } from "./DepositForm";
 import { DepositSummary } from "./DepositSummary";
 
 const FIRST_DEPOSIT_FOLIO = 1;
+const depositFieldOrder = [
+  "amount",
+  "receiverName",
+  "emissionBank",
+  "destinationAccountLast4",
+] as const;
 
 function buildDepositFolio(number: number): string {
   return `DEP-${number.toString().padStart(6, "0")}`;
@@ -94,7 +101,22 @@ export function DepositPage() {
 
   function handleRegister() {
     if (!isReadyToRegister || commissionCalculation === null) {
+      const errors = getDepositValidationErrors({
+        formData,
+        amount,
+        hasCommissionRule: commissionCalculation !== null,
+      });
       setShowValidationErrors(true);
+      focusFirstInvalidField({
+        errors,
+        fieldOrder: depositFieldOrder,
+        fieldSelector: {
+          amount: "#deposit-amount",
+          receiverName: "#deposit-receiver",
+          emissionBank: "#deposit-bank",
+          destinationAccountLast4: "#deposit-account-last-4",
+        },
+      });
       return;
     }
 

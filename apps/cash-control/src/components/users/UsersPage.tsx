@@ -19,6 +19,10 @@ import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
+  focusFirstInvalidField,
+  getValidationFieldProps,
+} from "@/lib/formValidationFocus";
+import {
   filterUsers,
   generateTemporaryPassword,
   getLastLoginLabel,
@@ -51,6 +55,10 @@ type UserFormState = {
   internalNotes: string;
 };
 
+type UserFormErrors = Partial<
+  Record<"firstName" | "lastName" | "username", string>
+>;
+
 const emptyForm: UserFormState = {
   firstName: "",
   lastName: "",
@@ -60,6 +68,8 @@ const emptyForm: UserFormState = {
   temporaryPassword: "",
   internalNotes: "",
 };
+
+const userFormFieldOrder = ["firstName", "lastName", "username"] as const;
 
 const filters: Array<{ value: UserFilter; label: string }> = [
   { value: "all", label: "Todos" },
@@ -87,6 +97,7 @@ export function UsersPage() {
     ...emptyForm,
     temporaryPassword: generateTemporaryPassword(),
   });
+  const [formErrors, setFormErrors] = useState<UserFormErrors>({});
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [domainMessage, setDomainMessage] = useState<string | null>(null);
   const [passwordResult, setPasswordResult] = useState<{
@@ -110,6 +121,7 @@ export function UsersPage() {
     setFormStep(1);
     setEditingUserId(null);
     setForm({ ...emptyForm, temporaryPassword: generateTemporaryPassword() });
+    setFormErrors({});
     setIsFormOpen(true);
   }
 
@@ -118,6 +130,7 @@ export function UsersPage() {
     setFormMode("edit");
     setFormStep(1);
     setEditingUserId(user.id);
+    setFormErrors({});
     setForm({
       firstName: user.firstName,
       lastName: user.lastName,
@@ -131,12 +144,18 @@ export function UsersPage() {
   }
 
   function submitForm() {
-    if (
-      !form.firstName.trim() ||
-      !form.lastName.trim() ||
-      !form.username.trim()
-    ) {
-      setDomainMessage("Completa nombre, apellidos y usuario.");
+    const errors = getUserFormErrors(form);
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      setDomainMessage(null);
+      if (errors.firstName || errors.lastName) {
+        setFormStep(1);
+      }
+      focusFirstInvalidField({
+        errors,
+        fieldOrder: userFormFieldOrder,
+      });
       return;
     }
 
@@ -190,6 +209,27 @@ export function UsersPage() {
 
     setIsFormOpen(false);
     setDomainMessage(null);
+    setFormErrors({});
+  }
+
+  function continueUserForm() {
+    const errors = getUserFormErrors(form);
+    const stepErrors: UserFormErrors = {
+      ...(errors.firstName ? { firstName: errors.firstName } : {}),
+      ...(errors.lastName ? { lastName: errors.lastName } : {}),
+    };
+
+    if (Object.keys(stepErrors).length > 0) {
+      setFormErrors(stepErrors);
+      focusFirstInvalidField({
+        errors: stepErrors,
+        fieldOrder: userFormFieldOrder,
+      });
+      return;
+    }
+
+    setFormErrors({});
+    setFormStep(2);
   }
 
   function requestStatusChange(user: UserAccount) {
@@ -329,16 +369,24 @@ export function UsersPage() {
         mode={formMode}
         step={formStep}
         form={form}
+        errors={formErrors}
         message={domainMessage}
-        onStepChange={setFormStep}
+        onStepChange={(step) => {
+          setFormErrors({});
+          setFormStep(step);
+        }}
         onChange={(updates) =>
-          setForm((current) => ({ ...current, ...updates }))
+          setForm((current) => {
+            setFormErrors({});
+            return { ...current, ...updates };
+          })
         }
         onClose={() => {
           setIsFormOpen(false);
           setDomainMessage(null);
         }}
         onSubmit={submitForm}
+        onContinue={continueUserForm}
       />
 
       <ConfirmDialog
@@ -717,21 +765,25 @@ function UserFormPanel({
   mode,
   step,
   form,
+  errors,
   message,
   onStepChange,
   onChange,
   onClose,
   onSubmit,
+  onContinue,
 }: {
   isOpen: boolean;
   mode: FormMode;
   step: 1 | 2;
   form: UserFormState;
+  errors: UserFormErrors;
   message: string | null;
   onStepChange: (step: 1 | 2) => void;
   onChange: (updates: Partial<UserFormState>) => void;
   onClose: () => void;
   onSubmit: () => void;
+  onContinue: () => void;
 }) {
   if (!isOpen) return null;
 
@@ -752,11 +804,7 @@ function UserFormPanel({
             Cancelar
           </button>
           {step === 1 ? (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => onStepChange(2)}
-            >
+            <button type="button" className="btn-primary" onClick={onContinue}>
               Continuar
             </button>
           ) : (
@@ -785,14 +833,20 @@ function UserFormPanel({
       {step === 1 ? (
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
+            id="user-first-name"
             label="Nombre"
             value={form.firstName}
             onChange={(firstName) => onChange({ firstName })}
+            error={errors.firstName}
+            validationField="firstName"
           />
           <TextField
+            id="user-last-name"
             label="Apellidos"
             value={form.lastName}
             onChange={(lastName) => onChange({ lastName })}
+            error={errors.lastName}
+            validationField="lastName"
           />
           <SelectField
             label="Rol"
@@ -809,11 +863,15 @@ function UserFormPanel({
       ) : (
         <div className="grid gap-4">
           <TextField
+            id="user-username"
             label="Usuario"
             value={form.username}
             onChange={(username) => onChange({ username })}
+            error={errors.username}
+            validationField="username"
           />
           <TextField
+            id="user-temporary-password"
             label="Contrasena temporal"
             value={form.temporaryPassword}
             onChange={(temporaryPassword) => onChange({ temporaryPassword })}
@@ -971,27 +1029,45 @@ function StatBox({ label, value }: { label: string; value: number | null }) {
 }
 
 function TextField({
+  id,
   label,
   value,
   onChange,
   disabled = false,
+  error,
+  validationField,
 }: {
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  error?: string;
+  validationField?: keyof UserFormErrors;
 }) {
+  const inputId = id ?? `user-field-${label}`;
+  const errorId = `${inputId}-error`;
+
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-semibold text-slate-700">
         {label}
       </span>
       <input
+        id={inputId}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className="field-input"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        {...(validationField ? getValidationFieldProps(validationField) : {})}
       />
+      {error && (
+        <p id={errorId} className="mt-2 text-sm font-medium text-red-600">
+          {error}
+        </p>
+      )}
     </label>
   );
 }
@@ -1086,6 +1162,21 @@ function PasswordResultDialog({
     </ModalShell>
   );
 }
+
+function getUserFormErrors(form: UserFormState): UserFormErrors {
+  return {
+    ...(form.firstName.trim() === ""
+      ? { firstName: "Este campo es obligatorio." }
+      : {}),
+    ...(form.lastName.trim() === ""
+      ? { lastName: "Este campo es obligatorio." }
+      : {}),
+    ...(form.username.trim() === ""
+      ? { username: "Este campo es obligatorio." }
+      : {}),
+  };
+}
+
 function getConfirmTitle(confirmState: ConfirmState): string {
   if (!confirmState) return "";
   if (confirmState.type === "reset-password") return "Restablecer contraseña";

@@ -7,6 +7,10 @@ import {
   parseCurrencyToCents,
   validateCommissionRuleCandidate,
 } from "@/lib/commission";
+import {
+  focusFirstInvalidField,
+  getValidationFieldProps,
+} from "@/lib/formValidationFocus";
 import type {
   CommissionOperationType,
   CommissionRule,
@@ -33,6 +37,13 @@ type CommissionRuleDialogProps = {
   onSave: (result: CommissionRuleFormResult) => void;
 };
 
+const commissionFieldOrder = [
+  "minAmount",
+  "maxAmount",
+  "fixedAmount",
+  "reason",
+] as const;
+
 export function CommissionRuleDialog({
   mode,
   rule,
@@ -51,6 +62,7 @@ export function CommissionRuleDialog({
     status: rule?.status ?? "active",
     reason: "",
   }));
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const initialFormStateRef = useRef(formState);
 
   const isDirty =
@@ -121,6 +133,20 @@ export function CommissionRuleDialog({
       : { errors: [], warnings: [] };
 
   const errors = [...parseErrors, ...validation.errors];
+  const fieldErrors = {
+    ...(parsed.minAmountCents === null
+      ? { minAmount: "Ingresa un monto válido." }
+      : {}),
+    ...(!formState.hasNoMax && parsed.maxAmountCents === null
+      ? { maxAmount: "Ingresa un monto válido." }
+      : {}),
+    ...(parsed.fixedAmountCents === null
+      ? { fixedAmount: "Ingresa un monto válido." }
+      : {}),
+    ...(formState.reason.trim() === "" && mode !== "view"
+      ? { reason: "Este campo es obligatorio." }
+      : {}),
+  };
   const canSave = !isReadOnly && errors.length === 0;
   const title =
     mode === "add"
@@ -151,8 +177,15 @@ export function CommissionRuleDialog({
           {!isReadOnly && (
             <button
               type="button"
-              disabled={!canSave}
               onClick={() => {
+                setHasAttemptedSubmit(true);
+                if (!canSave) {
+                  focusFirstInvalidField({
+                    errors: fieldErrors,
+                    fieldOrder: commissionFieldOrder,
+                  });
+                  return;
+                }
                 if (
                   parsed.minAmountCents === null ||
                   parsed.fixedAmountCents === null
@@ -168,7 +201,7 @@ export function CommissionRuleDialog({
                   reason: formState.reason,
                 });
               }}
-              className="btn-primary disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
+              className="btn-primary"
             >
               Guardar
             </button>
@@ -211,8 +244,13 @@ export function CommissionRuleDialog({
           </select>
         </Field>
 
-        <Field label="Monto minimo">
+        <Field
+          label="Monto minimo"
+          error={hasAttemptedSubmit ? fieldErrors.minAmount : undefined}
+          validationField="minAmount"
+        >
           <input
+            id="commission-min-amount"
             type="text"
             value={formState.minAmount}
             disabled={isReadOnly}
@@ -221,11 +259,24 @@ export function CommissionRuleDialog({
             }
             className={inputClass}
             placeholder="15.00"
+            aria-invalid={
+              hasAttemptedSubmit && fieldErrors.minAmount ? true : undefined
+            }
+            aria-describedby={
+              hasAttemptedSubmit && fieldErrors.minAmount
+                ? "commission-minAmount-error"
+                : undefined
+            }
           />
         </Field>
 
-        <Field label="Monto maximo">
+        <Field
+          label="Monto maximo"
+          error={hasAttemptedSubmit ? fieldErrors.maxAmount : undefined}
+          validationField="maxAmount"
+        >
           <input
+            id="commission-max-amount"
             type="text"
             value={formState.maxAmount}
             disabled={isReadOnly || formState.hasNoMax}
@@ -234,6 +285,14 @@ export function CommissionRuleDialog({
             }
             className={inputClass}
             placeholder="50.99"
+            aria-invalid={
+              hasAttemptedSubmit && fieldErrors.maxAmount ? true : undefined
+            }
+            aria-describedby={
+              hasAttemptedSubmit && fieldErrors.maxAmount
+                ? "commission-maxAmount-error"
+                : undefined
+            }
           />
           <label className="mt-2 flex items-center gap-2 text-xs font-medium text-slate-500">
             <input
@@ -252,8 +311,13 @@ export function CommissionRuleDialog({
           </label>
         </Field>
 
-        <Field label="Comision fija">
+        <Field
+          label="Comision fija"
+          error={hasAttemptedSubmit ? fieldErrors.fixedAmount : undefined}
+          validationField="fixedAmount"
+        >
           <input
+            id="commission-fixed-amount"
             type="text"
             value={formState.fixedAmount}
             disabled={isReadOnly}
@@ -262,12 +326,25 @@ export function CommissionRuleDialog({
             }
             className={inputClass}
             placeholder="5.00"
+            aria-invalid={
+              hasAttemptedSubmit && fieldErrors.fixedAmount ? true : undefined
+            }
+            aria-describedby={
+              hasAttemptedSubmit && fieldErrors.fixedAmount
+                ? "commission-fixedAmount-error"
+                : undefined
+            }
           />
         </Field>
 
         <div className="md:col-span-2">
-          <Field label="Motivo del cambio">
+          <Field
+            label="Motivo del cambio"
+            error={hasAttemptedSubmit ? fieldErrors.reason : undefined}
+            validationField="reason"
+          >
             <textarea
+              id="commission-reason"
               rows={3}
               value={formState.reason}
               disabled={isReadOnly}
@@ -276,12 +353,20 @@ export function CommissionRuleDialog({
               }
               className={inputClass}
               placeholder="Describe por que se modifica esta regla"
+              aria-invalid={
+                hasAttemptedSubmit && fieldErrors.reason ? true : undefined
+              }
+              aria-describedby={
+                hasAttemptedSubmit && fieldErrors.reason
+                  ? "commission-reason-error"
+                  : undefined
+              }
             />
           </Field>
         </div>
       </div>
 
-      {errors.length > 0 && !isReadOnly && (
+      {errors.length > 0 && !isReadOnly && hasAttemptedSubmit && (
         <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
           <ul className="space-y-1 text-sm text-red-700">
             {errors.map((error, index) => (
@@ -303,16 +388,29 @@ export function CommissionRuleDialog({
 function Field({
   label,
   children,
+  error,
+  validationField,
 }: {
   label: string;
   children: React.ReactNode;
+  error?: string;
+  validationField?: (typeof commissionFieldOrder)[number];
 }) {
+  const errorId = validationField
+    ? `commission-${validationField}-error`
+    : undefined;
+
   return (
-    <div>
+    <div {...(validationField ? getValidationFieldProps(validationField) : {})}>
       <div className="cc-form-label mb-2 block text-sm font-semibold">
         {label}
       </div>
       {children}
+      {error && (
+        <p id={errorId} className="mt-2 text-sm font-medium text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

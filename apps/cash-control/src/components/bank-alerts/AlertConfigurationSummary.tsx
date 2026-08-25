@@ -7,6 +7,10 @@ import type {
   FinancialAlertConfig,
   FinancialResourceView,
 } from "@/lib/financialAlerts";
+import {
+  focusFirstInvalidField,
+  getValidationFieldProps,
+} from "@/lib/formValidationFocus";
 
 type AlertConfigurationSummaryProps = {
   resources: FinancialResourceView[];
@@ -37,7 +41,13 @@ export function AlertConfigurationSummary({
   function saveConfiguration() {
     const nextErrors = validateConfig(draft);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstInvalidField({
+        errors: nextErrors,
+        fieldOrder: getAlertConfigFieldOrder(banks),
+      });
+      return;
+    }
 
     onSave(draft);
     setIsOpen(false);
@@ -90,6 +100,7 @@ export function AlertConfigurationSummary({
               </h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <NumberField
+                  validationKey="cashCriticalBalanceThreshold"
                   label="Saldo crítico"
                   helpText="Por debajo de esta cantidad el saldo se considera crítico."
                   value={draft.cash.criticalBalanceThreshold ?? 0}
@@ -106,6 +117,7 @@ export function AlertConfigurationSummary({
                   }
                 />
                 <NumberField
+                  validationKey="cashLowBalanceThreshold"
                   label="Saldo saludable"
                   helpText="A partir de esta cantidad el saldo se considera saludable."
                   value={draft.cash.lowBalanceThreshold ?? 0}
@@ -139,6 +151,7 @@ export function AlertConfigurationSummary({
                     }`}
                   >
                     <NumberField
+                      validationKey={`${bank.id}.criticalBalanceThreshold`}
                       label="Saldo crítico"
                       helpText="Por debajo de esta cantidad el saldo se considera crítico."
                       value={bankConfig.criticalBalanceThreshold ?? 0}
@@ -154,6 +167,7 @@ export function AlertConfigurationSummary({
                       }
                     />
                     <NumberField
+                      validationKey={`${bank.id}.lowBalanceThreshold`}
                       label="Saldo saludable"
                       helpText="A partir de esta cantidad el saldo se considera saludable."
                       value={bankConfig.lowBalanceThreshold ?? 0}
@@ -186,6 +200,7 @@ export function AlertConfigurationSummary({
                     {bankConfig.visibleMovementTrackingEnabled && (
                       <>
                         <NumberField
+                          validationKey={`${bank.id}.visibleMovementLimit`}
                           label="Límite de movimientos visibles"
                           helpText="Máximo de movimientos que la app del banco permite consultar."
                           value={bankConfig.visibleMovementLimit ?? 0}
@@ -200,6 +215,7 @@ export function AlertConfigurationSummary({
                           }
                         />
                         <NumberField
+                          validationKey={`${bank.id}.movementWarningRemaining`}
                           label="Avisar cuando queden"
                           helpText="Genera una alerta cuando resten esta cantidad de movimientos antes de llegar al límite."
                           value={bankConfig.movementWarningRemaining ?? 0}
@@ -227,6 +243,7 @@ export function AlertConfigurationSummary({
 }
 
 function NumberField({
+  validationKey,
   label,
   value,
   onChange,
@@ -234,6 +251,7 @@ function NumberField({
   prefix,
   helpText,
 }: {
+  validationKey: string;
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -241,10 +259,18 @@ function NumberField({
   prefix?: string;
   helpText?: string;
 }) {
+  const errorId = `${validationKey.replaceAll(".", "-")}-error`;
+
   return (
-    <label className="block">
+    <label className="block" {...getValidationFieldProps(validationKey)}>
       <span className="cc-form-label text-sm font-semibold">{label}</span>
-      <div className="mt-2 flex items-center rounded-lg border border-surface-border bg-white focus-within:border-primary-blue focus-within:ring-3 focus-within:ring-primary-blue/15">
+      <div
+        className={`mt-2 flex items-center rounded-lg border bg-white focus-within:ring-3 ${
+          error
+            ? "border-red-300 focus-within:border-red-500 focus-within:ring-red-500/15"
+            : "border-surface-border focus-within:border-primary-blue focus-within:ring-primary-blue/15"
+        }`}
+      >
         {prefix && (
           <span className="pl-3 text-sm font-semibold text-surface-text-secondary">
             {prefix}
@@ -257,10 +283,14 @@ function NumberField({
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           className="min-h-10 w-full rounded-lg bg-white px-3 text-sm font-semibold text-surface-text-primary outline-none"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
         />
       </div>
       {error && (
-        <p className="mt-1 text-xs font-medium text-red-600">{error}</p>
+        <p id={errorId} className="mt-1 text-xs font-medium text-red-600">
+          {error}
+        </p>
       )}
       {helpText && !error && (
         <p className="mt-1 text-xs leading-5 text-surface-text-secondary">
@@ -269,6 +299,21 @@ function NumberField({
       )}
     </label>
   );
+}
+
+function getAlertConfigFieldOrder(
+  banks: FinancialResourceView[],
+): readonly string[] {
+  return [
+    "cashCriticalBalanceThreshold",
+    "cashLowBalanceThreshold",
+    ...banks.flatMap((bank) => [
+      `${bank.id}.criticalBalanceThreshold`,
+      `${bank.id}.lowBalanceThreshold`,
+      `${bank.id}.visibleMovementLimit`,
+      `${bank.id}.movementWarningRemaining`,
+    ]),
+  ];
 }
 
 function setBankValue({
