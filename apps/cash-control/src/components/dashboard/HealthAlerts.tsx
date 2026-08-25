@@ -130,7 +130,7 @@ export function HealthAlerts() {
         {operationalAlerts.map((alert) => (
           <div
             key={alert.id}
-            className="rounded-xl border border-amber-200 bg-amber-50 p-5"
+            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             {alert.content}
           </div>
