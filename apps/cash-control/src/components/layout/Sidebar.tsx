@@ -4,6 +4,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useFinancialAlerts } from "@/components/bank-alerts/FinancialAlertsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import {
   getNavigationForRole,
@@ -15,6 +16,7 @@ const SIDEBAR_STORAGE_KEY = "cash-control:sidebar-collapsed";
 export function Sidebar() {
   const pathname = usePathname();
   const { authenticatedUser } = useMockSession();
+  const { overview } = useFinancialAlerts();
   const [collapsed, setCollapsed] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
 
@@ -41,6 +43,15 @@ export function Sidebar() {
 
   const role = authenticatedUser?.systemRole ?? "employee";
   const groups = getNavigationForRole(role);
+  const alertBadge: { count: number; severity: "warning" | "critical" } | undefined =
+    overview.activeAlerts > 0
+      ? {
+          count: overview.activeAlerts,
+          severity: overview.alerts.some((alert) => alert.severity === "critical")
+            ? "critical"
+            : "warning",
+        }
+      : undefined;
 
   return (
     <aside
@@ -109,6 +120,9 @@ export function Sidebar() {
                     item={item}
                     pathname={pathname}
                     collapsed={collapsed}
+                    alertBadge={
+                      item.href === "/bank-alerts" ? alertBadge : undefined
+                    }
                   />
                 ))}
               </ul>
@@ -124,10 +138,12 @@ function SidebarNavItem({
   item,
   pathname,
   collapsed,
+  alertBadge,
 }: {
   item: NavigationItem;
   pathname: string;
   collapsed: boolean;
+  alertBadge?: { count: number; severity: "warning" | "critical" };
 }) {
   const Icon = item.icon;
 
@@ -195,7 +211,7 @@ function SidebarNavItem({
           }`}
         />
         <span
-          className={`truncate whitespace-nowrap transition-all duration-200 ease-in-out ${
+          className={`min-w-0 flex-1 truncate whitespace-nowrap transition-all duration-200 ease-in-out ${
             collapsed
               ? "pointer-events-none max-w-0 opacity-0 delay-0 translate-x-[6px]"
               : "max-w-full opacity-100 delay-100 translate-x-0"
@@ -203,6 +219,22 @@ function SidebarNavItem({
         >
           {item.label}
         </span>
+        {alertBadge && (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold leading-none ${
+              alertBadge.severity === "critical"
+                ? "bg-red-500 text-white"
+                : "bg-amber-400 text-slate-950"
+            } ${
+              collapsed
+                ? "absolute right-2 top-2 min-w-[1.125rem] px-1.5"
+                : "min-w-[1.375rem] text-center"
+            }`}
+            aria-label={`${alertBadge.count} alertas activas`}
+          >
+            {alertBadge.count}
+          </span>
+        )}
       </Link>
     </li>
   );

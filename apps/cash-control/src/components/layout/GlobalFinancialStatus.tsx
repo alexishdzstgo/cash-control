@@ -2,14 +2,10 @@
 
 import { Landmark } from "lucide-react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
-import {
-  type BankBreakdownItem,
-  computeBankMovementAlertsFromBanks,
-  computeFinancialTotalsFromBalances,
-} from "@/lib/finance";
+import { useFinancialAlerts } from "@/components/bank-alerts/FinancialAlertsContext";
+import { computeFinancialTotalsFromBalances } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  attentionReasonToDetail,
   type FinancialAlert,
   FinancialAlertsPopover,
 } from "./FinancialAlertsPopover";
@@ -20,46 +16,19 @@ import { FinancialSummaryPopover } from "./FinancialSummaryPopover";
 export function GlobalFinancialStatus() {
   const { cash, banks } = useBusinessFunds();
   const totals = computeFinancialTotalsFromBalances({ cash, banks });
-  const bankAlerts = computeBankMovementAlertsFromBanks(banks).filter(
-    (alert) => alert.isAtLimit || alert.isNearLimit,
-  );
-
-  // Build consolidated alerts from balance health + movement limits
-  const alerts: FinancialAlert[] = [];
-
-  // Caja balance alert
-  if (totals.cashIsLow || totals.cashIsCritical) {
-    const status = totals.cashBalanceStatus;
-    alerts.push({
-      id: "cash-balance",
-      title: "Caja física",
-      detail:
-        status === "critical"
-          ? `Saldo crítico: ${formatCurrency(totals.cashAvailable)}`
-          : `Saldo disponible bajo: ${formatCurrency(totals.cashAvailable)}`,
-      severity: status === "critical" ? "critical" : "warning",
-      icon: "balance",
-    });
-  }
-
-  // Bank alerts from attentionReasons (combined status)
-  for (const bank of totals.bankBreakdown) {
-    for (const reason of bank.attentionReasons) {
-      const movementAlert = bankAlerts.find((a) => a.bankId === bank.bankId);
-      const { detail, severity, icon } = attentionReasonToDetail(reason, {
-        bankName: bank.bankName,
-        available: bank.available,
-        remainingMovements: movementAlert?.remainingVisibleMovements,
-      });
-      alerts.push({
-        id: `${bank.bankId}-${reason}`,
-        title: bank.bankName,
-        detail,
-        severity,
-        icon,
-      });
-    }
-  }
+  const { overview } = useFinancialAlerts();
+  const cashResource = overview.resources.find((resource) => resource.id === "cash");
+  const alerts: FinancialAlert[] = overview.alerts.map((alert) => ({
+    id: `${alert.resourceId}-${alert.type}`,
+    title: alert.resourceName,
+    detail: getFinancialAlertDetail(alert),
+    severity: alert.severity,
+    icon:
+      alert.type === "movement_limit_reached" ||
+      alert.type === "movement_limit_warning"
+        ? "movement"
+        : "balance",
+  }));
 
   // Sort: critical first, then warning
   const sortedAlerts = [...alerts].sort((a, b) => {
@@ -67,7 +36,9 @@ export function GlobalFinancialStatus() {
     return a.severity === "critical" ? -1 : 1;
   });
 
-  const bankItems = totals.bankBreakdown;
+  const bankItems = overview.resources.filter(
+    (resource) => resource.type === "bank",
+  );
 
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -82,15 +53,15 @@ export function GlobalFinancialStatus() {
         <FinancialStatusItem
           label="Caja"
           value={totals.cashAvailable}
-          status={totals.cashBalanceStatus}
+          status={cashResource?.status ?? totals.cashBalanceStatus}
         />
         <Divider />
         {bankItems.map((bank) => (
           <FinancialStatusItem
-            key={bank.bankId}
-            label={bank.bankName}
+            key={bank.id}
+            label={bank.name}
             value={bank.available}
-            status={bank.resourceStatus}
+            status={bank.status}
           />
         ))}
         <Divider />
@@ -108,7 +79,7 @@ export function GlobalFinancialStatus() {
         <FinancialStatusItem
           label="Caja"
           value={totals.cashAvailable}
-          status={totals.cashBalanceStatus}
+          status={cashResource?.status ?? totals.cashBalanceStatus}
         />
         <Divider />
         <BanksPopover bankItems={bankItems} />
@@ -134,7 +105,17 @@ export function GlobalFinancialStatus() {
   );
 }
 
-function BanksPopover({ bankItems }: { bankItems: BankBreakdownItem[] }) {
+function BanksPopover({
+  bankItems,
+}: {
+  bankItems: Array<{
+    id: string;
+    name: string;
+    available: number;
+    reserved: number;
+    status: "normal" | "warning" | "critical";
+  }>;
+}) {
   const button = (
     <span className="flex items-center gap-1.5">
       <Landmark className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
@@ -151,23 +132,23 @@ function BanksPopover({ bankItems }: { bankItems: BankBreakdownItem[] }) {
     >
       <div className="space-y-1">
         {bankItems.map((bank) => {
-          const style = STATUS_STYLES[bank.resourceStatus];
-          const labelText = STATUS_LABELS[bank.resourceStatus];
+          const style = STATUS_STYLES[bank.status];
+          const labelText = STATUS_LABELS[bank.status];
           return (
             <div
-              key={bank.bankId}
+              key={bank.id}
               className={`flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-slate-50 ${style.bgClass ?? ""}`}
             >
               <div>
                 <div className="flex items-center gap-1.5">
-                  {bank.resourceStatus !== "normal" && (
+                  {bank.status !== "normal" && (
                     <span
                       className={`inline-block h-1.5 w-1.5 rounded-full ${style.dotClass}`}
                       aria-hidden="true"
                     />
                   )}
                   <p className="text-xs font-semibold text-slate-900">
-                    {bank.bankName}
+                    {bank.name}
                   </p>
                   {labelText && (
                     <span
@@ -227,4 +208,21 @@ const STATUS_LABELS: Record<string, string> = {
 
 function Divider() {
   return <span className="h-6 w-px shrink-0 bg-slate-200" aria-hidden="true" />;
+}
+
+function getFinancialAlertDetail(
+  alert: import("@/lib/financialAlerts").FinancialAlert,
+): string {
+  if (alert.type === "critical_balance") {
+    return `Saldo crítico: ${formatCurrency(alert.available)}`;
+  }
+  if (alert.type === "low_balance") {
+    return `Saldo disponible bajo: ${formatCurrency(alert.available)}`;
+  }
+  if (alert.type === "movement_limit_reached") {
+    return "Límite de movimientos visibles alcanzado";
+  }
+  return alert.remainingVisibleMovements !== undefined
+    ? `${alert.remainingVisibleMovements} movimientos visibles restantes`
+    : "Cerca del límite de movimientos";
 }

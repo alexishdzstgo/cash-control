@@ -246,18 +246,11 @@ export function computeFinancialTotalsFromBalances({
     const attentionReasons: AttentionReason[] = [];
     let resourceStatus: FinancialResourceStatus = "normal";
 
-    if (health.isCritical) {
+    if (health.status === "critical") {
       resourceStatus = "critical";
       attentionReasons.push("critical_balance");
-    } else if (health.isLow) {
+    } else if (health.status === "warning") {
       resourceStatus = "warning";
-    }
-
-    if (
-      bank.lowBalanceThreshold !== undefined &&
-      available <= bank.lowBalanceThreshold
-    ) {
-      if (resourceStatus !== "critical") resourceStatus = "warning";
       attentionReasons.push("low_balance");
     }
 
@@ -326,16 +319,39 @@ export function getBalanceHealth({
   lowBalanceThreshold?: number;
   criticalBalanceThreshold?: number;
 }): BalanceHealth {
+  const status = getBalanceAlertStatus({
+    available,
+    lowBalanceThreshold,
+    criticalBalanceThreshold,
+  });
+
+  return {
+    status,
+    isLow: status !== "normal",
+    isCritical: status === "critical",
+  };
+}
+
+export function getBalanceAlertStatus({
+  available,
+  lowBalanceThreshold,
+  criticalBalanceThreshold,
+}: {
+  available: number;
+  lowBalanceThreshold?: number;
+  criticalBalanceThreshold?: number;
+}): BalanceHealthStatus {
   if (
-    criticalBalanceThreshold !== undefined &&
-    available <= criticalBalanceThreshold
+    available <= 0 ||
+    (criticalBalanceThreshold !== undefined &&
+      available <= criticalBalanceThreshold)
   ) {
-    return { status: "critical", isLow: true, isCritical: true };
+    return "critical";
   }
-  if (lowBalanceThreshold !== undefined && available <= lowBalanceThreshold) {
-    return { status: "warning", isLow: true, isCritical: false };
+  if (lowBalanceThreshold !== undefined && available < lowBalanceThreshold) {
+    return "warning";
   }
-  return { status: "normal", isLow: false, isCritical: false };
+  return "normal";
 }
 
 /** Calcula alertas de límite de movimientos visibles por banco */

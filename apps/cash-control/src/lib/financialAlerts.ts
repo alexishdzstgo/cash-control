@@ -7,6 +7,10 @@ import type {
 import { getBalanceHealth } from "@/lib/finance";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
+export const DEFAULT_LOW_BALANCE_THRESHOLD = 10000;
+export const DEFAULT_VISIBLE_MOVEMENT_LIMIT = 20;
+export const DEFAULT_MOVEMENT_WARNING_REMAINING = 5;
+
 export type FinancialAlertSeverity = "warning" | "critical";
 
 export type FinancialAlertType =
@@ -68,6 +72,41 @@ export type FinancialAlertsOverview = {
   criticalResources: number;
   activeAlerts: number;
 };
+
+export function buildDefaultFinancialAlertConfig({
+  cash,
+  banks,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+}): FinancialAlertConfig {
+  return {
+    cash: {
+      lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
+      criticalBalanceThreshold: cash.criticalBalanceThreshold,
+    },
+    banks: Object.fromEntries(
+      banks.map((bank) => [
+        bank.id,
+        {
+          lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
+          criticalBalanceThreshold: bank.criticalBalanceThreshold,
+          visibleMovementTrackingEnabled:
+            bank.visibleMovementTrackingEnabled === true,
+          ...(bank.visibleMovementTrackingEnabled
+            ? {
+                visibleMovementLimit:
+                  bank.visibleMovementLimit ?? DEFAULT_VISIBLE_MOVEMENT_LIMIT,
+                visibleMovementsUsed: bank.visibleMovementsUsed ?? 0,
+                movementWarningRemaining:
+                  DEFAULT_MOVEMENT_WARNING_REMAINING,
+              }
+            : {}),
+        },
+      ]),
+    ),
+  };
+}
 
 export function getFinancialAlertsOverview({
   cash,
@@ -199,10 +238,7 @@ function getAlertsForResource(
 ): FinancialAlert[] {
   const alerts: FinancialAlert[] = [];
 
-  if (
-    resource.balanceStatus === "critical" &&
-    resource.criticalBalanceThreshold !== undefined
-  ) {
+  if (resource.balanceStatus === "critical") {
     alerts.push({
       resourceId: resource.id,
       resourceName: resource.name,
@@ -210,14 +246,12 @@ function getAlertsForResource(
       type: "critical_balance",
       severity: "critical",
       available: resource.available,
-      threshold: resource.criticalBalanceThreshold,
+      threshold: resource.criticalBalanceThreshold ?? 0,
       reason: "Saldo crítico.",
     });
-  }
-
-  if (
-    resource.lowBalanceThreshold !== undefined &&
-    resource.available <= resource.lowBalanceThreshold
+  } else if (
+    resource.balanceStatus === "warning" &&
+    resource.lowBalanceThreshold !== undefined
   ) {
     alerts.push({
       resourceId: resource.id,

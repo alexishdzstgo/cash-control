@@ -3,7 +3,7 @@
 import { ChevronDown, Wallet } from "lucide-react";
 import { FinancialPopover } from "./FinancialPopover";
 import { formatCurrency } from "@/lib/formatters";
-import type { BankBreakdownItem, FinancialTotals } from "@/lib/finance";
+import type { FinancialTotals } from "@/lib/finance";
 import type { FinancialAlert } from "./FinancialAlertsPopover";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -18,7 +18,13 @@ export function FinancialSummaryPopover({
   alerts,
 }: {
   totals: FinancialTotals;
-  bankItems: BankBreakdownItem[];
+  bankItems: Array<{
+    id: string;
+    name: string;
+    available: number;
+    reserved: number;
+    status: "normal" | "warning" | "critical";
+  }>;
   alerts: FinancialAlert[];
 }) {
   const cashLabel = STATUS_LABELS[totals.cashBalanceStatus];
@@ -42,11 +48,11 @@ export function FinancialSummaryPopover({
         <SummaryRow label="Disponible total" value={totals.totalAvailable} emphasized />
         <SummaryRow label="Caja" value={totals.cashAvailable} secondary={cashLabel || undefined} />
         {bankItems.map((bank) => {
-          const labelText = STATUS_LABELS[bank.resourceStatus];
+          const labelText = STATUS_LABELS[bank.status];
           return (
             <SummaryRow
-              key={bank.bankId}
-              label={bank.bankName}
+              key={bank.id}
+              label={bank.name}
               value={bank.available}
               secondary={[
                 labelText || "",

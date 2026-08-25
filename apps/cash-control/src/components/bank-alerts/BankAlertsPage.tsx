@@ -8,26 +8,18 @@ import {
   Eye,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { getEditedOperations } from "@/lib/audit";
-import { computeFinancialTotalsFromBalances } from "@/lib/finance";
-import {
-  type FinancialAlert,
-  type FinancialAlertConfig,
-  getFinancialAlertsOverview,
-} from "@/lib/financialAlerts";
+import { type FinancialAlert } from "@/lib/financialAlerts";
 import { formatCurrency } from "@/lib/formatters";
 import { AlertConfigurationSummary } from "./AlertConfigurationSummary";
 import { alertToneStyles } from "./alertToneStyles";
 import { BankAlertCard } from "./BankAlertCard";
+import { useFinancialAlerts } from "./FinancialAlertsContext";
 import { MovementVisibilityPanel } from "./MovementVisibilityPanel";
-
-const DEFAULT_LOW_BALANCE_THRESHOLD = 10000;
-const DEFAULT_VISIBLE_MOVEMENT_LIMIT = 20;
-const DEFAULT_MOVEMENT_WARNING_REMAINING = 5;
 
 type AttentionLevel = "critical" | "warning" | "review";
 
@@ -42,40 +34,10 @@ type AttentionItem = {
 };
 
 export function BankAlertsPage() {
-  const { cash, banks, operations } = useBusinessFunds();
+  const { operations } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
   const isOwner = authenticatedUser?.systemRole === "owner";
-  const [config, setConfig] = useState<FinancialAlertConfig>(() => ({
-    cash: {
-      lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-    },
-    banks: Object.fromEntries(
-      banks.map((bank) => [
-        bank.id,
-        {
-          lowBalanceThreshold: DEFAULT_LOW_BALANCE_THRESHOLD,
-          visibleMovementTrackingEnabled:
-            bank.visibleMovementTrackingEnabled === true,
-          ...(bank.visibleMovementTrackingEnabled
-            ? {
-                visibleMovementLimit: DEFAULT_VISIBLE_MOVEMENT_LIMIT,
-                visibleMovementsUsed: bank.visibleMovementsUsed ?? 0,
-                movementWarningRemaining: DEFAULT_MOVEMENT_WARNING_REMAINING,
-              }
-            : {}),
-        },
-      ]),
-    ),
-  }));
-
-  const totals = computeFinancialTotalsFromBalances({ cash, banks });
-  const overview = getFinancialAlertsOverview({
-    cash,
-    banks,
-    totals,
-    movementAlerts: [],
-    config,
-  });
+  const { config, overview, setConfig } = useFinancialAlerts();
   const editedOperations = useMemo(
     () => getEditedOperations(operations),
     [operations],
