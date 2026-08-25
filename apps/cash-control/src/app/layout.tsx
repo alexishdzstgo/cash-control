@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { FinancialAlertsProvider } from "@/components/bank-alerts/FinancialAlertsContext";
+import { BusinessFundsProvider } from "@/components/business-funds/BusinessFundsContext";
+import { CommissionRulesProvider } from "@/components/commissions/CommissionRulesContext";
+import { ReceiptPreferencesProvider } from "@/components/receipts/ReceiptPreferencesContext";
 import { MockSessionProvider } from "@/components/session/MockSessionContext";
+import { SettingsProvider } from "@/components/settings/SettingsContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,9 +38,17 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full">
-        <MockSessionProvider>
-          {children}
-        </MockSessionProvider>
+        <CommissionRulesProvider>
+          <BusinessFundsProvider>
+            <FinancialAlertsProvider>
+              <ReceiptPreferencesProvider>
+                <SettingsProvider>
+                  <MockSessionProvider>{children}</MockSessionProvider>
+                </SettingsProvider>
+              </ReceiptPreferencesProvider>
+            </FinancialAlertsProvider>
+          </BusinessFundsProvider>
+        </CommissionRulesProvider>
       </body>
     </html>
   );

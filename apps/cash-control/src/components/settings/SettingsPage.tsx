@@ -9,7 +9,6 @@ import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import type {
   BusinessSettings,
   OperationSettings,
-  SettingsState,
   SystemSettings,
 } from "@/types/settings";
 import { BusinessSettingsCard } from "./BusinessSettingsCard";
@@ -17,6 +16,7 @@ import { ConfigEditDialog } from "./ConfigEditDialog";
 import { ModulesSummaryCard } from "./ModulesSummaryCard";
 import { OperationSettingsCard } from "./OperationSettingsCard";
 import { SecuritySettingsCard } from "./SecuritySettingsCard";
+import { useSettings } from "./SettingsContext";
 import { SystemInformationCard } from "./SystemInformationCard";
 import { SystemSettingsCard } from "./SystemSettingsCard";
 import { initialSettingsState } from "./settingsMockData";
@@ -37,7 +37,7 @@ function buildFolioPreview(prefix: string, length: number, seed: number) {
 
 export function SettingsPage() {
   const { resetFinancialState } = useBusinessFunds();
-  const [settings, setSettings] = useState<SettingsState>(initialSettingsState);
+  const { settings, setSettings } = useSettings();
   const [editingSection, setEditingSection] = useState<EditableSection | null>(
     null,
   );
