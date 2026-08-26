@@ -1,9 +1,7 @@
 export type WithdrawalCommissionMode = "deposited" | "cash" | "deducted";
 export type WithdrawalMode = "delivered" | "pending";
 
-export type WithdrawalPendingReason =
-  | "visible_movement_limit"
-  | "other";
+export type WithdrawalPendingReason = "visible_movement_limit" | "other";
 
 export type WithdrawalFormData = {
   bankFolio: string;

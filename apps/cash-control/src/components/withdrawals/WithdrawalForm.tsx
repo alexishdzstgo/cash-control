@@ -4,6 +4,7 @@ import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
 import { PersonNameField } from "@/components/shared/PersonNameField";
 import { getValidationFieldProps } from "@/lib/formValidationFocus";
+import { pendingWithdrawalReasonOptions } from "@/lib/pendingWithdrawalReasons";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
@@ -22,17 +23,6 @@ const inputClass =
   "field-input px-4 py-3 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
 const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
-
-const pendingReasonOptions: Array<{
-  value: WithdrawalPendingReason;
-  label: string;
-}> = [
-  {
-    value: "visible_movement_limit",
-    label: "Límite de movimientos visibles en la app bancaria",
-  },
-  { value: "other", label: "Otro" },
-];
 
 const commissionModeOptions: Array<{
   value: WithdrawalCommissionMode;
@@ -73,7 +63,13 @@ export function WithdrawalForm({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section
+      className={`rounded-2xl border p-6 shadow-sm ${
+        mode === "pending"
+          ? "border-violet-200 bg-violet-50"
+          : "border-slate-200 bg-white"
+      }`}
+    >
       <div className="mb-6">
         <p className="text-sm font-semibold text-slate-500">
           Informacion de la operacion
@@ -234,7 +230,7 @@ export function WithdrawalForm({
                 }
               >
                 <option value="">Selecciona un motivo</option>
-                {pendingReasonOptions.map((option) => (
+                {pendingWithdrawalReasonOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { getBankLabel } from "@/config/banks";
 import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
+import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
@@ -33,11 +34,6 @@ const commissionDestinationLabels: Record<WithdrawalCommissionMode, string> = {
   deposited: "Banco de recepcion",
   cash: "Caja fisica",
   deducted: "Caja fisica",
-};
-
-const pendingReasonLabels: Record<string, string> = {
-  visible_movement_limit: "Límite de movimientos visibles en la app bancaria",
-  other: "Otro",
 };
 
 export function WithdrawalSummary({
@@ -132,10 +128,10 @@ export function WithdrawalSummary({
             <SummaryRow
               label="Motivo de pendiente"
               value={
-                formData.pendingReason === "other"
-                  ? formData.pendingReasonDetails || "Sin capturar"
-                  : (pendingReasonLabels[formData.pendingReason] ??
-                    formData.pendingReason)
+                getPendingWithdrawalReasonLabel({
+                  pendingReason: formData.pendingReason,
+                  pendingReasonDetails: formData.pendingReasonDetails,
+                }) || "Sin capturar"
               }
             />
           )}

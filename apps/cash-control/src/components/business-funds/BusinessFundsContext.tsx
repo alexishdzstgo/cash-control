@@ -19,7 +19,6 @@ import {
 } from "@/lib/administrativeMovements";
 import {
   applyOperationFinancialImpact,
-  getWithdrawalCashDeliveryAmount,
   validateOperationFinancialImpact,
 } from "@/lib/finance";
 import type {
@@ -69,11 +68,11 @@ type BusinessFundsContextValue = {
     operationId: string;
     receiverName: string;
     deliveredBy: string;
-    commissionMode: WithdrawalCommissionMode;
-    commissionAmount: number;
-    customerCashReceived: number;
-    bankMovementAmount: number;
-    appliedCommissionSnapshot: AppliedCommissionSnapshot;
+    commissionMode?: WithdrawalCommissionMode;
+    commissionAmount?: number;
+    customerCashReceived?: number;
+    bankMovementAmount?: number;
+    appliedCommissionSnapshot?: AppliedCommissionSnapshot;
   }) => {
     success: boolean;
     operation?: Operation;
@@ -187,11 +186,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     operationId: string;
     receiverName: string;
     deliveredBy: string;
-    commissionMode: WithdrawalCommissionMode;
-    commissionAmount: number;
-    customerCashReceived: number;
-    bankMovementAmount: number;
-    appliedCommissionSnapshot: AppliedCommissionSnapshot;
+    commissionMode?: WithdrawalCommissionMode;
+    commissionAmount?: number;
+    customerCashReceived?: number;
+    bankMovementAmount?: number;
+    appliedCommissionSnapshot?: AppliedCommissionSnapshot;
   }): { success: boolean; operation?: Operation; error?: string } {
     const receiverName = input.receiverName.trim();
     if (!receiverName) {
@@ -211,10 +210,19 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "Retiro pendiente no encontrado." };
     }
 
-    const reservedAmount = getWithdrawalCashDeliveryAmount(original);
-    const reservedOperation = cash.reservedOperations.find(
-      (operation) => operation.id === original.id,
-    );
+    if (
+      !input.commissionMode ||
+      input.commissionAmount === undefined ||
+      input.customerCashReceived === undefined ||
+      input.bankMovementAmount === undefined ||
+      !input.appliedCommissionSnapshot
+    ) {
+      return {
+        success: false,
+        error: "Selecciona cómo se cobrará la comisión.",
+      };
+    }
+
     const amountToDeliver = input.customerCashReceived;
     const cashCommission =
       input.commissionMode === "cash" ? input.commissionAmount : 0;
@@ -226,6 +234,13 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         success: false,
         error: "No hay efectivo físico suficiente para confirmar la entrega.",
       };
+    }
+
+    if (
+      bankCommission > 0 &&
+      !banks.some((bank) => bank.id === original.bankResourceId)
+    ) {
+      return { success: false, error: "Banco receptor no disponible." };
     }
 
     const deliveredOperation: Operation = {
@@ -247,7 +262,8 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
     setCash((currentCash) => ({
       ...currentCash,
-      physicalBalance: currentCash.physicalBalance - amountToDeliver + cashCommission,
+      physicalBalance:
+        currentCash.physicalBalance - amountToDeliver + cashCommission,
       reservedOperations: currentCash.reservedOperations.filter(
         (operation) => operation.id !== original.id,
       ),

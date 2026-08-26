@@ -24,6 +24,7 @@ import {
 } from "@/lib/commission";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
+import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
 import { buildReceiptData } from "@/lib/receipt";
 import type { Operation } from "@/types/operation";
 import {
@@ -46,11 +47,6 @@ const withdrawalFieldOrder = [
 ] as const;
 
 const SIMILAR_WITHDRAWAL_WINDOW_MS = 30 * 60 * 1000;
-
-const pendingReasonLabels: Record<string, string> = {
-  visible_movement_limit: "Límite de movimientos visibles en la app bancaria",
-  other: "Otro",
-};
 
 export function WithdrawalPage() {
   const router = useRouter();
@@ -97,10 +93,6 @@ export function WithdrawalPage() {
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
   const commissionAmount = commission ?? 0;
-  const bankMovementAmount =
-    formData.commissionMode === "deposited"
-      ? amount + commissionAmount
-      : amount;
   const cashDeliveredToCustomer =
     formData.commissionMode === "deducted"
       ? Math.max(0, amount - commissionAmount)
@@ -175,8 +167,7 @@ export function WithdrawalPage() {
     }
 
     if (
-      !isPendingMode &&
-      commissionCalculation === null ||
+      (!isPendingMode && commissionCalculation === null) ||
       (!isPendingMode && !isWithdrawalCommissionMode(formData.commissionMode))
     ) {
       setOperationError(
@@ -219,8 +210,7 @@ export function WithdrawalPage() {
     if (submitLockRef.current) return;
     const isPendingRegistration = status === "pendiente";
     if (
-      !isPendingRegistration &&
-      commissionCalculation === null ||
+      (!isPendingRegistration && commissionCalculation === null) ||
       (!isPendingRegistration &&
         !isWithdrawalCommissionMode(formData.commissionMode))
     ) {
@@ -238,9 +228,11 @@ export function WithdrawalPage() {
 
     const now = new Date().toISOString();
     const bankLabel = getBankLabel(formData.bank);
-    const commissionMode = isWithdrawalCommissionMode(formData.commissionMode)
-      ? formData.commissionMode
-      : undefined;
+    const commissionMode =
+      !isPendingRegistration &&
+      isWithdrawalCommissionMode(formData.commissionMode)
+        ? formData.commissionMode
+        : undefined;
     const appliedCommission =
       isPendingRegistration || commissionCalculation === null
         ? 0
@@ -262,7 +254,9 @@ export function WithdrawalPage() {
       commission: appliedCommission,
       total: operationTotal,
       appliedCommissionSnapshot:
-        isPendingRegistration || commissionCalculation === null || !commissionMode
+        isPendingRegistration ||
+        commissionCalculation === null ||
+        !commissionMode
           ? undefined
           : {
               operationAmountCents: amountCents,
@@ -337,10 +331,10 @@ export function WithdrawalPage() {
             <button
               type="button"
               onClick={() => changeMode("delivered")}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-withdrawal-200 hover:bg-withdrawal-50 hover:text-withdrawal-800"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Volver a registrar entrega
+              Volver a retiro normal
             </button>
           ) : (
             <button
@@ -621,7 +615,7 @@ function ExactWithdrawalDuplicateDialog({
         {isPending && (
           <ModalInfoItem
             label="Motivo de pendiente"
-            value={getPendingReasonLabel(operation)}
+            value={getPendingWithdrawalReasonLabel(operation)}
           />
         )}
         <ModalInfoItem
@@ -702,14 +696,4 @@ function SimilarWithdrawalDialog({
       </div>
     </ModalShell>
   );
-}
-
-function getPendingReasonLabel(operation: Operation): string {
-  if (operation.pendingReason === "other") {
-    return operation.pendingReasonDetails || "Otro";
-  }
-
-  return operation.pendingReason
-    ? (pendingReasonLabels[operation.pendingReason] ?? operation.pendingReason)
-    : "Sin motivo registrado";
 }

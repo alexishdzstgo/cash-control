@@ -7,6 +7,7 @@ import {
   ModalShell,
 } from "@/components/shared/ModalShell";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
 import type { Operation } from "@/types/operation";
 import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 import { OperationStatusBadge } from "./OperationStatusBadge";
@@ -22,13 +23,6 @@ const withdrawalCommissionModeLabels: Record<WithdrawalCommissionMode, string> =
     cash: "Comision pagada en efectivo",
     deducted: "Comision descontada",
   };
-
-const pendingReasonLabels: Record<string, string> = {
-  customer_later: "Cliente recogerá después",
-  insufficient_cash: "Falta de efectivo disponible",
-  operational_limit: "Límite operativo",
-  other: "Otro",
-};
 
 export function OperationDetailsModal({
   operation,
@@ -139,7 +133,7 @@ export function OperationDetailsModal({
             {operation.status === "pendiente" && (
               <ModalInfoItem
                 label="Motivo de pendiente"
-                value={getPendingReasonLabel(operation)}
+                value={getPendingWithdrawalReasonLabel(operation)}
               />
             )}
             {operation.destinationAccountLast4 && (
@@ -184,14 +178,4 @@ export function OperationDetailsModal({
       </div>
     </ModalShell>
   );
-}
-
-function getPendingReasonLabel(operation: Operation): string {
-  if (operation.pendingReason === "other") {
-    return operation.pendingReasonDetails || "Otro";
-  }
-
-  return operation.pendingReason
-    ? (pendingReasonLabels[operation.pendingReason] ?? operation.pendingReason)
-    : "Sin motivo registrado";
 }

@@ -3,6 +3,7 @@
 import { Banknote, CheckCircle2, Eye, ListChecks } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
 import { OperationDetailsModal } from "@/components/history/OperationDetailsModal";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import {
@@ -10,19 +11,46 @@ import {
   ModalSection,
   ModalShell,
 } from "@/components/shared/ModalShell";
+import {
+  calculateCommission,
+  centsToPesos,
+  pesosToCents,
+} from "@/lib/commission";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
+import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
 import type { Operation } from "@/types/operation";
+import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 
-const pendingReasonLabels: Record<string, string> = {
-  customer_later: "Cliente recogerá después",
-  insufficient_cash: "Falta de efectivo disponible",
-  operational_limit: "Límite operativo",
-  other: "Otro",
-};
+type DeliveryErrors = Partial<
+  Record<"receiverName" | "commissionMode" | "operation", string>
+>;
+
+const commissionModeOptions: Array<{
+  value: WithdrawalCommissionMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "deposited",
+    label: "Comision depositada por el cliente",
+    description: "La comision se recibio en el banco de recepcion.",
+  },
+  {
+    value: "cash",
+    label: "Comision pagada en efectivo",
+    description: "La comision se recibio en caja fisica.",
+  },
+  {
+    value: "deducted",
+    label: "Comision descontada del retiro",
+    description: "La comision se descuenta del efectivo entregado.",
+  },
+];
 
 export function PendingWithdrawalsPage() {
   const { operations, deliverPendingWithdrawal } = useBusinessFunds();
+  const { rules: commissionRules } = useCommissionRules();
   const { authenticatedUser } = useMockSession();
 
   const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
@@ -32,7 +60,10 @@ export function PendingWithdrawalsPage() {
   const [operationToDeliver, setOperationToDeliver] =
     useState<Operation | null>(null);
   const [receiverName, setReceiverName] = useState("");
-  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [commissionMode, setCommissionMode] = useState<
+    WithdrawalCommissionMode | ""
+  >("");
+  const [deliveryErrors, setDeliveryErrors] = useState<DeliveryErrors>({});
   const [isDelivering, setIsDelivering] = useState(false);
 
   const pendingWithdrawals = useMemo(() => {
@@ -58,47 +89,106 @@ export function PendingWithdrawalsPage() {
   function openDeliveryDialog(operation: Operation) {
     setOperationToDeliver(operation);
     setReceiverName("");
-    setDeliveryError(null);
+    setCommissionMode("");
+    setDeliveryErrors({});
   }
 
   function closeDeliveryDialog() {
     if (isDelivering) return;
     setOperationToDeliver(null);
     setReceiverName("");
-    setDeliveryError(null);
+    setCommissionMode("");
+    setDeliveryErrors({});
   }
 
   function confirmDelivery() {
     if (!operationToDeliver || isDelivering) return;
 
-    if (receiverName.trim() === "") {
-      setDeliveryError("Captura el nombre de quien recibe.");
+    const errors: DeliveryErrors = {
+      ...(receiverName.trim() === ""
+        ? { receiverName: "Captura el nombre de quien recibe." }
+        : {}),
+      ...(commissionMode === ""
+        ? { commissionMode: "Selecciona cómo se cobrará la comisión." }
+        : {}),
+    };
+
+    if (Object.keys(errors).length > 0) {
+      setDeliveryErrors(errors);
       focusFirstInvalidField({
-        errors: { receiverName: "Captura el nombre de quien recibe." },
-        fieldOrder: ["receiverName"],
+        errors,
+        fieldOrder: ["receiverName", "commissionMode"],
         fieldSelector: {
           receiverName: "#pending-delivery-receiver",
+          commissionMode:
+            '[data-validation-field="pendingDeliveryCommissionMode"]',
         },
       });
       return;
     }
+
+    const selectedCommissionMode = commissionMode;
+    if (selectedCommissionMode === "") return;
+
+    const amountCents = pesosToCents(operationToDeliver.amount);
+    const commissionCalculation = calculateCommission({
+      amountCents,
+      operationType: "retiro",
+      rules: commissionRules,
+    });
+    if (commissionCalculation === null) {
+      setDeliveryErrors({
+        operation: "No hay una regla de comision para este monto.",
+      });
+      return;
+    }
+
+    const commissionAmount = centsToPesos(
+      commissionCalculation.commissionAmountCents,
+    );
+    const customerCashReceived =
+      selectedCommissionMode === "deducted"
+        ? Math.max(0, operationToDeliver.amount - commissionAmount)
+        : operationToDeliver.amount;
+    const bankMovementAmount =
+      selectedCommissionMode === "deposited"
+        ? operationToDeliver.amount + commissionAmount
+        : operationToDeliver.amount;
+    const now = new Date().toISOString();
 
     setIsDelivering(true);
     const result = deliverPendingWithdrawal({
       operationId: operationToDeliver.id,
       receiverName,
       deliveredBy: authenticatedUser?.userName ?? "Usuario no disponible",
+      commissionMode: selectedCommissionMode,
+      commissionAmount,
+      customerCashReceived,
+      bankMovementAmount,
+      appliedCommissionSnapshot: {
+        operationAmountCents: amountCents,
+        calculatedCommissionCents: commissionCalculation.commissionAmountCents,
+        finalCommissionCents: commissionCalculation.commissionAmountCents,
+        ruleId: commissionCalculation.ruleId,
+        ruleVersion: commissionCalculation.ruleVersion,
+        calculationType: commissionCalculation.calculationType,
+        location: selectedCommissionMode === "deposited" ? "bank" : "cash",
+        appliedAt: now,
+      },
     });
 
     if (!result.success) {
-      setDeliveryError(result.error ?? "No se pudo confirmar la entrega.");
+      setDeliveryErrors({
+        operation: result.error ?? "No se pudo confirmar la entrega.",
+      });
       setIsDelivering(false);
       return;
     }
 
     setOperationToDeliver(null);
     setReceiverName("");
-    setDeliveryError(null);
+    setCommissionMode("");
+    setDeliveryErrors({});
     setIsDelivering(false);
   }
 
@@ -154,7 +244,7 @@ export function PendingWithdrawalsPage() {
                   </td>
 
                   <td className="px-4 py-3 text-slate-700">
-                    {getPendingReasonLabel(operation)}
+                    {getPendingWithdrawalReasonLabel(operation)}
                   </td>
 
                   <td className="px-4 py-3 text-slate-600">
@@ -213,11 +303,24 @@ export function PendingWithdrawalsPage() {
       <ConfirmPendingWithdrawalDeliveryDialog
         operation={operationToDeliver}
         receiverName={receiverName}
-        error={deliveryError}
+        commissionMode={commissionMode}
+        errors={deliveryErrors}
         isDelivering={isDelivering}
         onReceiverNameChange={(value) => {
           setReceiverName(value);
-          setDeliveryError(null);
+          setDeliveryErrors((current) => ({
+            ...current,
+            receiverName: undefined,
+            operation: undefined,
+          }));
+        }}
+        onCommissionModeChange={(value) => {
+          setCommissionMode(value);
+          setDeliveryErrors((current) => ({
+            ...current,
+            commissionMode: undefined,
+            operation: undefined,
+          }));
         }}
         onClose={closeDeliveryDialog}
         onConfirm={confirmDelivery}
@@ -229,17 +332,21 @@ export function PendingWithdrawalsPage() {
 function ConfirmPendingWithdrawalDeliveryDialog({
   operation,
   receiverName,
-  error,
+  commissionMode,
+  errors,
   isDelivering,
   onReceiverNameChange,
+  onCommissionModeChange,
   onClose,
   onConfirm,
 }: {
   operation: Operation | null;
   receiverName: string;
-  error: string | null;
+  commissionMode: WithdrawalCommissionMode | "";
+  errors: DeliveryErrors;
   isDelivering: boolean;
   onReceiverNameChange: (value: string) => void;
+  onCommissionModeChange: (value: WithdrawalCommissionMode) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -290,7 +397,11 @@ function ConfirmPendingWithdrawalDeliveryDialog({
             />
             <ModalInfoItem
               label="Motivo de pendiente"
-              value={getPendingReasonLabel(operation)}
+              value={getPendingWithdrawalReasonLabel(operation)}
+            />
+            <ModalInfoItem
+              label="Fecha de registro"
+              value={formatDateTime(operation.createdAt)}
             />
           </div>
         </ModalSection>
@@ -310,33 +421,82 @@ function ConfirmPendingWithdrawalDeliveryDialog({
             onChange={(event) => onReceiverNameChange(event.target.value)}
             className="field-input px-4 py-3"
             placeholder="Nombre completo"
-            aria-invalid={error ? true : undefined}
+            aria-invalid={errors.receiverName ? true : undefined}
             aria-describedby={
-              error ? "pending-delivery-receiver-error" : undefined
+              errors.receiverName
+                ? "pending-delivery-receiver-error"
+                : undefined
             }
           />
-          {error && (
+          {errors.receiverName && (
             <p
               id="pending-delivery-receiver-error"
               className="mt-2 text-sm font-medium text-red-600"
             >
-              {error}
+              {errors.receiverName}
             </p>
           )}
         </div>
+
+        <fieldset
+          aria-invalid={errors.commissionMode ? true : undefined}
+          aria-describedby={
+            errors.commissionMode
+              ? "pending-delivery-commission-mode-error"
+              : undefined
+          }
+          data-validation-field="pendingDeliveryCommissionMode"
+        >
+          <legend className="mb-2 block text-sm font-semibold text-slate-700">
+            Forma de cobrar la comision
+            <span className="ml-1 text-red-500">*</span>
+          </legend>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {commissionModeOptions.map((option) => {
+              const isSelected = commissionMode === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`rounded-xl border p-4 text-sm transition ${
+                    isSelected
+                      ? "border-brand-primary bg-blue-50 text-slate-950"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pending-delivery-commission-mode"
+                    value={option.value}
+                    checked={isSelected}
+                    onChange={() => onCommissionModeChange(option.value)}
+                    className="sr-only"
+                  />
+                  <span className="block font-semibold">{option.label}</span>
+                  <span className="mt-1 block leading-5 text-slate-500">
+                    {option.description}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {errors.commissionMode && (
+            <p
+              id="pending-delivery-commission-mode-error"
+              className="mt-2 text-sm font-medium text-red-600"
+            >
+              {errors.commissionMode}
+            </p>
+          )}
+        </fieldset>
+
+        {errors.operation && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {errors.operation}
+          </div>
+        )}
       </div>
     </ModalShell>
   );
-}
-
-function getPendingReasonLabel(operation: Operation): string {
-  if (operation.pendingReason === "other") {
-    return operation.pendingReasonDetails || "Otro";
-  }
-
-  return operation.pendingReason
-    ? (pendingReasonLabels[operation.pendingReason] ?? operation.pendingReason)
-    : "Sin motivo registrado";
 }
 
 type SummaryCardProps = {
