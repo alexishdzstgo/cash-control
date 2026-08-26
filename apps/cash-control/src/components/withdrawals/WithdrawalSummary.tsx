@@ -18,7 +18,6 @@ type WithdrawalSummaryProps = {
   commission: number | null;
   cashDeliveredToCustomer: number;
   hasCommissionRule: boolean;
-  isReadyToRegister: boolean;
   isSubmitting?: boolean;
   errorMessage?: string | null;
   onRegister: () => void;
@@ -44,7 +43,6 @@ export function WithdrawalSummary({
   commission,
   cashDeliveredToCustomer,
   hasCommissionRule,
-  isReadyToRegister,
   isSubmitting = false,
   errorMessage,
   onRegister,
@@ -145,11 +143,11 @@ export function WithdrawalSummary({
 
         <button
           type="button"
-          aria-disabled={!isReadyToRegister || isSubmitting}
+          aria-disabled={isSubmitting}
           disabled={isSubmitting}
           onClick={onRegister}
           className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
-            isReadyToRegister && !isSubmitting
+            !isSubmitting
               ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
               : "cursor-not-allowed bg-slate-300 text-slate-600 hover:bg-slate-300"
           }`}

@@ -180,7 +180,7 @@ export function PendingWithdrawalsPage() {
                       <button
                         type="button"
                         onClick={() => openDeliveryDialog(operation)}
-                        className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 shrink-0"
+                        className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 focus-visible:ring-offset-2 shrink-0"
                       >
                         <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
                         Confirmar entrega

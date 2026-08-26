@@ -161,17 +161,14 @@ export function WithdrawalPage() {
   function handleRegister({ skipSimilarityCheck = false } = {}) {
     if (submitLockRef.current) return;
 
-    if (
-      !isReadyToRegister ||
-      commissionCalculation === null ||
-      !isWithdrawalCommissionMode(formData.commissionMode)
-    ) {
-      const errors = getWithdrawalValidationErrors({
-        formData,
-        amount,
-        hasCommissionRule: commissionCalculation !== null,
-        mode,
-      });
+    const errors = getWithdrawalValidationErrors({
+      formData,
+      amount,
+      hasCommissionRule: commissionCalculation !== null,
+      mode,
+    });
+
+    if (Object.keys(errors).length > 0) {
       setShowValidationErrors(true);
       focusFirstInvalidField({
         errors,
@@ -187,6 +184,19 @@ export function WithdrawalPage() {
           pendingReasonDetails: "#withdrawal-pending-reason-details",
         },
       });
+      return;
+    }
+
+    if (authenticatedUser === null) {
+      setOperationError("Inicia sesión para registrar el retiro.");
+      return;
+    }
+
+    if (
+      !isReadyToRegister ||
+      commissionCalculation === null ||
+      !isWithdrawalCommissionMode(formData.commissionMode)
+    ) {
       return;
     }
 
@@ -323,7 +333,7 @@ export function WithdrawalPage() {
             <button
               type="button"
               onClick={() => changeMode("pending")}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-sm transition hover:border-amber-300 hover:bg-amber-100"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800"
             >
               <Clock3 className="h-4 w-4" aria-hidden="true" />
               Registrar retiro sin entregar
@@ -350,7 +360,6 @@ export function WithdrawalPage() {
             commission={commission}
             cashDeliveredToCustomer={cashDeliveredToCustomer}
             hasCommissionRule={commissionCalculation !== null}
-            isReadyToRegister={isReadyToRegister}
             isSubmitting={isSubmitting}
             errorMessage={operationError}
             onRegister={handleRegister}
@@ -457,7 +466,7 @@ function getWithdrawalValidationErrors({
       ? { receiverName: "Captura el nombre de quien recibe." }
       : {}),
     ...(!isWithdrawalCommissionMode(formData.commissionMode)
-      ? { commissionMode: "Selecciona cómo se recibió la comisión." }
+      ? { commissionMode: "Selecciona cómo se cobrará la comisión." }
       : {}),
     ...(mode === "pending" && formData.pendingReason === ""
       ? { pendingReason: "Selecciona el motivo de pendiente." }
