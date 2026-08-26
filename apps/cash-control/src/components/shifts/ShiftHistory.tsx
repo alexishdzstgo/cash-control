@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/formatters";
 import type { Shift } from "@/types/shift";
 
 interface ShiftHistoryProps {
@@ -71,7 +72,7 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
               const statusInfo =
                 statusLabels[shift.status] ?? statusLabels.closed;
               const resultText = shift.closingResult
-                ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de $${Math.abs(shift.closingDifference).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : ""}`
+                ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de ${formatCurrency(Math.abs(shift.closingDifference))}` : ""}`
                 : "—";
 
               return (
@@ -133,7 +134,7 @@ export function ShiftHistory({ shifts }: ShiftHistoryProps) {
           );
           const statusInfo = statusLabels[shift.status] ?? statusLabels.closed;
           const resultText = shift.closingResult
-            ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de $${Math.abs(shift.closingDifference).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : ""}`
+            ? `${resultLabels[shift.closingResult] ?? shift.closingResult}${shift.closingDifference !== undefined && shift.closingDifference !== 0 ? ` de ${formatCurrency(Math.abs(shift.closingDifference))}` : ""}`
             : "—";
 
           return (

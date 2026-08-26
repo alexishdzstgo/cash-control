@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { ModalShell } from "@/components/shared/ModalShell";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/formatters";
 import type { Shift } from "@/types/shift";
 
 interface ShiftDetailsModalProps {
@@ -103,10 +104,7 @@ export function ShiftDetailsModal({
             <div>
               <p className="text-xs text-slate-400">Saldo inicial</p>
               <p className="text-sm font-medium text-slate-900">
-                $
-                {shift.openingBalance.toLocaleString("es-MX", {
-                  minimumFractionDigits: 2,
-                })}
+                {formatCurrency(shift.openingBalance)}
               </p>
             </div>
           </div>

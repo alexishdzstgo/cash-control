@@ -9,6 +9,7 @@ type BankSelectProps = {
   label?: string;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
   className?: string;
   error?: string;
   /** @deprecated Sin efecto, todos los inputs usan el mismo estilo neutral */
@@ -22,6 +23,7 @@ export function BankSelect({
   label = "Banco",
   placeholder = "Selecciona un banco",
   disabled = false,
+  required = false,
   className = "",
   error,
 }: BankSelectProps) {
@@ -32,6 +34,7 @@ export function BankSelect({
         className="mb-2 block text-sm font-semibold text-slate-700"
       >
         {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
       </label>
 
       <select
@@ -39,6 +42,7 @@ export function BankSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
+        required={required}
         className="field-input px-4 py-3"
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}

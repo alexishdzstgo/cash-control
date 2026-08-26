@@ -13,6 +13,7 @@ type DepositSummaryProps = {
   commission: number | null;
   hasCommissionRule: boolean;
   isReadyToRegister: boolean;
+  isSubmitting?: boolean;
   errorMessage?: string | null;
   onRegister: () => void;
 };
@@ -24,6 +25,7 @@ export function DepositSummary({
   commission,
   hasCommissionRule,
   isReadyToRegister,
+  isSubmitting = false,
   errorMessage,
   onRegister,
 }: DepositSummaryProps) {
@@ -61,9 +63,7 @@ export function DepositSummary({
           />
           <SummaryRow
             label="Ultimos 4 digitos"
-            value={
-              formData.destinationAccountLast4 || "Sin capturar"
-            }
+            value={formData.destinationAccountLast4 || "Sin capturar"}
             mono
           />
           <SummaryRow label="Recibio efectivo" value={receivedBy} />
@@ -80,7 +80,9 @@ export function DepositSummary({
         <div className="space-y-4">
           <AmountRow
             label="Comision"
-            value={commission === null ? "Sin regla" : formatCurrency(commission)}
+            value={
+              commission === null ? "Sin regla" : formatCurrency(commission)
+            }
           />
           <div className="border-t border-slate-100 pt-4">
             <AmountRow
@@ -110,16 +112,17 @@ export function DepositSummary({
 
         <button
           type="button"
-          aria-disabled={!isReadyToRegister}
+          aria-disabled={!isReadyToRegister || isSubmitting}
+          disabled={isSubmitting}
           onClick={onRegister}
           className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
-            isReadyToRegister
+            isReadyToRegister && !isSubmitting
               ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-              : "bg-slate-300 text-slate-600 hover:bg-slate-300"
+              : "cursor-not-allowed bg-slate-300 text-slate-600 hover:bg-slate-300"
           }`}
         >
           <CheckCircle2 className="h-5 w-5" />
-          Registrar deposito
+          {isSubmitting ? "Registrando..." : "Registrar deposito"}
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">

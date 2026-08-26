@@ -63,9 +63,8 @@ export function DepositForm({
           id="deposit-receiver"
           value={formData.receiverName}
           onChange={(value) => updateField("receiverName", value)}
-          label="Nombre del destinatario"
+          label="Nombre del destinatario (opcional)"
           placeholder="Nombre completo"
-          required
           colorVariant="deposit"
           error={errors.receiverName}
         />
@@ -76,15 +75,14 @@ export function DepositForm({
           onChange={(value) => updateField("emissionBank", value)}
           label="Banco de emision"
           colorVariant="deposit"
+          required
           error={errors.emissionBank}
         />
 
         <div>
           <label htmlFor="deposit-account-last-4" className={labelClass}>
             Ultimos 4 digitos de la cuenta destino
-            <span className="ml-1 text-red-500" aria-label="Campo obligatorio">
-              *
-            </span>
+            <span className="ml-1 text-red-500">*</span>
           </label>
           <input
             id="deposit-account-last-4"
@@ -126,7 +124,9 @@ export function DepositForm({
             id="deposit-observations"
             rows={3}
             value={formData.observations}
-            onChange={(event) => updateField("observations", event.target.value)}
+            onChange={(event) =>
+              updateField("observations", event.target.value)
+            }
             placeholder="Agrega alguna nota interna"
             className={inputClass}
           />

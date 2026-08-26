@@ -2,6 +2,7 @@
 
 import { ModalShell } from "@/components/shared/ModalShell";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/formatters";
 
 interface BankBalance {
   bank: string;
@@ -104,10 +105,7 @@ export function TransferResponsibilityModal({
                   Caja física
                 </h3>
                 <p className="text-lg font-semibold text-slate-900">
-                  $
-                  {transferSummary.cashOnHand.toLocaleString("es-MX", {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatCurrency(transferSummary.cashOnHand)}
                 </p>
               </div>
 
@@ -125,10 +123,7 @@ export function TransferResponsibilityModal({
                         {bank.bank} {bank.account}
                       </span>
                       <span className="font-medium text-slate-900">
-                        $
-                        {bank.balance.toLocaleString("es-MX", {
-                          minimumFractionDigits: 2,
-                        })}
+                        {formatCurrency(bank.balance)}
                       </span>
                     </div>
                   ))}
@@ -144,11 +139,7 @@ export function TransferResponsibilityModal({
                     {transferSummary.pendingWithdrawals.count} operaciones
                   </p>
                   <p className="text-xs text-slate-600">
-                    $
-                    {transferSummary.pendingWithdrawals.total.toLocaleString(
-                      "es-MX",
-                      { minimumFractionDigits: 2 },
-                    )}
+                    {formatCurrency(transferSummary.pendingWithdrawals.total)}
                   </p>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-3">
@@ -159,11 +150,7 @@ export function TransferResponsibilityModal({
                     {transferSummary.pendingDeposits.count} operaciones
                   </p>
                   <p className="text-xs text-slate-600">
-                    $
-                    {transferSummary.pendingDeposits.total.toLocaleString(
-                      "es-MX",
-                      { minimumFractionDigits: 2 },
-                    )}
+                    {formatCurrency(transferSummary.pendingDeposits.total)}
                   </p>
                 </div>
               </div>

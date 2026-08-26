@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  formatCurrencyInputValue,
+  normalizeCurrencyInputValue,
+  sanitizeCurrencyInputValue,
+} from "@/lib/formatters";
+
 type AmountFieldProps = {
   id: string;
   value: string;
@@ -49,14 +55,23 @@ export function AmountField({
 
         <input
           id={id}
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onFocus={(event) =>
+            onChange(normalizeCurrencyInputValue(event.target.value))
+          }
+          onBlur={(event) =>
+            onChange(formatCurrencyInputValue(event.target.value))
+          }
+          onChange={(event) =>
+            onChange(sanitizeCurrencyInputValue(event.target.value))
+          }
           placeholder={placeholder}
           disabled={disabled}
           required={required}
-          min={min}
-          step={step}
+          data-min={min}
+          data-step={step}
           className={inputBase}
           style={{ paddingLeft: "2.75rem" }}
           aria-invalid={error ? true : undefined}

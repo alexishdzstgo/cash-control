@@ -3,6 +3,7 @@
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/formatters";
 import type { Shift } from "@/types/shift";
 
 interface ActiveShiftCardProps {
@@ -94,10 +95,7 @@ export function ActiveShiftCard({
             Saldo inicial
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900 tabular-nums">
-            $
-            {shift.openingBalance.toLocaleString("es-MX", {
-              minimumFractionDigits: 2,
-            })}
+            {formatCurrency(shift.openingBalance)}
           </p>
         </div>
       </div>
