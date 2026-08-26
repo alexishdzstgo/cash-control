@@ -116,14 +116,16 @@ export function OperationDetailsModal({
             Personas y registro
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <ModalInfoItem
-              label={
-                operation.type === "retiro"
-                  ? "Persona que envía"
-                  : "Nombre de quien envia"
-              }
-              value={operation.senderName}
-            />
+            {operation.senderName && (
+              <ModalInfoItem
+                label={
+                  operation.type === "retiro"
+                    ? "Persona que envía"
+                    : "Nombre de quien envia"
+                }
+                value={operation.senderName}
+              />
+            )}
             {operation.receiverName && (
               <ModalInfoItem
                 label={

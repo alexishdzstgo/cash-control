@@ -84,6 +84,9 @@ const bankIdAliases: Record<string, string> = {
   "Mercado Pago": "mercado-pago",
 };
 
+const DEFAULT_BANK_LOW_BALANCE_THRESHOLD = 15000;
+const DEFAULT_BANK_CRITICAL_BALANCE_THRESHOLD = 10000;
+
 export function getOperationFinancialImpact(
   operation: Operation,
 ): OperationFinancialImpact {
@@ -149,7 +152,7 @@ export function applyOperationFinancialImpact({
         id: operation.id,
         folio: operation.bankFolio,
         type: "retiro" as const,
-        customerName: operation.senderName,
+        customerName: operation.receiverName || operation.bankFolio,
         amount: impact.cashReservation.amount,
         registeredAt: operation.createdAt,
         registeredBy: operation.createdBy,
@@ -279,10 +282,14 @@ export function computeFinancialTotalsFromBalances({
       0,
     );
     const available = bank.realBalance - reserved;
+    const lowBalanceThreshold =
+      bank.lowBalanceThreshold ?? DEFAULT_BANK_LOW_BALANCE_THRESHOLD;
+    const criticalBalanceThreshold =
+      bank.criticalBalanceThreshold ?? DEFAULT_BANK_CRITICAL_BALANCE_THRESHOLD;
     const health = getBalanceHealth({
       available,
-      lowBalanceThreshold: bank.lowBalanceThreshold,
-      criticalBalanceThreshold: bank.criticalBalanceThreshold,
+      lowBalanceThreshold,
+      criticalBalanceThreshold,
     });
 
     // Movement limit state
@@ -332,8 +339,8 @@ export function computeFinancialTotalsFromBalances({
       realBalance: bank.realBalance,
       reserved,
       available,
-      lowBalanceThreshold: bank.lowBalanceThreshold,
-      criticalBalanceThreshold: bank.criticalBalanceThreshold,
+      lowBalanceThreshold,
+      criticalBalanceThreshold,
       balanceStatus: health.status,
       isLow: health.isLow,
       isCritical: health.isCritical,
@@ -407,11 +414,11 @@ export function getBalanceAlertStatus({
 }): BalanceHealthStatus {
   if (
     criticalBalanceThreshold !== undefined &&
-    available < criticalBalanceThreshold
+    available <= criticalBalanceThreshold
   ) {
     return "critical";
   }
-  if (lowBalanceThreshold !== undefined && available < lowBalanceThreshold) {
+  if (lowBalanceThreshold !== undefined && available <= lowBalanceThreshold) {
     return "warning";
   }
   return "normal";

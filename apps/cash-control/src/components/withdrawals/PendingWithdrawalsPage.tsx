@@ -128,7 +128,7 @@ export function PendingWithdrawalsPage() {
                 <th className="px-4 py-3">Folio</th>
                 <th className="px-4 py-3 text-right">Monto</th>
                 <th className="px-4 py-3">Banco</th>
-                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Motivo</th>
                 <th className="px-4 py-3">Registró</th>
                 <th className="px-4 py-3">Fecha</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -154,7 +154,7 @@ export function PendingWithdrawalsPage() {
                   </td>
 
                   <td className="px-4 py-3 text-slate-700">
-                    {operation.senderName}
+                    {getPendingReasonLabel(operation)}
                   </td>
 
                   <td className="px-4 py-3 text-slate-600">
@@ -180,7 +180,7 @@ export function PendingWithdrawalsPage() {
                       <button
                         type="button"
                         onClick={() => openDeliveryDialog(operation)}
-                        className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200 focus-visible:ring-offset-2 shrink-0"
+                        className="btn-primary h-9 shrink-0 whitespace-nowrap px-3"
                       >
                         <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
                         Confirmar entrega

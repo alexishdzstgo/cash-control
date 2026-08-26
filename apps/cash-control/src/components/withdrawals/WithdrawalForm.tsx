@@ -27,9 +27,10 @@ const pendingReasonOptions: Array<{
   value: WithdrawalPendingReason;
   label: string;
 }> = [
-  { value: "customer_later", label: "Cliente recogerá después" },
-  { value: "insufficient_cash", label: "Falta de efectivo disponible" },
-  { value: "operational_limit", label: "Límite operativo" },
+  {
+    value: "visible_movement_limit",
+    label: "Límite de movimientos visibles en la app bancaria",
+  },
   { value: "other", label: "Otro" },
 ];
 
@@ -139,23 +140,12 @@ export function WithdrawalForm({
           error={errors.bank}
         />
 
-        <PersonNameField
-          id="withdrawal-sender"
-          value={formData.senderName}
-          onChange={(value) => updateField("senderName", value)}
-          label="Persona que envía"
-          placeholder="Nombre completo"
-          required
-          colorVariant="withdrawal"
-          error={errors.senderName}
-        />
-
         {mode === "delivered" && (
           <PersonNameField
             id="withdrawal-receiver"
             value={formData.receiverName}
             onChange={(value) => updateField("receiverName", value)}
-            label="Persona que recibe"
+            label="Nombre de quien recibe"
             placeholder="Nombre completo"
             required
             colorVariant="withdrawal"
@@ -163,57 +153,61 @@ export function WithdrawalForm({
           />
         )}
 
-        <fieldset
-          className="md:col-span-2"
-          aria-invalid={errors.commissionMode ? true : undefined}
-          aria-describedby={
-            errors.commissionMode
-              ? "withdrawal-commission-mode-error"
-              : undefined
-          }
-          {...getValidationFieldProps("commissionMode")}
-        >
-          <legend className={labelClass}>
-            Forma de cobrar la comision
-            <span className="ml-1 text-red-500">*</span>
-          </legend>
-          <div className="grid gap-3 lg:grid-cols-3">
-            {commissionModeOptions.map((option) => {
-              const isSelected = formData.commissionMode === option.value;
-              return (
-                <label
-                  key={option.value}
-                  className={`rounded-xl border p-4 text-sm transition ${
-                    isSelected
-                      ? "border-brand-primary bg-blue-50 text-slate-950"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="withdrawal-commission-mode"
-                    value={option.value}
-                    checked={isSelected}
-                    onChange={() => updateField("commissionMode", option.value)}
-                    className="sr-only"
-                  />
-                  <span className="block font-semibold">{option.label}</span>
-                  <span className="mt-1 block leading-5 text-slate-500">
-                    {option.description}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          {errors.commissionMode && (
-            <p
-              id="withdrawal-commission-mode-error"
-              className="mt-2 text-sm font-medium text-red-600"
-            >
-              {errors.commissionMode}
-            </p>
-          )}
-        </fieldset>
+        {mode === "delivered" && (
+          <fieldset
+            className="md:col-span-2"
+            aria-invalid={errors.commissionMode ? true : undefined}
+            aria-describedby={
+              errors.commissionMode
+                ? "withdrawal-commission-mode-error"
+                : undefined
+            }
+            {...getValidationFieldProps("commissionMode")}
+          >
+            <legend className={labelClass}>
+              Forma de cobrar la comision
+              <span className="ml-1 text-red-500">*</span>
+            </legend>
+            <div className="grid gap-3 lg:grid-cols-3">
+              {commissionModeOptions.map((option) => {
+                const isSelected = formData.commissionMode === option.value;
+                return (
+                  <label
+                    key={option.value}
+                    className={`rounded-xl border p-4 text-sm transition ${
+                      isSelected
+                        ? "border-brand-primary bg-blue-50 text-slate-950"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="withdrawal-commission-mode"
+                      value={option.value}
+                      checked={isSelected}
+                      onChange={() =>
+                        updateField("commissionMode", option.value)
+                      }
+                      className="sr-only"
+                    />
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className="mt-1 block leading-5 text-slate-500">
+                      {option.description}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {errors.commissionMode && (
+              <p
+                id="withdrawal-commission-mode-error"
+                className="mt-2 text-sm font-medium text-red-600"
+              >
+                {errors.commissionMode}
+              </p>
+            )}
+          </fieldset>
+        )}
 
         {mode === "pending" && (
           <>
@@ -262,17 +256,17 @@ export function WithdrawalForm({
                   htmlFor="withdrawal-pending-reason-details"
                   className={labelClass}
                 >
-                  Detalle del motivo
+                  Especifica el motivo
                   <span className="ml-1 text-red-500">*</span>
                 </label>
-                <input
+                <textarea
                   id="withdrawal-pending-reason-details"
-                  type="text"
+                  rows={3}
                   value={formData.pendingReasonDetails}
                   onChange={(event) =>
                     updateField("pendingReasonDetails", event.target.value)
                   }
-                  placeholder="Describe el motivo"
+                  placeholder="Especifica el motivo"
                   className={inputClass}
                   aria-invalid={errors.pendingReasonDetails ? true : undefined}
                   aria-describedby={

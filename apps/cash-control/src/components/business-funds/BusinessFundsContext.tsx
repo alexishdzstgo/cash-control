@@ -27,7 +27,9 @@ import type {
   AdministrativeMovementType,
 } from "@/types/administrativeMovement";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
+import type { AppliedCommissionSnapshot } from "@/types/commission";
 import type { Operation } from "@/types/operation";
+import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 import { initialAdministrativeMovements } from "./businessFundsMockData";
 
 type RegisterAdministrativeMovementInput = {
@@ -67,6 +69,11 @@ type BusinessFundsContextValue = {
     operationId: string;
     receiverName: string;
     deliveredBy: string;
+    commissionMode: WithdrawalCommissionMode;
+    commissionAmount: number;
+    customerCashReceived: number;
+    bankMovementAmount: number;
+    appliedCommissionSnapshot: AppliedCommissionSnapshot;
   }) => {
     success: boolean;
     operation?: Operation;
@@ -180,6 +187,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     operationId: string;
     receiverName: string;
     deliveredBy: string;
+    commissionMode: WithdrawalCommissionMode;
+    commissionAmount: number;
+    customerCashReceived: number;
+    bankMovementAmount: number;
+    appliedCommissionSnapshot: AppliedCommissionSnapshot;
   }): { success: boolean; operation?: Operation; error?: string } {
     const receiverName = input.receiverName.trim();
     if (!receiverName) {
@@ -203,7 +215,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     const reservedOperation = cash.reservedOperations.find(
       (operation) => operation.id === original.id,
     );
-    const amountToDeliver = reservedOperation?.amount ?? reservedAmount;
+    const amountToDeliver = input.customerCashReceived;
+    const cashCommission =
+      input.commissionMode === "cash" ? input.commissionAmount : 0;
+    const bankCommission =
+      input.commissionMode === "deposited" ? input.commissionAmount : 0;
 
     if (cash.physicalBalance - amountToDeliver < 0) {
       return {
@@ -216,18 +232,36 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       ...original,
       status: "entregado",
       receiverName,
+      commission: input.commissionAmount,
+      total: input.bankMovementAmount,
+      appliedCommissionSnapshot: input.appliedCommissionSnapshot,
+      commissionLocation:
+        input.commissionMode === "deposited" ? "bank" : "cash",
+      commissionStatus: "realized",
+      withdrawalCommissionMode: input.commissionMode,
+      customerCashReceived: amountToDeliver,
+      bankMovementAmount: input.bankMovementAmount,
       editedAt: new Date().toISOString(),
       editedBy: input.deliveredBy,
     };
 
     setCash((currentCash) => ({
       ...currentCash,
-      physicalBalance: currentCash.physicalBalance - amountToDeliver,
+      physicalBalance: currentCash.physicalBalance - amountToDeliver + cashCommission,
       reservedOperations: currentCash.reservedOperations.filter(
         (operation) => operation.id !== original.id,
       ),
       updatedAt: new Date().toISOString(),
     }));
+    if (bankCommission > 0) {
+      setBanks((currentBanks) =>
+        currentBanks.map((bank) =>
+          bank.id === original.bankResourceId
+            ? { ...bank, realBalance: bank.realBalance + bankCommission }
+            : bank,
+        ),
+      );
+    }
     setOperations((currentOperations) =>
       currentOperations.map((operation) =>
         operation.id === original.id ? deliveredOperation : operation,

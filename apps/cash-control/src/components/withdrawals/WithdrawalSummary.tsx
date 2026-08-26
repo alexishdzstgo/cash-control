@@ -35,6 +35,11 @@ const commissionDestinationLabels: Record<WithdrawalCommissionMode, string> = {
   deducted: "Caja fisica",
 };
 
+const pendingReasonLabels: Record<string, string> = {
+  visible_movement_limit: "Límite de movimientos visibles en la app bancaria",
+  other: "Otro",
+};
+
 export function WithdrawalSummary({
   mode,
   formData,
@@ -88,27 +93,27 @@ export function WithdrawalSummary({
             label="Banco de recepcion"
             value={getBankLabel(formData.bank)}
           />
-          <SummaryRow
-            label="Persona que envía"
-            value={formData.senderName || "Sin capturar"}
-          />
           {!isPendingMode && (
             <SummaryRow
-              label="Persona que recibe"
+              label="Nombre de quien recibe"
               value={formData.receiverName || "Sin capturar"}
             />
           )}
-          <SummaryRow
-            label="Forma de cobrar comision"
-            value={commissionModeLabel}
-          />
-          <SummaryRow
-            label="Comision"
-            value={
-              commission === null ? "Sin regla" : formatCurrency(commission)
-            }
-          />
-          <SummaryRow label="Entrega el efectivo" value={deliveredBy} />
+          {!isPendingMode && (
+            <>
+              <SummaryRow
+                label="Forma de cobrar comision"
+                value={commissionModeLabel}
+              />
+              <SummaryRow
+                label="Comision"
+                value={
+                  commission === null ? "Sin regla" : formatCurrency(commission)
+                }
+              />
+              <SummaryRow label="Entrega el efectivo" value={deliveredBy} />
+            </>
+          )}
           <SummaryRow
             label={
               isPendingMode
@@ -117,10 +122,23 @@ export function WithdrawalSummary({
             }
             value={formatCurrency(cashDeliveredToCustomer)}
           />
-          <SummaryRow
-            label="Destino de la comision"
-            value={commissionDestinationLabel}
-          />
+          {!isPendingMode && (
+            <SummaryRow
+              label="Destino de la comision"
+              value={commissionDestinationLabel}
+            />
+          )}
+          {isPendingMode && formData.pendingReason && (
+            <SummaryRow
+              label="Motivo de pendiente"
+              value={
+                formData.pendingReason === "other"
+                  ? formData.pendingReasonDetails || "Sin capturar"
+                  : (pendingReasonLabels[formData.pendingReason] ??
+                    formData.pendingReason)
+              }
+            />
+          )}
           {formData.observations.trim() && (
             <SummaryRow
               label="Observaciones"
@@ -129,7 +147,7 @@ export function WithdrawalSummary({
           )}
         </div>
 
-        {!hasCommissionRule && amount > 0 && (
+        {!isPendingMode && !hasCommissionRule && amount > 0 && (
           <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
             {NO_COMMISSION_RULE_MESSAGE}
           </div>
@@ -146,11 +164,7 @@ export function WithdrawalSummary({
           aria-disabled={isSubmitting}
           disabled={isSubmitting}
           onClick={onRegister}
-          className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
-            !isSubmitting
-              ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-              : "cursor-not-allowed bg-slate-300 text-slate-600 hover:bg-slate-300"
-          }`}
+          className="btn-primary mt-8 w-full px-4 py-3"
         >
           <CheckCircle2 className="h-5 w-5" />
           {isSubmitting

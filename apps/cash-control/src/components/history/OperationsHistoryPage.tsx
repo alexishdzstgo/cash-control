@@ -205,10 +205,6 @@ function DeliveryDialog({
               label="Monto"
               value={formatCurrency(operation.amount)}
             />
-            <ModalInfoItem
-              label="Persona que envió"
-              value={operation.senderName}
-            />
           </div>
         </ModalSection>
 
@@ -217,7 +213,7 @@ function DeliveryDialog({
             htmlFor={inputId}
             className="mb-2 block text-sm font-semibold text-slate-700"
           >
-            Persona que recibe
+            Nombre de quien recibe
             <span className="ml-1 text-red-500">*</span>
           </label>
           <input

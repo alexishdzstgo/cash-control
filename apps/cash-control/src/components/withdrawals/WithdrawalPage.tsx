@@ -39,7 +39,6 @@ const withdrawalFieldOrder = [
   "bankFolio",
   "amount",
   "bank",
-  "senderName",
   "receiverName",
   "commissionMode",
   "pendingReason",
@@ -49,9 +48,7 @@ const withdrawalFieldOrder = [
 const SIMILAR_WITHDRAWAL_WINDOW_MS = 30 * 60 * 1000;
 
 const pendingReasonLabels: Record<string, string> = {
-  customer_later: "Cliente recogerá después",
-  insufficient_cash: "Falta de efectivo disponible",
-  operational_limit: "Límite operativo",
+  visible_movement_limit: "Límite de movimientos visibles en la app bancaria",
   other: "Otro",
 };
 
@@ -100,7 +97,6 @@ export function WithdrawalPage() {
       ? null
       : centsToPesos(commissionCalculation.commissionAmountCents);
   const commissionAmount = commission ?? 0;
-  const hasCommissionMode = isWithdrawalCommissionMode(formData.commissionMode);
   const bankMovementAmount =
     formData.commissionMode === "deposited"
       ? amount + commissionAmount
@@ -109,19 +105,6 @@ export function WithdrawalPage() {
     formData.commissionMode === "deducted"
       ? Math.max(0, amount - commissionAmount)
       : amount;
-  const isReadyToRegister =
-    amount > 0 &&
-    commissionCalculation !== null &&
-    formData.bankFolio.trim() !== "" &&
-    formData.bank !== "" &&
-    formData.senderName.trim() !== "" &&
-    (isPendingMode || formData.receiverName.trim() !== "") &&
-    (!isPendingMode ||
-      (formData.pendingReason !== "" &&
-        (formData.pendingReason !== "other" ||
-          formData.pendingReasonDetails.trim() !== ""))) &&
-    hasCommissionMode &&
-    authenticatedUser !== null;
   const validationErrors = showValidationErrors
     ? getWithdrawalValidationErrors({
         formData,
@@ -164,7 +147,7 @@ export function WithdrawalPage() {
     const errors = getWithdrawalValidationErrors({
       formData,
       amount,
-      hasCommissionRule: commissionCalculation !== null,
+      hasCommissionRule: isPendingMode || commissionCalculation !== null,
       mode,
     });
 
@@ -177,7 +160,6 @@ export function WithdrawalPage() {
           bankFolio: "#withdrawal-bank-folio",
           amount: "#withdrawal-amount",
           bank: "#withdrawal-bank",
-          senderName: "#withdrawal-sender",
           receiverName: "#withdrawal-receiver",
           commissionMode: '[data-validation-field="commissionMode"]',
           pendingReason: "#withdrawal-pending-reason",
@@ -193,10 +175,13 @@ export function WithdrawalPage() {
     }
 
     if (
-      !isReadyToRegister ||
+      !isPendingMode &&
       commissionCalculation === null ||
-      !isWithdrawalCommissionMode(formData.commissionMode)
+      (!isPendingMode && !isWithdrawalCommissionMode(formData.commissionMode))
     ) {
+      setOperationError(
+        "No se pudo registrar el retiro. Revisa los datos e inténtalo nuevamente.",
+      );
       return;
     }
 
@@ -232,10 +217,16 @@ export function WithdrawalPage() {
 
   function registerWithdrawal(status: "entregado" | "pendiente") {
     if (submitLockRef.current) return;
+    const isPendingRegistration = status === "pendiente";
     if (
+      !isPendingRegistration &&
       commissionCalculation === null ||
-      !isWithdrawalCommissionMode(formData.commissionMode)
+      (!isPendingRegistration &&
+        !isWithdrawalCommissionMode(formData.commissionMode))
     ) {
+      setOperationError(
+        "No se pudo registrar el retiro. Revisa los datos e inténtalo nuevamente.",
+      );
       return;
     }
 
@@ -247,35 +238,57 @@ export function WithdrawalPage() {
 
     const now = new Date().toISOString();
     const bankLabel = getBankLabel(formData.bank);
-    const commissionMode = formData.commissionMode;
+    const commissionMode = isWithdrawalCommissionMode(formData.commissionMode)
+      ? formData.commissionMode
+      : undefined;
+    const appliedCommission =
+      isPendingRegistration || commissionCalculation === null
+        ? 0
+        : commissionAmount;
+    const operationTotal =
+      !isPendingRegistration && commissionMode === "deposited"
+        ? amount + commissionAmount
+        : amount;
+    const operationCashDelivered =
+      !isPendingRegistration && commissionMode === "deducted"
+        ? Math.max(0, amount - commissionAmount)
+        : amount;
     const operation: Operation = {
       id: `operation-withdrawal-${Date.now()}`,
       type: "retiro",
       status,
       bankFolio: formData.bankFolio.trim(),
       amount,
-      commission: commissionAmount,
-      total: bankMovementAmount,
-      appliedCommissionSnapshot: {
-        operationAmountCents: amountCents,
-        calculatedCommissionCents: commissionCalculation.commissionAmountCents,
-        finalCommissionCents: commissionCalculation.commissionAmountCents,
-        ruleId: commissionCalculation.ruleId,
-        ruleVersion: commissionCalculation.ruleVersion,
-        calculationType: commissionCalculation.calculationType,
-        location: commissionMode === "deposited" ? "bank" : "cash",
-        appliedAt: now,
-      },
-      commissionLocation: commissionMode === "deposited" ? "bank" : "cash",
-      commissionStatus: "realized",
-      senderName: formData.senderName.trim(),
+      commission: appliedCommission,
+      total: operationTotal,
+      appliedCommissionSnapshot:
+        isPendingRegistration || commissionCalculation === null || !commissionMode
+          ? undefined
+          : {
+              operationAmountCents: amountCents,
+              calculatedCommissionCents:
+                commissionCalculation.commissionAmountCents,
+              finalCommissionCents: commissionCalculation.commissionAmountCents,
+              ruleId: commissionCalculation.ruleId,
+              ruleVersion: commissionCalculation.ruleVersion,
+              calculationType: commissionCalculation.calculationType,
+              location: commissionMode === "deposited" ? "bank" : "cash",
+              appliedAt: now,
+            },
+      commissionLocation: isPendingRegistration
+        ? "pending"
+        : commissionMode === "deposited"
+          ? "bank"
+          : "cash",
+      commissionStatus: isPendingRegistration ? "pending" : "realized",
+      senderName: "",
       receiverName: status === "pendiente" ? "" : formData.receiverName.trim(),
       bankFrom: bankLabel,
       bankTo: "Caja fisica",
       bankResourceId: formData.bank,
       withdrawalCommissionMode: commissionMode,
-      customerCashReceived: cashDeliveredToCustomer,
-      bankMovementAmount,
+      customerCashReceived: operationCashDelivered,
+      bankMovementAmount: operationTotal,
       pendingReason:
         status === "pendiente" ? formData.pendingReason : undefined,
       pendingReasonDetails:
@@ -453,28 +466,26 @@ function getWithdrawalValidationErrors({
       ? { bankFolio: "Ingresa el folio o referencia bancaria." }
       : {}),
     ...(amount <= 0 ? { amount: "Captura el monto a retirar." } : {}),
-    ...(!hasCommissionRule && amount > 0
+    ...(mode === "delivered" && !hasCommissionRule && amount > 0
       ? { amount: "No hay una regla de comision para este monto." }
       : {}),
     ...(formData.bank === ""
       ? { bank: "Selecciona el banco de recepcion." }
       : {}),
-    ...(formData.senderName.trim() === ""
-      ? { senderName: "Captura el nombre de quien envía." }
-      : {}),
     ...(mode === "delivered" && formData.receiverName.trim() === ""
       ? { receiverName: "Captura el nombre de quien recibe." }
       : {}),
-    ...(!isWithdrawalCommissionMode(formData.commissionMode)
+    ...(mode === "delivered" &&
+    !isWithdrawalCommissionMode(formData.commissionMode)
       ? { commissionMode: "Selecciona cómo se cobrará la comisión." }
       : {}),
     ...(mode === "pending" && formData.pendingReason === ""
-      ? { pendingReason: "Selecciona el motivo de pendiente." }
+      ? { pendingReason: "Selecciona un motivo." }
       : {}),
     ...(mode === "pending" &&
     formData.pendingReason === "other" &&
     formData.pendingReasonDetails.trim() === ""
-      ? { pendingReasonDetails: "Describe el motivo de pendiente." }
+      ? { pendingReasonDetails: "Especifica el motivo." }
       : {}),
   };
 }
@@ -514,8 +525,6 @@ function findSimilarWithdrawal({
   amount: number;
 }): Operation | null {
   const now = Date.now();
-  const normalizedSenderName = formData.senderName.trim().toLowerCase();
-
   return (
     operations.find((operation) => {
       if (operation.type !== "retiro") return false;
@@ -526,12 +535,7 @@ function findSimilarWithdrawal({
       if (Number.isNaN(createdAt)) return false;
       if (now - createdAt > SIMILAR_WITHDRAWAL_WINDOW_MS) return false;
 
-      const previousSenderName = operation.senderName.trim().toLowerCase();
-      return (
-        normalizedSenderName === "" ||
-        previousSenderName === "" ||
-        previousSenderName === normalizedSenderName
-      );
+      return true;
     }) ?? null
   );
 }
@@ -608,7 +612,6 @@ function ExactWithdrawalDuplicateDialog({
           label={isPending ? "Fecha de registro" : "Fecha/hora"}
           value={formatDateTime(operation.createdAt)}
         />
-        <ModalInfoItem label="Persona que envió" value={operation.senderName} />
         {operation.receiverName && (
           <ModalInfoItem
             label="Persona que recibió"
@@ -677,7 +680,7 @@ function SimilarWithdrawalDialog({
     >
       <ModalSection className="border-amber-200 bg-amber-50/40">
         <p className="text-sm font-semibold text-amber-900">
-          Hay otro retiro reciente con banco, monto y persona similares.
+          Hay otro retiro reciente con el mismo banco y monto.
         </p>
       </ModalSection>
 
@@ -692,7 +695,6 @@ function SimilarWithdrawalDialog({
           label="Hora"
           value={formatDateTime(operation.createdAt)}
         />
-        <ModalInfoItem label="Persona que envió" value={operation.senderName} />
         <ModalInfoItem
           label="Estado"
           value={operation.status === "pendiente" ? "Pendiente" : "Entregado"}
