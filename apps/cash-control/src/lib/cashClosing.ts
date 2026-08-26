@@ -18,6 +18,10 @@ import type {
   ShiftCommissionProfitSummary,
 } from "@/types/cash-closing";
 import type { Operation } from "@/types/operation";
+import {
+  getWithdrawalBankCreditAmount,
+  getWithdrawalCashDeliveryAmount,
+} from "./finance";
 
 export const CASH_CLOSING_CATEGORY_META: Record<
   CashMovementCategory,
@@ -685,8 +689,8 @@ function buildFinancialTimeline({
     bankId: bank.id,
     bankName: bank.bankName,
     accountName: bank.accountName,
-    initialBalance: initialBanks.find((item) => item.bankId === bank.id)
-      ?.initialBalance ?? 0,
+    initialBalance:
+      initialBanks.find((item) => item.bankId === bank.id)?.initialBalance ?? 0,
     finalBalance: balances.banks.get(bank.id) ?? 0,
   }));
   const totalBanks = finalBanks.reduce(
@@ -696,17 +700,28 @@ function buildFinancialTimeline({
   const reconstructionIssues: string[] = [];
   const reconstructedTotalCash = balances.availableCash + balances.reservedCash;
 
-  if (Math.round(reconstructedTotalCash * 100) !== Math.round(cash.physicalBalance * 100)) {
-    reconstructionIssues.push("La caja reconstruida no coincide con el saldo actual.");
+  if (
+    Math.round(reconstructedTotalCash * 100) !==
+    Math.round(cash.physicalBalance * 100)
+  ) {
+    reconstructionIssues.push(
+      "La caja reconstruida no coincide con el saldo actual.",
+    );
   }
 
-  if (Math.round(balances.reservedCash * 100) !== Math.round(reservedTotal * 100)) {
-    reconstructionIssues.push("La caja de retiros apartados reconstruida no coincide con el saldo actual.");
+  if (
+    Math.round(balances.reservedCash * 100) !== Math.round(reservedTotal * 100)
+  ) {
+    reconstructionIssues.push(
+      "La caja de retiros apartados reconstruida no coincide con el saldo actual.",
+    );
   }
 
   for (const bank of banks) {
     const reconstructed = balances.banks.get(bank.id) ?? 0;
-    if (Math.round(reconstructed * 100) !== Math.round(bank.realBalance * 100)) {
+    if (
+      Math.round(reconstructed * 100) !== Math.round(bank.realBalance * 100)
+    ) {
       reconstructionIssues.push(
         `El saldo reconstruido de ${bank.bankName} no coincide con el saldo actual.`,
       );
@@ -767,9 +782,15 @@ function operationToTimelineSeed(
       actor: operation.createdBy,
       description: operation.senderName,
       details: [
-        { label: "Monto enviado", value: formatPlainCurrency(operation.amount) },
+        {
+          label: "Monto enviado",
+          value: formatPlainCurrency(operation.amount),
+        },
         { label: "Comisión", value: formatPlainCurrency(commission) },
-        { label: "Banco de emisión", value: bank?.bankName ?? "Banco no identificado" },
+        {
+          label: "Banco de emisión",
+          value: bank?.bankName ?? "Banco no identificado",
+        },
       ],
       resourceDeltas: {
         availableCash: cashDelta,
@@ -786,18 +807,16 @@ function operationToTimelineSeed(
     };
   }
 
-  const bankDelta =
-    operation.withdrawalCommissionMode === "deposited"
-      ? operation.amount + commission
-      : operation.amount;
+  const bankDelta = getWithdrawalBankCreditAmount(operation);
+  const cashDeliveryAmount = getWithdrawalCashDeliveryAmount(operation);
   const cashDelta =
-    operation.customerCashReceived !== undefined
-      ? -operation.customerCashReceived
+    operation.status === "pendiente"
+      ? operation.withdrawalCommissionMode === "cash"
+        ? commission
+        : 0
       : operation.withdrawalCommissionMode === "cash"
         ? -operation.amount + commission
-        : operation.withdrawalCommissionMode === "deducted"
-          ? -Math.max(0, operation.amount - commission)
-          : -operation.amount;
+        : -cashDeliveryAmount;
   const cashDetail =
     operation.withdrawalCommissionMode === "cash"
       ? `Se entregó ${formatPlainCurrency(operation.amount)} y el cliente pagó ${formatPlainCurrency(commission)} en efectivo.`
@@ -820,9 +839,18 @@ function operationToTimelineSeed(
     actor: operation.createdBy,
     description: operation.receiverName || operation.senderName,
     details: [
-      { label: "Monto del retiro", value: formatPlainCurrency(operation.amount) },
+      {
+        label: "Monto del retiro",
+        value: formatPlainCurrency(operation.amount),
+      },
       { label: "Comisión", value: formatPlainCurrency(commission) },
-      { label: "Banco de recepción", value: bank?.bankName ?? "Banco no identificado" },
+      {
+        label: "Banco de recepción",
+        value: bank?.bankName ?? "Banco no identificado",
+      },
+      ...(operation.status === "pendiente"
+        ? [{ label: "Estado", value: "Pendiente de entrega" }]
+        : []),
     ],
     resourceDeltas: {
       availableCash: cashDelta,
@@ -884,7 +912,8 @@ function reservedOperationToTimelineSeed(
       banks: {},
     },
     cashDetail: "Sale de la caja disponible.",
-    reservedCashDetail: "Queda físicamente separado para este retiro pendiente.",
+    reservedCashDetail:
+      "Queda físicamente separado para este retiro pendiente.",
     note: "Redistribución interna: el total en efectivo no cambia.",
   };
 }

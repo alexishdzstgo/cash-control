@@ -66,6 +66,10 @@ export type BankMovementAlert = {
 
 export type OperationFinancialImpact = {
   cashDelta: number;
+  cashReservation?: {
+    amount: number;
+    operation: Operation;
+  };
   bankDeltas: Array<{
     bankId: string;
     amount: number;
@@ -90,6 +94,19 @@ export function getOperationFinancialImpact(
     return {
       cashDelta: operation.amount + commission,
       bankDeltas: bankId ? [{ bankId, amount: -operation.amount }] : [],
+    };
+  }
+
+  if (operation.status === "pendiente") {
+    return {
+      cashDelta: operation.withdrawalCommissionMode === "cash" ? commission : 0,
+      cashReservation: {
+        amount: getWithdrawalCashDeliveryAmount(operation),
+        operation,
+      },
+      bankDeltas: bankId
+        ? [{ bankId, amount: getWithdrawalBankCreditAmount(operation) }]
+        : [],
     };
   }
 
@@ -127,11 +144,26 @@ export function applyOperationFinancialImpact({
   operation: Operation;
 }): { cash: CashBalance; banks: BankAccountBalance[] } {
   const impact = getOperationFinancialImpact(operation);
+  const reservedOperation = impact.cashReservation
+    ? {
+        id: operation.id,
+        folio: operation.bankFolio,
+        type: "retiro" as const,
+        customerName: operation.senderName,
+        amount: impact.cashReservation.amount,
+        registeredAt: operation.createdAt,
+        registeredBy: operation.createdBy,
+        status: "pending" as const,
+      }
+    : null;
 
   return {
     cash: {
       ...cash,
       physicalBalance: cash.physicalBalance + impact.cashDelta,
+      reservedOperations: reservedOperation
+        ? [...cash.reservedOperations, reservedOperation]
+        : cash.reservedOperations,
     },
     banks: banks.map((bank) => {
       const bankDelta = impact.bankDeltas
@@ -155,8 +187,19 @@ export function validateOperationFinancialImpact({
   operation: Operation;
 }): string | null {
   const impact = getOperationFinancialImpact(operation);
+  const reservedCash = cash.reservedOperations.reduce(
+    (sum, reservedOperation) => sum + reservedOperation.amount,
+    0,
+  );
+  const cashAvailableAfterDelta =
+    cash.physicalBalance + impact.cashDelta - reservedCash;
+  const cashRequired = impact.cashReservation?.amount ?? 0;
 
-  if (cash.physicalBalance + impact.cashDelta < 0) {
+  if (cashRequired > 0 && cashAvailableAfterDelta - cashRequired < 0) {
+    return "No hay efectivo disponible suficiente en caja para apartar este retiro.";
+  }
+
+  if (cashRequired === 0 && cash.physicalBalance + impact.cashDelta < 0) {
     return "No hay efectivo suficiente en caja para registrar esta operación.";
   }
 
@@ -172,6 +215,27 @@ export function validateOperationFinancialImpact({
   }
 
   return null;
+}
+
+export function getWithdrawalBankCreditAmount(operation: Operation): number {
+  const commission = operation.commission ?? 0;
+  return operation.withdrawalCommissionMode === "deposited"
+    ? operation.amount + commission
+    : operation.amount;
+}
+
+export function getWithdrawalCashDeliveryAmount(operation: Operation): number {
+  const commission = operation.commission ?? 0;
+
+  if (operation.customerCashReceived !== undefined) {
+    return operation.customerCashReceived;
+  }
+
+  if (operation.withdrawalCommissionMode === "deducted") {
+    return Math.max(0, operation.amount - commission);
+  }
+
+  return operation.amount;
 }
 
 export function computeFinancialTotals(): FinancialTotals {

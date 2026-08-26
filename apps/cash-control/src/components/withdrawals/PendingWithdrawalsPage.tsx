@@ -4,12 +4,26 @@ import { Banknote, CheckCircle2, Eye, ListChecks } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { OperationDetailsModal } from "@/components/history/OperationDetailsModal";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useMockSession } from "@/components/session/MockSessionContext";
+import {
+  ModalInfoItem,
+  ModalSection,
+  ModalShell,
+} from "@/components/shared/ModalShell";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import type { Operation } from "@/types/operation";
 
+const pendingReasonLabels: Record<string, string> = {
+  customer_later: "Cliente recogerá después",
+  insufficient_cash: "Falta de efectivo disponible",
+  operational_limit: "Límite operativo",
+  other: "Otro",
+};
+
 export function PendingWithdrawalsPage() {
-  const { operations } = useBusinessFunds();
+  const { operations, deliverPendingWithdrawal } = useBusinessFunds();
+  const { authenticatedUser } = useMockSession();
 
   const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
     null,
@@ -17,6 +31,9 @@ export function PendingWithdrawalsPage() {
 
   const [operationToDeliver, setOperationToDeliver] =
     useState<Operation | null>(null);
+  const [receiverName, setReceiverName] = useState("");
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [isDelivering, setIsDelivering] = useState(false);
 
   const pendingWithdrawals = useMemo(() => {
     return operations
@@ -38,8 +55,51 @@ export function PendingWithdrawalsPage() {
     );
   }, [pendingWithdrawals]);
 
-  function markAsDelivered(_operationId: string) {
+  function openDeliveryDialog(operation: Operation) {
+    setOperationToDeliver(operation);
+    setReceiverName("");
+    setDeliveryError(null);
+  }
+
+  function closeDeliveryDialog() {
+    if (isDelivering) return;
     setOperationToDeliver(null);
+    setReceiverName("");
+    setDeliveryError(null);
+  }
+
+  function confirmDelivery() {
+    if (!operationToDeliver || isDelivering) return;
+
+    if (receiverName.trim() === "") {
+      setDeliveryError("Captura el nombre de quien recibe.");
+      focusFirstInvalidField({
+        errors: { receiverName: "Captura el nombre de quien recibe." },
+        fieldOrder: ["receiverName"],
+        fieldSelector: {
+          receiverName: "#pending-delivery-receiver",
+        },
+      });
+      return;
+    }
+
+    setIsDelivering(true);
+    const result = deliverPendingWithdrawal({
+      operationId: operationToDeliver.id,
+      receiverName,
+      deliveredBy: authenticatedUser?.userName ?? "Usuario no disponible",
+    });
+
+    if (!result.success) {
+      setDeliveryError(result.error ?? "No se pudo confirmar la entrega.");
+      setIsDelivering(false);
+      return;
+    }
+
+    setOperationToDeliver(null);
+    setReceiverName("");
+    setDeliveryError(null);
+    setIsDelivering(false);
   }
 
   return (
@@ -119,7 +179,7 @@ export function PendingWithdrawalsPage() {
 
                       <button
                         type="button"
-                        onClick={() => setOperationToDeliver(operation)}
+                        onClick={() => openDeliveryDialog(operation)}
                         className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 shrink-0"
                       >
                         <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
@@ -150,26 +210,133 @@ export function PendingWithdrawalsPage() {
         onClose={() => setSelectedOperation(null)}
       />
 
-      <ConfirmDialog
-        isOpen={operationToDeliver !== null}
-        title="Confirmar entrega de efectivo"
-        description={
-          operationToDeliver
-            ? `El retiro con folio ${operationToDeliver.bankFolio} por ${formatCurrency(operationToDeliver.amount)} se marcará como entregado.`
-            : ""
-        }
-        confirmLabel="Confirmar entrega"
-        onCancel={() => setOperationToDeliver(null)}
-        onConfirm={() => {
-          if (!operationToDeliver) {
-            return;
-          }
-
-          markAsDelivered(operationToDeliver.id);
+      <ConfirmPendingWithdrawalDeliveryDialog
+        operation={operationToDeliver}
+        receiverName={receiverName}
+        error={deliveryError}
+        isDelivering={isDelivering}
+        onReceiverNameChange={(value) => {
+          setReceiverName(value);
+          setDeliveryError(null);
         }}
+        onClose={closeDeliveryDialog}
+        onConfirm={confirmDelivery}
       />
     </div>
   );
+}
+
+function ConfirmPendingWithdrawalDeliveryDialog({
+  operation,
+  receiverName,
+  error,
+  isDelivering,
+  onReceiverNameChange,
+  onClose,
+  onConfirm,
+}: {
+  operation: Operation | null;
+  receiverName: string;
+  error: string | null;
+  isDelivering: boolean;
+  onReceiverNameChange: (value: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!operation) return null;
+
+  return (
+    <ModalShell
+      title="Confirmar entrega de efectivo"
+      description="Registra la entrega física del efectivo apartado para este retiro."
+      onClose={onClose}
+      maxWidth="lg"
+      zIndex="high"
+      footer={
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isDelivering}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onConfirm}
+            disabled={isDelivering}
+          >
+            {isDelivering ? "Confirmando..." : "Confirmar entrega"}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <ModalSection>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ModalInfoItem
+              label="Folio/referencia"
+              value={operation.bankFolio}
+            />
+            <ModalInfoItem
+              label="Banco"
+              value={operation.bankFrom ?? "Banco no disponible"}
+            />
+            <ModalInfoItem
+              label="Monto"
+              value={formatCurrency(operation.amount)}
+            />
+            <ModalInfoItem
+              label="Motivo de pendiente"
+              value={getPendingReasonLabel(operation)}
+            />
+          </div>
+        </ModalSection>
+
+        <div>
+          <label
+            htmlFor="pending-delivery-receiver"
+            className="mb-2 block text-sm font-semibold text-slate-700"
+          >
+            Persona que recibe
+            <span className="ml-1 text-red-500">*</span>
+          </label>
+          <input
+            id="pending-delivery-receiver"
+            type="text"
+            value={receiverName}
+            onChange={(event) => onReceiverNameChange(event.target.value)}
+            className="field-input px-4 py-3"
+            placeholder="Nombre completo"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={
+              error ? "pending-delivery-receiver-error" : undefined
+            }
+          />
+          {error && (
+            <p
+              id="pending-delivery-receiver-error"
+              className="mt-2 text-sm font-medium text-red-600"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+function getPendingReasonLabel(operation: Operation): string {
+  if (operation.pendingReason === "other") {
+    return operation.pendingReasonDetails || "Otro";
+  }
+
+  return operation.pendingReason
+    ? (pendingReasonLabels[operation.pendingReason] ?? operation.pendingReason)
+    : "Sin motivo registrado";
 }
 
 type SummaryCardProps = {

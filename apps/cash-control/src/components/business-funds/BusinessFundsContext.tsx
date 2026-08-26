@@ -19,6 +19,7 @@ import {
 } from "@/lib/administrativeMovements";
 import {
   applyOperationFinancialImpact,
+  getWithdrawalCashDeliveryAmount,
   validateOperationFinancialImpact,
 } from "@/lib/finance";
 import type {
@@ -58,6 +59,15 @@ type BusinessFundsContextValue = {
   resetVersion: number;
   resources: ReturnType<typeof getAdministrativeResources>;
   registerClientOperation: (operation: Operation) => {
+    success: boolean;
+    operation?: Operation;
+    error?: string;
+  };
+  deliverPendingWithdrawal: (input: {
+    operationId: string;
+    receiverName: string;
+    deliveredBy: string;
+  }) => {
     success: boolean;
     operation?: Operation;
     error?: string;
@@ -166,6 +176,67 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, operation };
   }
 
+  function deliverPendingWithdrawal(input: {
+    operationId: string;
+    receiverName: string;
+    deliveredBy: string;
+  }): { success: boolean; operation?: Operation; error?: string } {
+    const receiverName = input.receiverName.trim();
+    if (!receiverName) {
+      return {
+        success: false,
+        error: "Captura el nombre de quien recibe.",
+      };
+    }
+
+    const original = operations.find(
+      (operation) =>
+        operation.id === input.operationId &&
+        operation.type === "retiro" &&
+        operation.status === "pendiente",
+    );
+    if (!original) {
+      return { success: false, error: "Retiro pendiente no encontrado." };
+    }
+
+    const reservedAmount = getWithdrawalCashDeliveryAmount(original);
+    const reservedOperation = cash.reservedOperations.find(
+      (operation) => operation.id === original.id,
+    );
+    const amountToDeliver = reservedOperation?.amount ?? reservedAmount;
+
+    if (cash.physicalBalance - amountToDeliver < 0) {
+      return {
+        success: false,
+        error: "No hay efectivo físico suficiente para confirmar la entrega.",
+      };
+    }
+
+    const deliveredOperation: Operation = {
+      ...original,
+      status: "entregado",
+      receiverName,
+      editedAt: new Date().toISOString(),
+      editedBy: input.deliveredBy,
+    };
+
+    setCash((currentCash) => ({
+      ...currentCash,
+      physicalBalance: currentCash.physicalBalance - amountToDeliver,
+      reservedOperations: currentCash.reservedOperations.filter(
+        (operation) => operation.id !== original.id,
+      ),
+      updatedAt: new Date().toISOString(),
+    }));
+    setOperations((currentOperations) =>
+      currentOperations.map((operation) =>
+        operation.id === original.id ? deliveredOperation : operation,
+      ),
+    );
+
+    return { success: true, operation: deliveredOperation };
+  }
+
   function correctMovement(input: CorrectAdministrativeMovementInput): {
     success: boolean;
     movement?: AdministrativeMovement;
@@ -266,6 +337,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         resetVersion,
         resources,
         registerClientOperation,
+        deliverPendingWithdrawal,
         registerMovement,
         correctMovement,
         resetFinancialState,

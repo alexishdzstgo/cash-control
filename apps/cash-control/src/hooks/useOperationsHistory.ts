@@ -14,15 +14,16 @@ export function useOperationsHistory(operations: Operation[]) {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "todos" | OperationStatus
-  >("todos");
+  const [statusFilter, setStatusFilter] = useState<"todos" | OperationStatus>(
+    "todos",
+  );
   const [typeFilter, setTypeFilter] = useState<"todos" | OperationType>(
     "todos",
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedOperation, setSelectedOperation] =
-    useState<Operation | null>(null);
+  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
+    null,
+  );
 
   useEffect(() => {
     setOperationList(operations);
@@ -58,8 +59,7 @@ export function useOperationsHistory(operations: Operation[]) {
         const matchesStartDate =
           startDate === null || operationDate >= startDate;
 
-        const matchesEndDate =
-          endDate === null || operationDate <= endDate;
+        const matchesEndDate = endDate === null || operationDate <= endDate;
 
         return (
           matchesSearch &&
@@ -74,14 +74,7 @@ export function useOperationsHistory(operations: Operation[]) {
           new Date(secondOperation.createdAt).getTime() -
           new Date(firstOperation.createdAt).getTime(),
       );
-  }, [
-    operationList,
-    search,
-    dateFrom,
-    dateTo,
-    statusFilter,
-    typeFilter,
-  ]);
+  }, [operationList, search, dateFrom, dateTo, statusFilter, typeFilter]);
 
   const totalPages = Math.max(
     1,
@@ -128,51 +121,28 @@ export function useOperationsHistory(operations: Operation[]) {
     setTypeFilter("todos");
     setCurrentPage(1);
   }
-  function markAsDelivered(operationId: string) {
-  setOperationList((currentOperations) =>
-    currentOperations.map((operation) =>
-      operation.id === operationId
-        ? {
-            ...operation,
-            status: "entregado",
-          }
-        : operation,
-    ),
-  );
+  return {
+    search,
+    dateFrom,
+    dateTo,
+    statusFilter,
+    typeFilter,
+    currentPage,
+    selectedOperation,
 
-  setSelectedOperation((currentOperation) =>
-    currentOperation?.id === operationId
-      ? {
-          ...currentOperation,
-          status: "entregado",
-        }
-      : currentOperation,
-  );
-}
+    filteredOperations,
+    paginatedOperations,
+    totalPages,
+    pageSize: DEFAULT_PAGE_SIZE,
 
-return {
-  search,
-  dateFrom,
-  dateTo,
-  statusFilter,
-  typeFilter,
-  currentPage,
-  selectedOperation,
+    setCurrentPage,
+    setSelectedOperation,
 
-  filteredOperations,
-  paginatedOperations,
-  totalPages,
-  pageSize: DEFAULT_PAGE_SIZE,
-
-  setCurrentPage,
-  setSelectedOperation,
-
-  updateSearch,
-  updateDateFrom,
-  updateDateTo,
-  updateStatusFilter,
-  updateTypeFilter,
-  clearFilters,
-  markAsDelivered,
-};
+    updateSearch,
+    updateDateFrom,
+    updateDateTo,
+    updateStatusFilter,
+    updateTypeFilter,
+    clearFilters,
+  };
 }

@@ -23,6 +23,13 @@ const withdrawalCommissionModeLabels: Record<WithdrawalCommissionMode, string> =
     deducted: "Comision descontada",
   };
 
+const pendingReasonLabels: Record<string, string> = {
+  customer_later: "Cliente recogerá después",
+  insufficient_cash: "Falta de efectivo disponible",
+  operational_limit: "Límite operativo",
+  other: "Otro",
+};
+
 export function OperationDetailsModal({
   operation,
   onClose,
@@ -110,13 +117,29 @@ export function OperationDetailsModal({
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
             <ModalInfoItem
-              label="Nombre de quien envia"
+              label={
+                operation.type === "retiro"
+                  ? "Persona que envía"
+                  : "Nombre de quien envia"
+              }
               value={operation.senderName}
             />
-            <ModalInfoItem
-              label="Nombre de quien recibe"
-              value={operation.receiverName}
-            />
+            {operation.receiverName && (
+              <ModalInfoItem
+                label={
+                  operation.type === "retiro"
+                    ? "Persona que recibe"
+                    : "Nombre de quien recibe"
+                }
+                value={operation.receiverName}
+              />
+            )}
+            {operation.status === "pendiente" && (
+              <ModalInfoItem
+                label="Motivo de pendiente"
+                value={getPendingReasonLabel(operation)}
+              />
+            )}
             {operation.destinationAccountLast4 && (
               <ModalInfoItem
                 label="Cuenta destino"
@@ -159,4 +182,14 @@ export function OperationDetailsModal({
       </div>
     </ModalShell>
   );
+}
+
+function getPendingReasonLabel(operation: Operation): string {
+  if (operation.pendingReason === "other") {
+    return operation.pendingReasonDetails || "Otro";
+  }
+
+  return operation.pendingReason
+    ? (pendingReasonLabels[operation.pendingReason] ?? operation.pendingReason)
+    : "Sin motivo registrado";
 }

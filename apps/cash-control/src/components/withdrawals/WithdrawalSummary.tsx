@@ -7,9 +7,11 @@ import { formatCurrency } from "@/lib/formatters";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
+  WithdrawalMode,
 } from "@/types/withdrawal";
 
 type WithdrawalSummaryProps = {
+  mode: WithdrawalMode;
   formData: WithdrawalFormData;
   deliveredBy: string;
   amount: number;
@@ -17,6 +19,7 @@ type WithdrawalSummaryProps = {
   cashDeliveredToCustomer: number;
   hasCommissionRule: boolean;
   isReadyToRegister: boolean;
+  isSubmitting?: boolean;
   errorMessage?: string | null;
   onRegister: () => void;
 };
@@ -34,6 +37,7 @@ const commissionDestinationLabels: Record<WithdrawalCommissionMode, string> = {
 };
 
 export function WithdrawalSummary({
+  mode,
   formData,
   deliveredBy,
   amount,
@@ -41,9 +45,11 @@ export function WithdrawalSummary({
   cashDeliveredToCustomer,
   hasCommissionRule,
   isReadyToRegister,
+  isSubmitting = false,
   errorMessage,
   onRegister,
 }: WithdrawalSummaryProps) {
+  const isPendingMode = mode === "pending";
   const selectedCommissionMode = isWithdrawalCommissionMode(
     formData.commissionMode,
   )
@@ -66,14 +72,16 @@ export function WithdrawalSummary({
           Resumen del retiro
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Verifica los datos antes de entregar el efectivo.
+          {isPendingMode
+            ? "Verifica los datos antes de apartar el efectivo."
+            : "Verifica los datos antes de entregar el efectivo."}
         </p>
       </div>
 
       <div className="p-6">
         <div className="space-y-4">
           <SummaryRow
-            label="Folio bancario"
+            label="Folio o referencia bancaria"
             value={formData.bankFolio || "Sin capturar"}
             mono
           />
@@ -83,20 +91,32 @@ export function WithdrawalSummary({
             value={getBankLabel(formData.bank)}
           />
           <SummaryRow
-            label="Nombre de quien recibe"
-            value={formData.receiverName || "Sin capturar"}
+            label="Persona que envía"
+            value={formData.senderName || "Sin capturar"}
           />
+          {!isPendingMode && (
+            <SummaryRow
+              label="Persona que recibe"
+              value={formData.receiverName || "Sin capturar"}
+            />
+          )}
           <SummaryRow
             label="Forma de cobrar comision"
             value={commissionModeLabel}
           />
           <SummaryRow
             label="Comision"
-            value={commission === null ? "Sin regla" : formatCurrency(commission)}
+            value={
+              commission === null ? "Sin regla" : formatCurrency(commission)
+            }
           />
           <SummaryRow label="Entrega el efectivo" value={deliveredBy} />
           <SummaryRow
-            label="Efectivo que recibira el cliente"
+            label={
+              isPendingMode
+                ? "Efectivo que quedará apartado"
+                : "Efectivo que recibira el cliente"
+            }
             value={formatCurrency(cashDeliveredToCustomer)}
           />
           <SummaryRow
@@ -125,20 +145,27 @@ export function WithdrawalSummary({
 
         <button
           type="button"
-          aria-disabled={!isReadyToRegister}
+          aria-disabled={!isReadyToRegister || isSubmitting}
+          disabled={isSubmitting}
           onClick={onRegister}
           className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
-            isReadyToRegister
+            isReadyToRegister && !isSubmitting
               ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-              : "bg-slate-300 text-slate-600 hover:bg-slate-300"
+              : "cursor-not-allowed bg-slate-300 text-slate-600 hover:bg-slate-300"
           }`}
         >
           <CheckCircle2 className="h-5 w-5" />
-          Registrar retiro y generar ticket
+          {isSubmitting
+            ? "Registrando..."
+            : isPendingMode
+              ? "Registrar como pendiente"
+              : "Registrar retiro y generar ticket"}
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
-          Despues de registrar, podras revisar e imprimir el comprobante.
+          {isPendingMode
+            ? "Quedará visible en Retiros pendientes."
+            : "Despues de registrar, podras revisar e imprimir el comprobante."}
         </p>
       </div>
     </aside>

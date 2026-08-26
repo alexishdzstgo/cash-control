@@ -7,9 +7,12 @@ import { getValidationFieldProps } from "@/lib/formValidationFocus";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
+  WithdrawalMode,
+  WithdrawalPendingReason,
 } from "@/types/withdrawal";
 
 type WithdrawalFormProps = {
+  mode: WithdrawalMode;
   formData: WithdrawalFormData;
   errors?: Partial<Record<keyof WithdrawalFormData, string>>;
   onFormDataChange: (data: WithdrawalFormData) => void;
@@ -19,6 +22,16 @@ const inputClass =
   "field-input px-4 py-3 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
 const labelClass = "mb-2 block text-sm font-semibold text-slate-700";
+
+const pendingReasonOptions: Array<{
+  value: WithdrawalPendingReason;
+  label: string;
+}> = [
+  { value: "customer_later", label: "Cliente recogerá después" },
+  { value: "insufficient_cash", label: "Falta de efectivo disponible" },
+  { value: "operational_limit", label: "Límite operativo" },
+  { value: "other", label: "Otro" },
+];
 
 const commissionModeOptions: Array<{
   value: WithdrawalCommissionMode;
@@ -43,6 +56,7 @@ const commissionModeOptions: Array<{
 ];
 
 export function WithdrawalForm({
+  mode,
   formData,
   errors = {},
   onFormDataChange,
@@ -67,14 +81,14 @@ export function WithdrawalForm({
           Datos del retiro
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Captura el folio visible en la app bancaria y los datos de entrega.
+          Captura el identificador bancario y los datos del retiro.
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
         <div>
           <label htmlFor="withdrawal-bank-folio" className={labelClass}>
-            Folio bancario
+            Folio o referencia bancaria
             <span className="ml-1 text-red-500">*</span>
           </label>
           <input
@@ -82,7 +96,7 @@ export function WithdrawalForm({
             type="text"
             value={formData.bankFolio}
             onChange={(event) => updateField("bankFolio", event.target.value)}
-            placeholder="Escribe el folio"
+            placeholder="Ej. ABC123"
             className={inputClass}
             aria-invalid={errors.bankFolio ? true : undefined}
             aria-describedby={
@@ -97,6 +111,9 @@ export function WithdrawalForm({
               {errors.bankFolio}
             </p>
           )}
+          <p className="mt-2 text-xs text-slate-500">
+            Ingresa el identificador generado por la aplicación bancaria.
+          </p>
         </div>
 
         <AmountField
@@ -118,19 +135,33 @@ export function WithdrawalForm({
           onChange={(value) => updateField("bank", value)}
           label="Banco de recepcion"
           colorVariant="withdrawal"
+          required
           error={errors.bank}
         />
 
         <PersonNameField
-          id="withdrawal-receiver"
-          value={formData.receiverName}
-          onChange={(value) => updateField("receiverName", value)}
-          label="Nombre de quien recibe"
+          id="withdrawal-sender"
+          value={formData.senderName}
+          onChange={(value) => updateField("senderName", value)}
+          label="Persona que envía"
           placeholder="Nombre completo"
           required
           colorVariant="withdrawal"
-          error={errors.receiverName}
+          error={errors.senderName}
         />
+
+        {mode === "delivered" && (
+          <PersonNameField
+            id="withdrawal-receiver"
+            value={formData.receiverName}
+            onChange={(value) => updateField("receiverName", value)}
+            label="Persona que recibe"
+            placeholder="Nombre completo"
+            required
+            colorVariant="withdrawal"
+            error={errors.receiverName}
+          />
+        )}
 
         <fieldset
           className="md:col-span-2"
@@ -183,6 +214,85 @@ export function WithdrawalForm({
             </p>
           )}
         </fieldset>
+
+        {mode === "pending" && (
+          <>
+            <div>
+              <label htmlFor="withdrawal-pending-reason" className={labelClass}>
+                Motivo de pendiente
+                <span className="ml-1 text-red-500">*</span>
+              </label>
+              <select
+                id="withdrawal-pending-reason"
+                value={formData.pendingReason}
+                onChange={(event) =>
+                  updateField(
+                    "pendingReason",
+                    event.target.value as WithdrawalPendingReason | "",
+                  )
+                }
+                className={inputClass}
+                aria-invalid={errors.pendingReason ? true : undefined}
+                aria-describedby={
+                  errors.pendingReason
+                    ? "withdrawal-pending-reason-error"
+                    : undefined
+                }
+              >
+                <option value="">Selecciona un motivo</option>
+                {pendingReasonOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {errors.pendingReason && (
+                <p
+                  id="withdrawal-pending-reason-error"
+                  className="mt-2 text-sm font-medium text-red-600"
+                >
+                  {errors.pendingReason}
+                </p>
+              )}
+            </div>
+
+            {formData.pendingReason === "other" && (
+              <div>
+                <label
+                  htmlFor="withdrawal-pending-reason-details"
+                  className={labelClass}
+                >
+                  Detalle del motivo
+                  <span className="ml-1 text-red-500">*</span>
+                </label>
+                <input
+                  id="withdrawal-pending-reason-details"
+                  type="text"
+                  value={formData.pendingReasonDetails}
+                  onChange={(event) =>
+                    updateField("pendingReasonDetails", event.target.value)
+                  }
+                  placeholder="Describe el motivo"
+                  className={inputClass}
+                  aria-invalid={errors.pendingReasonDetails ? true : undefined}
+                  aria-describedby={
+                    errors.pendingReasonDetails
+                      ? "withdrawal-pending-reason-details-error"
+                      : undefined
+                  }
+                />
+                {errors.pendingReasonDetails && (
+                  <p
+                    id="withdrawal-pending-reason-details-error"
+                    className="mt-2 text-sm font-medium text-red-600"
+                  >
+                    {errors.pendingReasonDetails}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         <div className="md:col-span-2">
           <label htmlFor="withdrawal-observations" className={labelClass}>
