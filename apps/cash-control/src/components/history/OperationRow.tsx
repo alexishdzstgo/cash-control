@@ -1,31 +1,25 @@
-import {
-  formatCurrency,
-  formatDateTime,
-} from "@/lib/formatters";
+import { CheckCircle2, Eye, MessageSquareText, Pencil } from "lucide-react";
+import { ActionMenu } from "@/components/shared/ActionMenu";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import type { Operation } from "@/types/operation";
 import { OperationStatusBadge } from "./OperationStatusBadge";
 import { OperationTypeBadge } from "./OperationTypeBadge";
-import {
-  CheckCircle2,
-  Eye,
-  FileText,
-  History,
-  Pencil,
-  Printer,
-} from "lucide-react";
-import { ActionMenu } from "@/components/shared/ActionMenu";
-import type { Operation } from "@/types/operation";
 
 type OperationRowProps = {
   operation: Operation;
   onViewDetails: (operation: Operation) => void;
+  onAddClarification: (operation: Operation) => void;
   onMarkAsDelivered: (operation: Operation) => void;
 };
 
 export function OperationRow({
   operation,
   onViewDetails,
+  onAddClarification,
   onMarkAsDelivered,
 }: OperationRowProps) {
+  const clarificationCount = operation.clarifications?.length ?? 0;
+
   return (
     <tr className="group relative bg-white transition-colors duration-200 hover:bg-slate-50/70">
       <td className="px-4 py-3">
@@ -51,7 +45,14 @@ export function OperationRow({
       </td>
 
       <td className="px-4 py-3">
-        {operation.isEdited ? (
+        {clarificationCount > 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+            <MessageSquareText aria-hidden="true" className="h-3.5 w-3.5" />
+            {clarificationCount === 1
+              ? "Tiene aclaración"
+              : `${clarificationCount} aclaraciones`}
+          </span>
+        ) : operation.isEdited ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
             <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
             Editado
@@ -89,24 +90,11 @@ export function OperationRow({
           <ActionMenu
             items={[
               {
-                label: "Editar operación",
-                icon: <Pencil aria-hidden="true" className="h-4 w-4" />,
-                onClick: () => console.log("Editar operación:", operation),
-              },
-              {
-                label: "Ver ticket",
-                icon: <FileText aria-hidden="true" className="h-4 w-4" />,
-                onClick: () => console.log("Ver ticket:", operation),
-              },
-              {
-                label: "Imprimir ticket",
-                icon: <Printer aria-hidden="true" className="h-4 w-4" />,
-                onClick: () => console.log("Imprimir ticket:", operation),
-              },
-              {
-                label: "Historial de cambios",
-                icon: <History aria-hidden="true" className="h-4 w-4" />,
-                onClick: () => console.log("Historial de cambios:", operation),
+                label: "Agregar aclaración",
+                icon: (
+                  <MessageSquareText aria-hidden="true" className="h-4 w-4" />
+                ),
+                onClick: () => onAddClarification(operation),
               },
             ]}
           />

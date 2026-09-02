@@ -21,7 +21,7 @@ export function useOperationsHistory(operations: Operation[]) {
     "todos",
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
+  const [selectedOperationId, setSelectedOperationId] = useState<string | null>(
     null,
   );
 
@@ -128,7 +128,7 @@ export function useOperationsHistory(operations: Operation[]) {
     statusFilter,
     typeFilter,
     currentPage,
-    selectedOperation,
+    selectedOperationId,
 
     filteredOperations,
     paginatedOperations,
@@ -136,7 +136,7 @@ export function useOperationsHistory(operations: Operation[]) {
     pageSize: DEFAULT_PAGE_SIZE,
 
     setCurrentPage,
-    setSelectedOperation,
+    setSelectedOperationId,
 
     updateSearch,
     updateDateFrom,

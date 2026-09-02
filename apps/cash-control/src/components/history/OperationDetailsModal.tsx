@@ -48,6 +48,12 @@ export function OperationDetailsModal({
     return null;
   }
 
+  const clarifications = [...(operation.clarifications ?? [])].sort(
+    (firstClarification, secondClarification) =>
+      new Date(secondClarification.createdAt).getTime() -
+      new Date(firstClarification.createdAt).getTime(),
+  );
+
   return (
     <ModalShell
       title={`Folio ${operation.bankFolio}`}
@@ -168,6 +174,41 @@ export function OperationDetailsModal({
             />
           </div>
         </ModalSection>
+
+        {clarifications.length > 0 && (
+          <ModalSection>
+            <h3 className="mb-4 text-sm font-bold text-slate-900">
+              Aclaraciones
+            </h3>
+            <div className="space-y-3">
+              {clarifications.map((clarification) => (
+                <div
+                  key={clarification.id}
+                  className="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3"
+                >
+                  <p className="text-sm font-bold text-slate-900">
+                    {clarification.reason}
+                  </p>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">
+                    {clarification.note}
+                  </p>
+                  {clarification.reference && (
+                    <p className="mt-3 text-sm text-slate-600">
+                      <span className="font-semibold text-slate-800">
+                        Referencia:
+                      </span>{" "}
+                      {clarification.reference}
+                    </p>
+                  )}
+                  <p className="mt-3 text-xs font-medium text-slate-500">
+                    {clarification.createdBy} ·{" "}
+                    {formatDateTime(clarification.createdAt)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </ModalSection>
+        )}
 
         {operation.isEdited && (
           <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">

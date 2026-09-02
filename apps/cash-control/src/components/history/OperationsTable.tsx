@@ -1,6 +1,6 @@
+import { Pagination } from "@/components/shared/Pagination";
 import type { Operation } from "@/types/operation";
 import { OperationRow } from "./OperationRow";
-import { Pagination } from "@/components/shared/Pagination";
 
 type OperationsTableProps = {
   operations: Operation[];
@@ -10,6 +10,7 @@ type OperationsTableProps = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onViewDetails: (operation: Operation) => void;
+  onAddClarification: (operation: Operation) => void;
   onMarkAsDelivered: (operation: Operation) => void;
 };
 
@@ -21,6 +22,7 @@ export function OperationsTable({
   pageSize,
   onPageChange,
   onViewDetails,
+  onAddClarification,
   onMarkAsDelivered,
 }: OperationsTableProps) {
   return (
@@ -46,6 +48,7 @@ export function OperationsTable({
                 key={operation.id}
                 operation={operation}
                 onViewDetails={onViewDetails}
+                onAddClarification={onAddClarification}
                 onMarkAsDelivered={onMarkAsDelivered}
               />
             ))}

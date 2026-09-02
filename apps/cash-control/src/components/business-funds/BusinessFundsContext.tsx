@@ -52,6 +52,14 @@ type CorrectAdministrativeMovementInput = {
   editedByUserName: string;
 };
 
+type AddOperationClarificationInput = {
+  operationId: string;
+  reason: string;
+  note: string;
+  reference?: string;
+  createdBy: string;
+};
+
 type BusinessFundsContextValue = {
   cash: CashBalance;
   banks: BankAccountBalance[];
@@ -74,6 +82,11 @@ type BusinessFundsContextValue = {
     bankMovementAmount?: number;
     appliedCommissionSnapshot?: AppliedCommissionSnapshot;
   }) => {
+    success: boolean;
+    operation?: Operation;
+    error?: string;
+  };
+  addOperationClarification: (input: AddOperationClarificationInput) => {
     success: boolean;
     operation?: Operation;
     error?: string;
@@ -287,6 +300,57 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, operation: deliveredOperation };
   }
 
+  function addOperationClarification(input: AddOperationClarificationInput): {
+    success: boolean;
+    operation?: Operation;
+    error?: string;
+  } {
+    const reason = input.reason.trim();
+    const note = input.note.trim();
+    const reference = input.reference?.trim();
+    const createdBy = input.createdBy.trim() || "Usuario no disponible";
+
+    if (!reason) {
+      return {
+        success: false,
+        error: "Selecciona el motivo de la aclaración.",
+      };
+    }
+
+    if (!note) {
+      return { success: false, error: "Captura la nota de aclaración." };
+    }
+
+    const original = operations.find(
+      (operation) => operation.id === input.operationId,
+    );
+    if (!original) {
+      return { success: false, error: "Operación no encontrada." };
+    }
+
+    const clarification = {
+      id: `op-clarification-${Date.now()}-${crypto.randomUUID()}`,
+      reason,
+      note,
+      reference: reference || undefined,
+      createdAt: new Date().toISOString(),
+      createdBy,
+    };
+
+    const clarifiedOperation: Operation = {
+      ...original,
+      clarifications: [clarification, ...(original.clarifications ?? [])],
+    };
+
+    setOperations((currentOperations) =>
+      currentOperations.map((operation) =>
+        operation.id === original.id ? clarifiedOperation : operation,
+      ),
+    );
+
+    return { success: true, operation: clarifiedOperation };
+  }
+
   function correctMovement(input: CorrectAdministrativeMovementInput): {
     success: boolean;
     movement?: AdministrativeMovement;
@@ -388,6 +452,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         resources,
         registerClientOperation,
         deliverPendingWithdrawal,
+        addOperationClarification,
         registerMovement,
         correctMovement,
         resetFinancialState,

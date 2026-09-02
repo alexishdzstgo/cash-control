@@ -5,15 +5,22 @@ import type {
 } from "@/types/commission";
 import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 
-export type OperationType =
-  | "deposito"
-  | "retiro";
+export type OperationType = "deposito" | "retiro";
 
 export type OperationStatus =
   | "completado"
   | "pendiente"
   | "entregado"
   | "cancelado";
+
+export type OperationClarification = {
+  id: string;
+  reason: string;
+  note: string;
+  reference?: string;
+  createdAt: string;
+  createdBy: string;
+};
 
 export type Operation = {
   id: string;
@@ -53,4 +60,5 @@ export type Operation = {
   isEdited?: boolean;
   editedAt?: string;
   editedBy?: string;
+  clarifications?: OperationClarification[];
 };
