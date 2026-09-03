@@ -9,44 +9,52 @@ import {
   ModalShell,
 } from "@/components/shared/ModalShell";
 import {
-  getCorrectionDate,
   getCorrectionReason,
-  getCorrectionUser,
+  getCorrectionSnapshotChanges,
+  type OperationAuditEvent,
 } from "@/lib/audit";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
-import type { Operation } from "@/types/operation";
 
 type AuditDetailsModalProps = {
-  operation: Operation | null;
+  event: OperationAuditEvent | null;
   onClose: () => void;
 };
 
-export function AuditDetailsModal({
-  operation,
-  onClose,
-}: AuditDetailsModalProps) {
+export function AuditDetailsModal({ event, onClose }: AuditDetailsModalProps) {
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+    function handleKeyDown(keyboardEvent: KeyboardEvent) {
+      if (keyboardEvent.key === "Escape") {
         onClose();
       }
     }
 
-    if (operation) {
+    if (event) {
       window.addEventListener("keydown", handleKeyDown);
     }
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [operation, onClose]);
+  }, [event, onClose]);
 
-  if (!operation) {
+  if (!event) {
     return null;
   }
+
+  const operation = event.operation;
+  const changes = event.correction
+    ? getCorrectionSnapshotChanges({
+        before: event.correction.before,
+        after: event.correction.after,
+      })
+    : [];
 
   return (
     <ModalShell
       title={`Folio ${operation.bankFolio}`}
-      description="Detalle de auditoria"
+      description={
+        event.kind === "correction"
+          ? "Detalle de corrección financiera"
+          : "Detalle de aclaración"
+      }
       onClose={onClose}
       closeOnOverlayClick
       maxWidth="xl"
@@ -61,11 +69,11 @@ export function AuditDetailsModal({
       <div className="space-y-4">
         <ModalSection>
           <h3 className="mb-4 text-sm font-bold text-slate-900">
-            Informacion de la operacion
+            Información de la operación
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
             <ModalInfoItem
-              label="Operacion"
+              label="Operación"
               value={<OperationTypeBadge type={operation.type} />}
             />
             <ModalInfoItem
@@ -73,11 +81,11 @@ export function AuditDetailsModal({
               value={<OperationStatusBadge status={operation.status} />}
             />
             <ModalInfoItem
-              label="Monto"
+              label="Monto actual"
               value={formatCurrency(operation.amount)}
             />
             <ModalInfoItem
-              label="Comision"
+              label="Comisión actual"
               value={formatCurrency(operation.commission)}
             />
             <ModalInfoItem
@@ -88,53 +96,71 @@ export function AuditDetailsModal({
               label="Banco destino"
               value={operation.bankTo ?? "No disponible"}
             />
-            <ModalInfoItem label="Quien envia" value={operation.senderName} />
+            <ModalInfoItem label="Registrado por" value={operation.createdBy} />
             <ModalInfoItem
-              label="Quien recibe"
-              value={operation.receiverName || "No registrado"}
+              label="Fecha de registro"
+              value={formatDateTime(operation.createdAt)}
             />
           </div>
         </ModalSection>
 
         <ModalSection>
           <h3 className="mb-4 text-sm font-bold text-slate-900">
-            Auditoria y correccion
+            {event.kind === "correction" ? "Corrección" : "Aclaración"}
           </h3>
           <div className="grid gap-4 md:grid-cols-2">
+            <ModalInfoItem label="Usuario" value={event.createdBy} />
             <ModalInfoItem
-              label="Usuario"
-              value={getCorrectionUser(operation)}
-            />
-            <ModalInfoItem
-              label="Fecha de correccion"
-              value={formatDateTime(getCorrectionDate(operation))}
-            />
-            <ModalInfoItem label="Registrado por" value={operation.createdBy} />
-            <ModalInfoItem
-              label="Fecha de registro"
-              value={formatDateTime(operation.createdAt)}
+              label="Fecha"
+              value={formatDateTime(event.createdAt)}
             />
             <ModalInfoItem
               className="md:col-span-2"
-              label="Motivo registrado"
-              value={getCorrectionReason(operation)}
+              label="Motivo"
+              value={getCorrectionReason(event)}
             />
-            <ModalInfoItem
-              className="md:col-span-2"
-              label="Regla de comision"
-              value={
-                operation.appliedCommissionSnapshot
-                  ? `Regla ${operation.appliedCommissionSnapshot.ruleId} - v${operation.appliedCommissionSnapshot.ruleVersion}`
-                  : "Regla aplicada no disponible para esta operacion historica"
-              }
-            />
+            {event.clarification?.note && (
+              <ModalInfoItem
+                className="md:col-span-2"
+                label="Nota"
+                value={event.clarification.note}
+              />
+            )}
+            {event.clarification?.reference && (
+              <ModalInfoItem
+                className="md:col-span-2"
+                label="Referencia adicional"
+                value={event.clarification.reference}
+              />
+            )}
           </div>
         </ModalSection>
 
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          El historial de valores anteriores estara disponible al conectar la
-          base de datos.
-        </div>
+        {event.kind === "correction" && (
+          <ModalSection>
+            <h3 className="mb-4 text-sm font-bold text-slate-900">
+              Valores modificados
+            </h3>
+            <div className="space-y-3">
+              {changes.map((change) => (
+                <div
+                  key={change.label}
+                  className="grid gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm md:grid-cols-[160px_1fr]"
+                >
+                  <span className="font-semibold text-slate-700">
+                    {change.label}
+                  </span>
+                  <span className="text-slate-600">
+                    {change.before} →{" "}
+                    <span className="font-semibold text-slate-900">
+                      {change.after}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </ModalSection>
+        )}
       </div>
     </ModalShell>
   );

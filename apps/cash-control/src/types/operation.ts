@@ -22,6 +22,32 @@ export type OperationClarification = {
   createdBy: string;
 };
 
+export type OperationCorrectionSnapshot = {
+  amount: number;
+  commission: number;
+  total: number;
+  bankFolio: string;
+  bankResourceId?: string;
+  bankFrom?: string;
+  bankTo?: string;
+  destinationAccountLast4?: string;
+  destinationReference?: string;
+  receiverName: string;
+  withdrawalCommissionMode?: WithdrawalCommissionMode;
+  customerCashReceived?: number;
+  bankMovementAmount?: number;
+  appliedCommissionSnapshot?: AppliedCommissionSnapshot;
+};
+
+export type OperationCorrection = {
+  id: string;
+  reason: string;
+  createdAt: string;
+  createdBy: string;
+  before: OperationCorrectionSnapshot;
+  after: OperationCorrectionSnapshot;
+};
+
 export type Operation = {
   id: string;
   type: OperationType;
@@ -61,4 +87,5 @@ export type Operation = {
   editedAt?: string;
   editedBy?: string;
   clarifications?: OperationClarification[];
+  corrections?: OperationCorrection[];
 };

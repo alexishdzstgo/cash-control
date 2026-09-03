@@ -13,6 +13,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import type { Operation } from "@/types/operation";
 import { HistoryFilters } from "./HistoryFilters";
+import { OperationCorrectionModal } from "./OperationCorrectionModal";
 import { OperationDetailsModal } from "./OperationDetailsModal";
 import { OperationsTable } from "./OperationsTable";
 
@@ -33,6 +34,8 @@ export function OperationsHistoryPage() {
     useState<Operation | null>(null);
   const [operationToClarify, setOperationToClarify] =
     useState<Operation | null>(null);
+  const [operationToCorrect, setOperationToCorrect] =
+    useState<Operation | null>(null);
   const [receiverName, setReceiverName] = useState("");
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [isDelivering, setIsDelivering] = useState(false);
@@ -45,8 +48,14 @@ export function OperationsHistoryPage() {
     string | null
   >(null);
   const [isSavingClarification, setIsSavingClarification] = useState(false);
-  const { operations, deliverPendingWithdrawal, addOperationClarification } =
-    useBusinessFunds();
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
+  const [isSavingCorrection, setIsSavingCorrection] = useState(false);
+  const {
+    operations,
+    deliverPendingWithdrawal,
+    addOperationClarification,
+    correctClientOperation,
+  } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
 
   const {
@@ -129,6 +138,52 @@ export function OperationsHistoryPage() {
     setClarificationReference("");
     setClarificationErrors({});
     setClarificationFormError(null);
+  }
+
+  function openCorrectionDialog(operation: Operation) {
+    setOperationToCorrect(operation);
+    setCorrectionError(null);
+  }
+
+  function closeCorrectionDialog() {
+    if (isSavingCorrection) return;
+    setOperationToCorrect(null);
+    setCorrectionError(null);
+  }
+
+  function saveCorrection(input: {
+    amount: number;
+    bankResourceId: string;
+    bankFolio?: string;
+    destinationAccountLast4?: string;
+    receiverName?: string;
+    reason: string;
+    reasonDetails?: string;
+  }) {
+    if (!operationToCorrect || isSavingCorrection) return;
+
+    setIsSavingCorrection(true);
+    const result = correctClientOperation({
+      operationId: operationToCorrect.id,
+      amount: input.amount,
+      bankResourceId: input.bankResourceId,
+      bankFolio: input.bankFolio,
+      destinationAccountLast4: input.destinationAccountLast4,
+      receiverName: input.receiverName,
+      reason: input.reason,
+      reasonDetails: input.reasonDetails,
+      correctedBy: authenticatedUser?.userName ?? "Usuario no disponible",
+    });
+
+    if (!result.success) {
+      setCorrectionError(result.error ?? "No se pudo guardar la corrección.");
+      setIsSavingCorrection(false);
+      return;
+    }
+
+    setOperationToCorrect(null);
+    setCorrectionError(null);
+    setIsSavingCorrection(false);
   }
 
   function closeClarificationDialog() {
@@ -216,6 +271,7 @@ export function OperationsHistoryPage() {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
         onViewDetails={(operation) => setSelectedOperationId(operation.id)}
+        onCorrectOperation={openCorrectionDialog}
         onAddClarification={openClarificationDialog}
         onMarkAsDelivered={(operation) => {
           setOperationToDeliver(operation);
@@ -227,6 +283,14 @@ export function OperationsHistoryPage() {
       <OperationDetailsModal
         operation={selectedOperation}
         onClose={() => setSelectedOperationId(null)}
+      />
+
+      <OperationCorrectionModal
+        operation={operationToCorrect}
+        error={correctionError}
+        isSaving={isSavingCorrection}
+        onClose={closeCorrectionDialog}
+        onConfirm={saveCorrection}
       />
 
       <ClarificationDialog

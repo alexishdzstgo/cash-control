@@ -10,6 +10,7 @@ type OperationsTableProps = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onViewDetails: (operation: Operation) => void;
+  onCorrectOperation: (operation: Operation) => void;
   onAddClarification: (operation: Operation) => void;
   onMarkAsDelivered: (operation: Operation) => void;
 };
@@ -22,6 +23,7 @@ export function OperationsTable({
   pageSize,
   onPageChange,
   onViewDetails,
+  onCorrectOperation,
   onAddClarification,
   onMarkAsDelivered,
 }: OperationsTableProps) {
@@ -48,6 +50,7 @@ export function OperationsTable({
                 key={operation.id}
                 operation={operation}
                 onViewDetails={onViewDetails}
+                onCorrectOperation={onCorrectOperation}
                 onAddClarification={onAddClarification}
                 onMarkAsDelivered={onMarkAsDelivered}
               />

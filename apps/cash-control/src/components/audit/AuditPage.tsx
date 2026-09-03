@@ -7,6 +7,7 @@ import {
   type AuditFilters as AuditFilterState,
   filterAuditOperations,
   getAuditSummary,
+  type OperationAuditEvent,
 } from "@/lib/audit";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { Operation } from "@/types/operation";
@@ -35,9 +36,8 @@ export function AuditPage({ operations, initialUserFilter }: AuditPageProps) {
     ...defaultFilters,
     user: initialUserFilter ?? "todos",
   });
-  const [selectedOperation, setSelectedOperation] = useState<Operation | null>(
-    null,
-  );
+  const [selectedEvent, setSelectedEvent] =
+    useState<OperationAuditEvent | null>(null);
 
   const summary = useMemo(
     () => getAuditSummary(auditOperations),
@@ -74,8 +74,8 @@ export function AuditPage({ operations, initialUserFilter }: AuditPageProps) {
         />
 
         <AuditTable
-          operations={filteredOperations}
-          onViewDetails={setSelectedOperation}
+          events={filteredOperations}
+          onViewDetails={setSelectedEvent}
         />
 
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -153,8 +153,8 @@ export function AuditPage({ operations, initialUserFilter }: AuditPageProps) {
       </div>
 
       <AuditDetailsModal
-        operation={selectedOperation}
-        onClose={() => setSelectedOperation(null)}
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
       />
     </div>
   );

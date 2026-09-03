@@ -2,8 +2,12 @@ import {
   bankAccounts,
   cashBalance,
 } from "@/components/balances/balanceMockData";
-import type { BankAccountBalance, CashBalance } from "@/types/balance";
-import type { Operation } from "@/types/operation";
+import type {
+  BankAccountBalance,
+  CashBalance,
+  ReservedOperation,
+} from "@/types/balance";
+import type { Operation, OperationCorrectionSnapshot } from "@/types/operation";
 
 export type BalanceHealthStatus = "normal" | "warning" | "critical";
 
@@ -70,6 +74,15 @@ export type OperationFinancialImpact = {
     amount: number;
     operation: Operation;
   };
+  bankDeltas: Array<{
+    bankId: string;
+    amount: number;
+  }>;
+};
+
+export type OperationFinancialDelta = {
+  cashDelta: number;
+  cashReservation?: ReservedOperation;
   bankDeltas: Array<{
     bankId: string;
     amount: number;
@@ -180,6 +193,122 @@ export function applyOperationFinancialImpact({
   };
 }
 
+export function getOperationCorrectionSnapshot(
+  operation: Operation,
+): OperationCorrectionSnapshot {
+  return {
+    amount: operation.amount,
+    commission: operation.commission,
+    total: operation.total,
+    bankFolio: operation.bankFolio,
+    bankResourceId: operation.bankResourceId,
+    bankFrom: operation.bankFrom,
+    bankTo: operation.bankTo,
+    destinationAccountLast4: operation.destinationAccountLast4,
+    destinationReference: operation.destinationReference,
+    receiverName: operation.receiverName,
+    withdrawalCommissionMode: operation.withdrawalCommissionMode,
+    customerCashReceived: operation.customerCashReceived,
+    bankMovementAmount: operation.bankMovementAmount,
+    appliedCommissionSnapshot: operation.appliedCommissionSnapshot,
+  };
+}
+
+export function getOperationFinancialDelta({
+  original,
+  corrected,
+}: {
+  original: Operation;
+  corrected: Operation;
+}): OperationFinancialDelta {
+  const originalImpact = getOperationFinancialImpact(original);
+  const correctedImpact = getOperationFinancialImpact(corrected);
+  const bankDeltaMap = new Map<string, number>();
+
+  for (const delta of originalImpact.bankDeltas) {
+    bankDeltaMap.set(
+      delta.bankId,
+      (bankDeltaMap.get(delta.bankId) ?? 0) - delta.amount,
+    );
+  }
+
+  for (const delta of correctedImpact.bankDeltas) {
+    bankDeltaMap.set(
+      delta.bankId,
+      (bankDeltaMap.get(delta.bankId) ?? 0) + delta.amount,
+    );
+  }
+
+  return {
+    cashDelta: correctedImpact.cashDelta - originalImpact.cashDelta,
+    cashReservation: correctedImpact.cashReservation
+      ? buildReservedOperation(
+          correctedImpact.cashReservation.operation,
+          correctedImpact.cashReservation.amount,
+        )
+      : undefined,
+    bankDeltas: Array.from(bankDeltaMap.entries())
+      .map(([bankId, amount]) => ({ bankId, amount }))
+      .filter((delta) => delta.amount !== 0),
+  };
+}
+
+export function applyOperationFinancialDelta({
+  cash,
+  banks,
+  original,
+  corrected,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  original: Operation;
+  corrected: Operation;
+}): { cash: CashBalance; banks: BankAccountBalance[]; error?: string } {
+  const delta = getOperationFinancialDelta({ original, corrected });
+  if (
+    delta.bankDeltas.some(
+      (item) => !banks.some((bank) => bank.id === item.bankId),
+    )
+  ) {
+    return {
+      cash,
+      banks,
+      error:
+        "No se puede aplicar esta corrección porque dejaría un recurso con saldo insuficiente. Revisa los movimientos posteriores.",
+    };
+  }
+
+  const nextCash: CashBalance = {
+    ...cash,
+    physicalBalance: cash.physicalBalance + delta.cashDelta,
+    reservedOperations: replaceReservedOperation({
+      reservedOperations: cash.reservedOperations,
+      operationId: original.id,
+      nextReservation: delta.cashReservation,
+    }),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const nextBanks = banks.map((bank) => {
+    const bankDelta = delta.bankDeltas
+      .filter((item) => item.bankId === bank.id)
+      .reduce((sum, item) => sum + item.amount, 0);
+
+    return bankDelta === 0
+      ? bank
+      : { ...bank, realBalance: bank.realBalance + bankDelta };
+  });
+
+  const validationError = validateResultingBalances({
+    cash: nextCash,
+    banks: nextBanks,
+  });
+
+  return validationError
+    ? { cash, banks, error: validationError }
+    : { cash: nextCash, banks: nextBanks };
+}
+
 export function validateOperationFinancialImpact({
   cash,
   banks,
@@ -220,6 +349,10 @@ export function validateOperationFinancialImpact({
   return null;
 }
 
+export function normalizeWithdrawalBankReference(value: string): string {
+  return value.trim().replace(/\s+/g, "").toUpperCase();
+}
+
 export function getWithdrawalBankCreditAmount(operation: Operation): number {
   const commission = operation.commission ?? 0;
   return operation.withdrawalCommissionMode === "deposited"
@@ -255,6 +388,63 @@ function resolveOperationBankId(operation: Operation): string | null {
     "";
 
   return bankIdAliases[bankReference] ?? (bankReference || null);
+}
+
+function buildReservedOperation(
+  operation: Operation,
+  amount: number,
+): ReservedOperation {
+  return {
+    id: operation.id,
+    folio: operation.bankFolio,
+    type: "retiro",
+    customerName: operation.receiverName || operation.bankFolio,
+    amount,
+    registeredAt: operation.createdAt,
+    registeredBy: operation.createdBy,
+    status: "pending",
+  };
+}
+
+function replaceReservedOperation({
+  reservedOperations,
+  operationId,
+  nextReservation,
+}: {
+  reservedOperations: ReservedOperation[];
+  operationId: string;
+  nextReservation?: ReservedOperation;
+}): ReservedOperation[] {
+  const otherReservations = reservedOperations.filter(
+    (operation) => operation.id !== operationId,
+  );
+
+  return nextReservation
+    ? [...otherReservations, nextReservation]
+    : otherReservations;
+}
+
+function validateResultingBalances({
+  cash,
+  banks,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+}): string | null {
+  const reservedCash = cash.reservedOperations.reduce(
+    (sum, reservedOperation) => sum + reservedOperation.amount,
+    0,
+  );
+
+  if (cash.physicalBalance < 0 || cash.physicalBalance - reservedCash < 0) {
+    return "No se puede aplicar esta corrección porque dejaría un recurso con saldo insuficiente. Revisa los movimientos posteriores.";
+  }
+
+  if (banks.some((bank) => bank.realBalance < 0)) {
+    return "No se puede aplicar esta corrección porque dejaría un recurso con saldo insuficiente. Revisa los movimientos posteriores.";
+  }
+
+  return null;
 }
 
 export function computeFinancialTotalsFromBalances({

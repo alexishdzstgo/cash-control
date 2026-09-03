@@ -8,7 +8,7 @@ import {
 } from "@/components/shared/ModalShell";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
-import type { Operation } from "@/types/operation";
+import type { Operation, OperationCorrectionSnapshot } from "@/types/operation";
 import type { WithdrawalCommissionMode } from "@/types/withdrawal";
 import { OperationStatusBadge } from "./OperationStatusBadge";
 
@@ -52,6 +52,11 @@ export function OperationDetailsModal({
     (firstClarification, secondClarification) =>
       new Date(secondClarification.createdAt).getTime() -
       new Date(firstClarification.createdAt).getTime(),
+  );
+  const corrections = [...(operation.corrections ?? [])].sort(
+    (firstCorrection, secondCorrection) =>
+      new Date(secondCorrection.createdAt).getTime() -
+      new Date(firstCorrection.createdAt).getTime(),
   );
 
   return (
@@ -210,7 +215,59 @@ export function OperationDetailsModal({
           </ModalSection>
         )}
 
-        {operation.isEdited && (
+        {corrections.length > 0 && (
+          <ModalSection>
+            <h3 className="mb-4 text-sm font-bold text-slate-900">
+              Correcciones
+            </h3>
+            <div className="space-y-4">
+              {corrections.map((correction) => {
+                const changes = getCorrectionChanges(
+                  correction.before,
+                  correction.after,
+                );
+
+                return (
+                  <div
+                    key={correction.id}
+                    className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3"
+                  >
+                    <p className="text-xs font-medium text-slate-500">
+                      {formatDateTime(correction.createdAt)} ·{" "}
+                      {correction.createdBy}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-600">
+                      <span className="font-semibold text-slate-800">
+                        Motivo:
+                      </span>{" "}
+                      {correction.reason}
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {changes.map((change) => (
+                        <div
+                          key={change.label}
+                          className="grid gap-1 rounded-lg bg-white/80 px-3 py-2 text-sm md:grid-cols-[140px_1fr]"
+                        >
+                          <span className="font-semibold text-slate-700">
+                            {change.label}
+                          </span>
+                          <span className="text-slate-600">
+                            {change.before} →{" "}
+                            <span className="font-semibold text-slate-900">
+                              {change.after}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ModalSection>
+        )}
+
+        {operation.isEdited && corrections.length === 0 && (
           <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
             Esta operacion fue editada. Mas adelante se mostrara aqui el
             historial de cambios.
@@ -219,4 +276,83 @@ export function OperationDetailsModal({
       </div>
     </ModalShell>
   );
+}
+
+function getCorrectionChanges(
+  before: OperationCorrectionSnapshot,
+  after: OperationCorrectionSnapshot,
+) {
+  const changes: Array<{ label: string; before: string; after: string }> = [];
+
+  addChange(changes, "Monto", before.amount, after.amount, formatCurrency);
+  addChange(
+    changes,
+    "Comisión",
+    before.commission,
+    after.commission,
+    formatCurrency,
+  );
+  addChange(changes, "Total", before.total, after.total, formatCurrency);
+  addChange(changes, "Folio", before.bankFolio, after.bankFolio);
+  addChange(changes, "Banco origen", before.bankFrom, after.bankFrom);
+  addChange(changes, "Banco destino", before.bankTo, after.bankTo);
+  addChange(
+    changes,
+    "Cuenta destino",
+    before.destinationAccountLast4,
+    after.destinationAccountLast4,
+  );
+  addChange(
+    changes,
+    "Referencia",
+    before.destinationReference,
+    after.destinationReference,
+  );
+  addChange(changes, "Quien recibe", before.receiverName, after.receiverName);
+  addChange(
+    changes,
+    "Forma comisión",
+    before.withdrawalCommissionMode,
+    after.withdrawalCommissionMode,
+  );
+  addChange(
+    changes,
+    "Efectivo cliente",
+    before.customerCashReceived,
+    after.customerCashReceived,
+    formatOptionalCurrency,
+  );
+  addChange(
+    changes,
+    "Movimiento banco",
+    before.bankMovementAmount,
+    after.bankMovementAmount,
+    formatOptionalCurrency,
+  );
+
+  return changes;
+}
+
+function addChange<T>(
+  changes: Array<{ label: string; before: string; after: string }>,
+  label: string,
+  beforeValue: T,
+  afterValue: T,
+  formatValue: (value: T) => string = formatOptionalValue,
+) {
+  if (beforeValue === afterValue) return;
+
+  changes.push({
+    label,
+    before: formatValue(beforeValue),
+    after: formatValue(afterValue),
+  });
+}
+
+function formatOptionalValue(value: unknown): string {
+  return value === undefined || value === "" ? "No registrado" : String(value);
+}
+
+function formatOptionalCurrency(value: number | undefined): string {
+  return value === undefined ? "No registrado" : formatCurrency(value);
 }

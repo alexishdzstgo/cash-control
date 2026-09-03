@@ -22,6 +22,7 @@ import {
   centsToPesos,
   parseCurrencyToCents,
 } from "@/lib/commission";
+import { normalizeWithdrawalBankReference } from "@/lib/finance";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
@@ -532,10 +533,6 @@ function findSimilarWithdrawal({
       return true;
     }) ?? null
   );
-}
-
-function normalizeWithdrawalBankReference(value: string): string {
-  return value.trim().replace(/\s+/g, "").toUpperCase();
 }
 
 function isWithdrawalCommissionMode(

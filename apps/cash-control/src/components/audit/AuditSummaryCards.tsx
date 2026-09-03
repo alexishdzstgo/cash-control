@@ -1,9 +1,10 @@
-import { CalendarClock, FilePenLine, MessageSquareText, Users } from "lucide-react";
 import {
-  getCorrectionReason,
-  getCorrectionUser,
-  type AuditSummary,
-} from "@/lib/audit";
+  CalendarClock,
+  FilePenLine,
+  MessageSquareText,
+  Users,
+} from "lucide-react";
+import { type AuditSummary, getCorrectionReason } from "@/lib/audit";
 import { formatDateTime } from "@/lib/formatters";
 
 type AuditSummaryCardsProps = {
@@ -23,11 +24,8 @@ export function AuditSummaryCards({ summary }: AuditSummaryCardsProps) {
         <SummaryCard
           icon={<CalendarClock className="h-4 w-4" aria-hidden="true" />}
           label="Última corrección"
-          value={formatDateTime(
-            summary.latestCorrection.editedAt ??
-              summary.latestCorrection.createdAt,
-          )}
-          detail={`Folio ${summary.latestCorrection.bankFolio}`}
+          value={formatDateTime(summary.latestCorrection.createdAt)}
+          detail={`Folio ${summary.latestCorrection.operation.bankFolio}`}
         />
       )}
 
@@ -78,7 +76,9 @@ function SummaryCard({
       <p className="mt-3 text-2xl font-bold text-slate-950 tabular-nums">
         {value}
       </p>
-      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
+      {detail && (
+        <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>
+      )}
     </div>
   );
 }

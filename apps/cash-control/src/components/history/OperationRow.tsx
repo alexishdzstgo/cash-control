@@ -1,4 +1,10 @@
-import { CheckCircle2, Eye, MessageSquareText, Pencil } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  FilePenLine,
+  MessageSquareText,
+  Pencil,
+} from "lucide-react";
 import { ActionMenu } from "@/components/shared/ActionMenu";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import type { Operation } from "@/types/operation";
@@ -8,6 +14,7 @@ import { OperationTypeBadge } from "./OperationTypeBadge";
 type OperationRowProps = {
   operation: Operation;
   onViewDetails: (operation: Operation) => void;
+  onCorrectOperation: (operation: Operation) => void;
   onAddClarification: (operation: Operation) => void;
   onMarkAsDelivered: (operation: Operation) => void;
 };
@@ -15,10 +22,12 @@ type OperationRowProps = {
 export function OperationRow({
   operation,
   onViewDetails,
+  onCorrectOperation,
   onAddClarification,
   onMarkAsDelivered,
 }: OperationRowProps) {
   const clarificationCount = operation.clarifications?.length ?? 0;
+  const correctionCount = operation.corrections?.length ?? 0;
 
   return (
     <tr className="group relative bg-white transition-colors duration-200 hover:bg-slate-50/70">
@@ -45,7 +54,19 @@ export function OperationRow({
       </td>
 
       <td className="px-4 py-3">
-        {clarificationCount > 0 ? (
+        {correctionCount > 0 && clarificationCount > 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
+            <FilePenLine aria-hidden="true" className="h-3.5 w-3.5" />
+            {correctionCount} corr. · {clarificationCount} acl.
+          </span>
+        ) : correctionCount > 0 ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+            <FilePenLine aria-hidden="true" className="h-3.5 w-3.5" />
+            {correctionCount === 1
+              ? "Corregida"
+              : `${correctionCount} correcciones`}
+          </span>
+        ) : clarificationCount > 0 ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
             <MessageSquareText aria-hidden="true" className="h-3.5 w-3.5" />
             {clarificationCount === 1
@@ -89,6 +110,11 @@ export function OperationRow({
 
           <ActionMenu
             items={[
+              {
+                label: "Corregir operación",
+                icon: <FilePenLine aria-hidden="true" className="h-4 w-4" />,
+                onClick: () => onCorrectOperation(operation),
+              },
               {
                 label: "Agregar aclaración",
                 icon: (
