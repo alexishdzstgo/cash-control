@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -37,6 +38,10 @@ import {
   normalizeWithdrawalBankReference,
   validateOperationFinancialImpact,
 } from "@/lib/finance";
+import {
+  type ShiftReconciliationInput,
+  validateShiftReconciliation,
+} from "@/lib/shiftReconciliation";
 import type {
   AdministrativeMovement,
   AdministrativeMovementType,
@@ -134,6 +139,12 @@ type BusinessFundsContextValue = {
     error?: string;
   };
   resetFinancialState: () => void;
+  validateReconciliation: (input: ShiftReconciliationInput) => string | null;
+
+  reconcileAfterShiftClosing: (input: ShiftReconciliationInput) => {
+    success: boolean;
+    error?: string;
+  };
 };
 
 const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
@@ -141,7 +152,8 @@ const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
 );
 
 export function BusinessFundsProvider({ children }: { children: ReactNode }) {
-  const { getCurrentShift } = useShift();
+  const { getCurrentShift, resetShifts } = useShift();
+
   const { rules: commissionRules } = useCommissionRules();
   const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
   const [banks, setBanks] = useState<BankAccountBalance[]>(() =>
@@ -152,6 +164,10 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   );
   const [operations, setOperations] = useState<Operation[]>([]);
   const [resetVersion, setResetVersion] = useState(0);
+
+  const latestBanks = useRef(banks);
+
+  latestBanks.current = banks;
 
   const resources = useMemo(
     () => getAdministrativeResources(cash, banks),
@@ -451,6 +467,16 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     if (!original) {
       return { success: false, error: "Operación no encontrada." };
     }
+    const activeShift = getCurrentShift();
+
+    if (!activeShift || original.shiftId !== activeShift.id) {
+      return {
+        success: false,
+        error:
+          "Esta operación pertenece a un turno cerrado y ya no puede corregirse.",
+      };
+    }
+
     if (!canCorrectRecord(original, input)) {
       return {
         success: false,
@@ -709,6 +735,16 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     );
     if (!original)
       return { success: false, error: "Movimiento no encontrado." };
+    const activeShift = getCurrentShift();
+
+    if (!activeShift || original.shiftId !== activeShift.id) {
+      return {
+        success: false,
+        error:
+          "Este movimiento pertenece a un turno cerrado y ya no puede corregirse.",
+      };
+    }
+
     if (!canCorrectRecord(original, input)) {
       return {
         success: false,
@@ -758,7 +794,40 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, movement: corrected };
   }
 
+  function validateReconciliation(input: ShiftReconciliationInput) {
+    return validateShiftReconciliation(input, latestBanks.current);
+  }
+
+  function reconcileAfterShiftClosing(input: ShiftReconciliationInput) {
+    const error = validateReconciliation(input);
+
+    if (error) return { success: false, error };
+
+    const counted = new Map(
+      input.banks.map((bank) => [bank.bankId, bank.countedBalance]),
+    );
+
+    // Counts update actual balances only; every outstanding obligation survives.
+
+    setCash((current) => ({
+      ...current,
+      physicalBalance: input.countedCashPhysical,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    setBanks((current) =>
+      current.map((bank) => ({
+        ...bank,
+        realBalance: counted.get(bank.id) ?? bank.realBalance,
+      })),
+    );
+
+    return { success: true };
+  }
+
   function resetFinancialState() {
+    resetShifts();
+
     setCash(buildInitialZeroCash());
     setBanks(buildInitialZeroBanks());
     setMovements([]);
@@ -782,6 +851,9 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         registerMovement,
         correctMovement,
         resetFinancialState,
+        validateReconciliation,
+
+        reconcileAfterShiftClosing,
       }}
     >
       {children}

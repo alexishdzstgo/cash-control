@@ -70,6 +70,8 @@ export function CashClosingPage() {
     banks,
     movements: administrativeMovements,
     operations,
+    validateReconciliation,
+    reconcileAfterShiftClosing,
   } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
   const { currentShift, canCloseCurrentShift, closeCurrentShift } = useShift();
@@ -105,6 +107,11 @@ export function CashClosingPage() {
           title="Corte de caja"
           description="No hay un turno abierto para realizar el corte."
         />
+        {closeError && (
+          <p role="alert" className="text-sm text-red-600">
+            {closeError}
+          </p>
+        )}
         <Link href="/shifts" className="btn-secondary">
           Ver historial de turnos
         </Link>
@@ -203,6 +210,18 @@ export function CashClosingPage() {
       );
       return;
     }
+    const reconciliation = {
+      countedCashPhysical: countedNumeric,
+      banks: story.bankStories.map((bank) => ({
+        bankId: bank.bankId,
+        countedBalance: Number(state.countedBanks[bank.bankId]),
+      })),
+    };
+    const validationError = validateReconciliation(reconciliation);
+    if (validationError) {
+      setCloseError(validationError);
+      return;
+    }
     const result = closeCurrentShift({
       shiftId: closingShift.id,
       expectedCashPhysical: story.expectedCash,
@@ -221,6 +240,13 @@ export function CashClosingPage() {
       setCloseError(
         result.error ??
           "No se pudo cerrar el turno. Revisa los datos e inténtalo de nuevo.",
+      );
+      return;
+    }
+    const reconciled = reconcileAfterShiftClosing(reconciliation);
+    if (!reconciled.success) {
+      setCloseError(
+        reconciled.error ?? "No se pudieron reconciliar los saldos del corte.",
       );
       return;
     }

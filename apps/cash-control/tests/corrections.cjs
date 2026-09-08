@@ -12,6 +12,7 @@ let cursor = 0;
 const react = {
   createContext: () => ({ Provider: "provider" }),
   useMemo: (fn) => fn(),
+  useRef: (value) => ({ current: value }),
   useState: (initial) => {
     const index = cursor++;
     if (!(index in state))
@@ -81,6 +82,7 @@ const actor = (id = "A", role = "employee", active = true) => ({
 });
 const movement = (amount = 5000, type = "income", resourceId = "cash") => ({
   id: "m",
+  shiftId: "test-shift",
   movementType: type,
   resourceId,
   resourceType: resourceId === "cash" ? "cash" : "bank",
@@ -221,7 +223,7 @@ test("correctClientOperation rejects unauthorized direct calls without changing 
       cash(10000),
       banks(),
       [],
-      [{ id: "op", createdByUserId: "A" }],
+      [{ id: "op", shiftId: "test-shift", createdByUserId: "A" }],
     );
     const before = structuredClone(state);
     const result = context.correctClientOperation({

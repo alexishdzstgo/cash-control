@@ -4,21 +4,19 @@ import {
   createContext,
   type ReactNode,
   useContext,
-  useEffect,
   useRef,
   useState,
 } from "react";
-import {
-  buildInitialZeroBanks,
-  buildInitialZeroCash,
-} from "@/components/balances/balanceMockData";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import {
   buildShiftClosing,
   canCloseShift,
   createInitialShift,
+  getNextShiftFolio,
   getShiftResponsible,
+  validateShiftOpening,
 } from "@/lib/shifts";
+import type { BankAccountBalance, CashBalance } from "@/types/balance";
 import type { CloseShiftInput, Shift } from "@/types/shift";
 
 type ShiftContextValue = {
@@ -28,6 +26,13 @@ type ShiftContextValue = {
   getShiftById: (id: string) => Shift | undefined;
   isShiftOpen: () => boolean;
   canCloseCurrentShift: () => boolean;
+  canStartShift: () => boolean;
+  resetShifts: () => void;
+  startShift: (input: { cash: CashBalance; banks: BankAccountBalance[] }) => {
+    success: boolean;
+    shift?: Shift;
+    error?: string;
+  };
   closeCurrentShift: (input: CloseShiftInput) => {
     success: boolean;
     shift?: Shift;
@@ -41,24 +46,6 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const { participants, authenticatedUser } = useMockSession();
   const [storedShifts, setStoredShifts] = useState<Shift[]>([]);
 
-  useEffect(() => {
-    if (storedShifts.length > 0) return;
-    const responsible = getShiftResponsible(participants);
-    if (!responsible) return;
-    // Bootstrap the existing Day 1 scenario once on the client, not at build time.
-    // Use the same initial balances as BusinessFundsProvider; capture, don't track.
-    const initialShift = createInitialShift({
-      id: `shift-${crypto.randomUUID()}`,
-      openedAt: new Date().toISOString(),
-      responsible,
-      cash: buildInitialZeroCash(),
-      banks: buildInitialZeroBanks(),
-    });
-    setStoredShifts((current) =>
-      current.length > 0 ? current : [initialShift],
-    );
-  }, [storedShifts.length, participants]);
-
   const responsible = getShiftResponsible(participants);
   const shifts = storedShifts.map((shift) =>
     shift.status === "open"
@@ -71,8 +58,67 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   );
   const currentShift = shifts.find((shift) => shift.status === "open") ?? null;
   const closedIds = useRef(new Set<string>());
-  const latest = useRef({ currentShift, authenticatedUser, participants });
-  latest.current = { currentShift, authenticatedUser, participants };
+  const latest = useRef({
+    currentShift,
+    authenticatedUser,
+    participants,
+    shifts,
+  });
+  latest.current = { currentShift, authenticatedUser, participants, shifts };
+
+  function canStartShift() {
+    const current = latest.current;
+    return (
+      !current.currentShift &&
+      Boolean(
+        current.authenticatedUser &&
+          current.participants.some(
+            (participant) =>
+              participant.userId === current.authenticatedUser?.userId &&
+              participant.status === "active" &&
+              participant.participationType === "responsible",
+          ),
+      )
+    );
+  }
+
+  function startShift(input: {
+    cash: CashBalance;
+    banks: BankAccountBalance[];
+  }) {
+    if (!canStartShift())
+      return {
+        success: false,
+        error:
+          "Solo el responsable actual puede iniciar un turno cuando no hay uno abierto.",
+      };
+    const responsible = getShiftResponsible(latest.current.participants);
+    if (!responsible)
+      return { success: false, error: "No hay un responsable activo." };
+    const error = validateShiftOpening(input);
+    if (error) return { success: false, error };
+    const shift = createInitialShift({
+      ...input,
+      responsible,
+      id: `shift-${crypto.randomUUID()}`,
+      openedAt: new Date().toISOString(),
+      folio: getNextShiftFolio(latest.current.shifts),
+    });
+    // Publish synchronously to prevent duplicate starts and stale domain callbacks.
+    latest.current = {
+      ...latest.current,
+      currentShift: shift,
+      shifts: [...latest.current.shifts, shift],
+    };
+    setStoredShifts((current) => [...current, shift]);
+    return { success: true, shift };
+  }
+
+  function resetShifts() {
+    latest.current = { ...latest.current, currentShift: null, shifts: [] };
+    closedIds.current.clear();
+    setStoredShifts([]);
+  }
 
   function canCloseCurrentShift() {
     const current = latest.current;
@@ -125,6 +171,13 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     };
     // Synchronous lock prevents a second submission before React commits the update.
     closedIds.current.add(activeShift.id);
+    latest.current = {
+      ...latest.current,
+      currentShift: null,
+      shifts: latest.current.shifts.map((shift) =>
+        shift.id === activeShift.id ? closedShift : shift,
+      ),
+    };
     setStoredShifts((current) =>
       current.map((shift) =>
         shift.id === activeShift.id ? closedShift : shift,
@@ -138,9 +191,12 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       value={{
         currentShift,
         shifts,
-        getCurrentShift: () => currentShift,
+        getCurrentShift: () => latest.current.currentShift,
         getShiftById: (id) => shifts.find((shift) => shift.id === id),
-        isShiftOpen: () => currentShift?.status === "open",
+        isShiftOpen: () => latest.current.currentShift?.status === "open",
+        canStartShift,
+        startShift,
+        resetShifts,
         canCloseCurrentShift,
         closeCurrentShift,
       }}

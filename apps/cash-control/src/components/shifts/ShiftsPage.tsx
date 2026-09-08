@@ -23,6 +23,8 @@ import { ShiftDetailsModal } from "./ShiftDetailsModal";
 import { ShiftHistory } from "./ShiftHistory";
 import { ShiftParticipants } from "./ShiftParticipants";
 
+import { StartShiftModal } from "./StartShiftModal";
+
 /**
  * Maps a systemRole from the workstation types to the shift types.
  */
@@ -83,9 +85,19 @@ function getAvailableUsers(contextParticipants: Participant[]) {
 }
 
 export function ShiftsPage() {
-  const { currentShift, shifts } = useShift();
-  const { operations, movements } = useBusinessFunds();
-  const closedShifts = shifts.filter((shift) => shift.status === "closed");
+  const { currentShift, shifts, canStartShift } = useShift();
+
+  const { cash, banks, operations, movements } = useBusinessFunds();
+  const closedShifts = shifts
+    .filter((shift) => shift.status === "closed")
+    .reverse()
+    .sort(
+      (a, b) =>
+        (b.closedAt ?? "").localeCompare(a.closedAt ?? "") ||
+        b.openedAt.localeCompare(a.openedAt),
+    );
+
+  const [isStartModalOpen, setIsStartModalOpen] = useState(false);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
@@ -204,9 +216,40 @@ export function ShiftsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Turno actual"
-          description="No hay un turno abierto disponible."
+          description="Consulta el turno activo y el historial de jornadas."
         />
+        <section className="rounded-xl border border-brand-border bg-white p-6">
+          <h2 className="text-lg font-semibold text-slate-900">
+            No hay un turno abierto
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Las operaciones permanecerán bloqueadas hasta que el responsable
+            inicie un nuevo turno.
+          </p>
+          {canStartShift() ? (
+            <button
+              type="button"
+              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              onClick={() => {
+                if (canStartShift()) setIsStartModalOpen(true);
+              }}
+            >
+              Iniciar nuevo turno
+            </button>
+          ) : (
+            <p className="mt-4 text-sm text-slate-500">
+              Solo el responsable actual puede iniciar un turno.
+            </p>
+          )}
+        </section>
         <ShiftHistory shifts={closedShifts} />
+        {isStartModalOpen && (
+          <StartShiftModal
+            cash={cash}
+            banks={banks}
+            onClose={() => setIsStartModalOpen(false)}
+          />
+        )}
       </div>
     );
   }

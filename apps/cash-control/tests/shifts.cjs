@@ -134,9 +134,16 @@ function render() {
     assert.ok(++attempts < 5, "Providers should settle without a render loop");
   } while (dirty);
 }
-function reset() {
+function reset(open = true) {
   stores = new Map();
   render();
+  if (open) {
+    login("maria-lopez", "María López", "owner");
+
+    expectSuccess(
+      act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+    );
+  }
 }
 function act(fn) {
   const result = fn();
@@ -421,7 +428,8 @@ test("delivery by another participant preserves registration and its own event a
 test("G-I: responsibility transfer keeps the shift; only active responsible may close", () => {
   reset();
   const initial = structuredClone(shift.currentShift);
-  assert.equal(shift.canCloseCurrentShift(), false);
+  assert.equal(shift.canCloseCurrentShift(), true);
+
   login("maria-lopez", "María López", "owner");
   assert.equal(shift.canCloseCurrentShift(), true);
   expectSuccess(
@@ -529,20 +537,14 @@ test("Day 1 reset clears derived activity without another reset system or a new 
       }),
     ),
   );
-  const id = shift.currentShift.id;
   const version = funds.resetVersion;
   act(() => funds.resetFinancialState());
   assert.equal(funds.resetVersion, version + 1);
-  assert.equal(shift.currentShift.id, id);
-  assert.deepEqual(summary(), {
-    deposits: 0,
-    withdrawals: 0,
-    pendingWithdrawals: 0,
-    fundsMovements: 0,
-    corrections: 0,
-    clarifications: 0,
-  });
-  assert.deepEqual(activity(), []);
+  assert.equal(shift.currentShift, null);
+  assert.deepEqual(shift.shifts, []);
+  assert.deepEqual(funds.operations, []);
+  assert.deepEqual(funds.movements, []);
+  assert.equal(funds.cash.physicalBalance, 0);
 });
 
 function closingInput() {
@@ -668,8 +670,7 @@ function startCount() {
   );
   ready.props.onStartCount();
 }
-function fillCount() {
-  const input = closingInput();
+function fillCount(input = closingInput()) {
   confirmation().props.onCountedAvailableCashChange(
     String(input.countedCashPhysical - input.countedReservedCash),
   );
@@ -712,6 +713,374 @@ test("A-C: page guards manual start and confirm, including responsibility lost d
     "open",
     "both current and stale callbacks blocked",
   );
+  assert.equal(
+    findNode(renderPage(), (node) => node.type === "CashClosingResult"),
+    null,
+  );
+  delete global.window;
+});
+
+test("lifecycle A-B: clean start, responsible permission, snapshot and duplicate start", () => {
+  reset(false);
+  assert.equal(shift.currentShift, null);
+  assert.equal(shift.canStartShift(), false);
+  for (const type of ["deposito", "retiro"])
+    assert.equal(
+      funds.registerClientOperation(operation(type, type)).success,
+      false,
+    );
+  assert.equal(
+    funds.registerMovement({
+      movementType: "income",
+      resourceId: "cash",
+      amountCents: 100,
+    }).success,
+    false,
+  );
+  assert.equal(
+    funds.deliverPendingWithdrawal({ operationId: "missing" }).success,
+    false,
+  );
+  for (const [id, role] of [
+    ["juan-perez", "employee"],
+    ["juan-perez", "owner"],
+    ["carlos-martinez", "owner"],
+  ]) {
+    login(id, id, role);
+    assert.equal(shift.canStartShift(), false);
+    assert.equal(
+      shift.startShift({ cash: funds.cash, banks: funds.banks }).success,
+      false,
+    );
+  }
+  login("maria-lopez", "María López", "employee");
+  assert.equal(shift.canStartShift(), true);
+  const start = shift.startShift;
+  const first = expectSuccess(
+    start({ cash: funds.cash, banks: funds.banks }),
+  ).shift;
+  assert.equal(start({ cash: funds.cash, banks: funds.banks }).success, false);
+  render();
+  assert.equal(first.folio, "TUR-000001");
+  assert.equal(first.status, "open");
+  assert.equal(first.openingBalances.cashPhysical, funds.cash.physicalBalance);
+  assert.deepEqual(
+    first.openingBalances.banks.map((bank) => bank.balance),
+    funds.banks.map((bank) => bank.realBalance),
+  );
+  assert.equal(shift.shifts.length, 1);
+});
+
+test("opening and reconciliation reject invalid amounts and bank identities without writes", () => {
+  reset(false);
+  login("maria-lopez", "María López", "owner");
+  const valid = {
+    countedCashPhysical: 100,
+    banks: funds.banks.map((bank) => ({ bankId: bank.id, countedBalance: 0 })),
+  };
+  const before = structuredClone({ cash: funds.cash, banks: funds.banks });
+  for (const input of [
+    { ...valid, countedCashPhysical: -1 },
+    { ...valid, countedCashPhysical: NaN },
+    { ...valid, countedCashPhysical: Infinity },
+    { ...valid, banks: valid.banks.slice(1) },
+    { ...valid, banks: [...valid.banks, valid.banks[0]] },
+    {
+      ...valid,
+      banks: valid.banks.map((bank, i) =>
+        i === 0 ? { ...bank, bankId: "invented" } : bank,
+      ),
+    },
+    {
+      ...valid,
+      banks: valid.banks.map((bank) => ({ ...bank, countedBalance: -1 })),
+    },
+    {
+      ...valid,
+      banks: valid.banks.map((bank) => ({ ...bank, countedBalance: Infinity })),
+    },
+  ]) {
+    assert.ok(funds.validateReconciliation(input));
+    assert.equal(
+      act(() => funds.reconcileAfterShiftClosing(input)).success,
+      false,
+    );
+    assert.deepEqual({ cash: funds.cash, banks: funds.banks }, before);
+  }
+  for (const cash of [
+    { ...funds.cash, physicalBalance: -1 },
+    { ...funds.cash, physicalBalance: NaN },
+    { ...funds.cash, reservedOperations: [{ amount: 1 }] },
+  ])
+    assert.equal(shift.startShift({ cash, banks: funds.banks }).success, false);
+  assert.equal(
+    shift.startShift({
+      cash: funds.cash,
+      banks: funds.banks.map((bank) => ({ ...bank, realBalance: -1 })),
+    }).success,
+    false,
+  );
+  assert.equal(shift.currentShift, null);
+  assert.deepEqual(shift.shifts, []);
+});
+
+for (const shortage of [false, true]) {
+  test(`lifecycle C-I: close, reconcile ${shortage ? "shortages" : "exact counts"}, reopen, deliver and preserve history`, () => {
+    reset();
+    global.window = { setTimeout: () => 0 };
+    addFunds();
+    addFunds();
+    const originalMovement = addFunds("bank-azteca");
+    addFunds("bank-azteca");
+    addFunds("bank-azteca");
+    const pending = {
+      ...operation("pending", "retiro", "pendiente"),
+      amount: 5000,
+      total: 5000,
+      customerCashReceived: 5000,
+      bankMovementAmount: 5000,
+    };
+    expectSuccess(act(() => funds.registerClientOperation(pending)));
+    const firstId = shift.currentShift.id;
+    const participants = structuredClone(session.participants);
+    const reserves = structuredClone(funds.cash.reservedOperations);
+    const bankReserves = structuredClone(
+      funds.banks.map((bank) => bank.reservedOperations),
+    );
+    const counts = closingInput();
+    assert.equal(counts.expectedCashPhysical, 20000);
+    assert.equal(counts.expectedReservedCash, 5000);
+    if (shortage) {
+      counts.countedCashPhysical = 19800;
+      counts.countedReservedCash = 4800;
+      counts.banks.find(
+        (bank) => bank.bankId === "bank-azteca",
+      ).countedBalance = 29700;
+    }
+    startCount();
+    fillCount(counts);
+    let reconciliations = 0;
+    const reconcile = funds.reconcileAfterShiftClosing;
+    funds.reconcileAfterShiftClosing = (input) => {
+      reconciliations++;
+      return reconcile(input);
+    };
+    const callback = confirmation().props.onConfirm;
+    callback(shortage ? "Faltante contado" : "");
+    callback(shortage ? "Faltante contado" : "");
+    render();
+    assert.equal(reconciliations, 1);
+    assert.equal(shift.currentShift, null);
+    assert.equal(funds.cash.physicalBalance, shortage ? 19800 : 20000);
+    assert.deepEqual(funds.cash.reservedOperations, reserves);
+    assert.deepEqual(
+      funds.banks.map((bank) => bank.reservedOperations),
+      bankReserves,
+    );
+    assert.deepEqual(session.participants, participants);
+    assert.equal(
+      funds.cash.physicalBalance -
+        reserves.reduce((sum, reserve) => sum + reserve.amount, 0),
+      shortage ? 14800 : 15000,
+    );
+    assert.equal(
+      shift.shifts[0].closing.countedReservedCash,
+      shortage ? 4800 : 5000,
+    );
+    for (const role of ["employee", "owner"]) {
+      const result = funds.correctClientOperation({
+        ...actor,
+        actorSystemRole: role,
+        operationId: "pending",
+        amount: 4000,
+        reason: "Error",
+      });
+      assert.match(result.error, /turno cerrado/);
+      assert.match(
+        funds.correctMovement({
+          ...actor,
+          actorSystemRole: role,
+          movementId: originalMovement.id,
+          editReason: "Error",
+        }).error,
+        /turno cerrado/,
+      );
+    }
+    const savedOperations = structuredClone(funds.operations);
+    const savedMovements = structuredClone(funds.movements);
+    const second = expectSuccess(
+      act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+    ).shift;
+    assert.equal(second.folio, "TUR-000002");
+    assert.equal(second.openingBalances.cashPhysical, shortage ? 19800 : 20000);
+    assert.equal(second.openingBalances.cashReserved, 5000);
+    assert.equal(
+      second.openingBalances.banks.find((bank) => bank.bankId === "bank-azteca")
+        .balance,
+      shortage ? 29700 : 35000,
+    );
+    assert.deepEqual(funds.operations, savedOperations);
+    assert.deepEqual(funds.movements, savedMovements);
+    assert.match(
+      funds.correctClientOperation({
+        ...actor,
+        operationId: "pending",
+        amount: 4000,
+        reason: "Error",
+      }).error,
+      /turno cerrado/,
+    );
+    const delivered = expectSuccess(
+      act(() =>
+        funds.deliverPendingWithdrawal({
+          operationId: "pending",
+          receiverName: "Cliente",
+          deliveredBy: "María López",
+          commissionMode: "cash",
+          commissionAmount: 15,
+          customerCashReceived: 5000,
+          bankMovementAmount: 5000,
+          appliedCommissionSnapshot: {
+            operationAmountCents: 500000,
+            calculatedCommissionCents: 1500,
+            finalCommissionCents: 1500,
+            ruleId: "test",
+            ruleVersion: 1,
+            calculationType: "fixed",
+            location: "cash",
+            appliedAt: new Date().toISOString(),
+          },
+        }),
+      ),
+    ).operation;
+    assert.equal(delivered.shiftId, firstId);
+    assert.equal(delivered.pendingDelivery.shiftId, second.id);
+    const finalCounts = closingInput();
+    assert.equal(finalCounts.expectedCashPhysical, funds.cash.physicalBalance);
+    assert.equal(finalCounts.expectedReservedCash, 0);
+    assert.equal(
+      finalCounts.banks.find((bank) => bank.bankId === "bank-azteca")
+        .expectedBalance,
+      second.openingBalances.banks.find((bank) => bank.bankId === "bank-azteca")
+        .balance,
+    );
+    expectSuccess(act(() => shift.closeCurrentShift(finalCounts)));
+    expectSuccess(act(() => funds.reconcileAfterShiftClosing(finalCounts)));
+    assert.equal(shift.currentShift, null);
+    assert.deepEqual(
+      shift.shifts.map((item) => item.folio),
+      ["TUR-000001", "TUR-000002"],
+    );
+    assert.ok(
+      shift.shifts.every((item) => item.status === "closed" && item.closing),
+    );
+    delete global.window;
+  });
+}
+
+test("consecutive folios use largest valid suffix, not array length", () => {
+  const { getNextShiftFolio } = require("../src/lib/shifts.ts");
+  assert.equal(getNextShiftFolio([]), "TUR-000001");
+  assert.equal(getNextShiftFolio([{ folio: "TUR-000001" }]), "TUR-000002");
+  assert.equal(
+    getNextShiftFolio(
+      ["TUR-000009", "TUR-000003", "other", "TUR-999oops"].map((folio) => ({
+        folio,
+      })),
+    ),
+    "TUR-000010",
+  );
+  assert.equal(getNextShiftFolio([{ folio: "TUR-999999" }]), "TUR-1000000");
+});
+
+test("reconciliation preserves nonempty bank reservations and creates no records", () => {
+  reset(false);
+  const store = stores.get(BusinessFundsProvider);
+  store[1] = store[1].map((bank, index) =>
+    index === 0
+      ? {
+          ...bank,
+          realBalance: 30000,
+          reservedOperations: [
+            { id: "bank-obligation", amount: 5000, status: "pending" },
+          ],
+        }
+      : bank,
+  );
+  render();
+  const before = structuredClone(funds.banks[0].reservedOperations);
+  expectSuccess(
+    act(() =>
+      funds.reconcileAfterShiftClosing({
+        countedCashPhysical: 19800,
+        banks: funds.banks.map((bank) => ({
+          bankId: bank.id,
+          countedBalance: 29700,
+        })),
+      }),
+    ),
+  );
+  assert.deepEqual(funds.banks[0].reservedOperations, before);
+  assert.equal(funds.banks[0].realBalance, 29700);
+  assert.equal(funds.cash.physicalBalance, 19800);
+  assert.ok(Number.isFinite(Date.parse(funds.cash.updatedAt)));
+  assert.deepEqual(funds.operations, []);
+  assert.deepEqual(funds.movements, []);
+});
+
+test("start modal is informational and rechecks permission on manual confirmation", () => {
+  reset(false);
+  login("maria-lopez", "María López", "owner");
+  const {
+    StartShiftModal,
+  } = require("../src/components/shifts/StartShiftModal.tsx");
+  stores.set(StartShiftModal, []);
+  currentStore = stores.get(StartShiftModal);
+  cursor = 0;
+  let closed = false;
+  const modal = StartShiftModal({
+    cash: funds.cash,
+    banks: funds.banks,
+    onClose: () => {
+      closed = true;
+    },
+  });
+  assert.equal(
+    findNode(modal, (node) => node.type === "input"),
+    null,
+  );
+  const confirm = findNode(
+    modal.props.footer,
+    (node) => node.type === "button" && node.props.disabled === false,
+  );
+  assert.ok(confirm);
+  login("juan-perez", "Juan Pérez", "owner");
+  confirm.props.onClick();
+  assert.equal(shift.currentShift, null);
+  assert.equal(closed, false);
+  login("maria-lopez", "María López", "owner");
+  confirm.props.onClick();
+  render();
+  assert.equal(shift.currentShift.folio, "TUR-000001");
+  assert.equal(closed, true);
+});
+
+test("page validates reconciliation before close and does not report completion on reconciliation failure", () => {
+  reset();
+  global.window = { setTimeout: () => 0 };
+  startCount();
+  fillCount();
+  const validate = funds.validateReconciliation;
+  funds.validateReconciliation = () => "Banco inválido";
+  confirmation().props.onConfirm("");
+  assert.equal(shift.currentShift.status, "open");
+  funds.validateReconciliation = validate;
+  funds.reconcileAfterShiftClosing = () => ({
+    success: false,
+    error: "Reconciliación rechazada",
+  });
+  confirmation().props.onConfirm("");
+  render();
   assert.equal(
     findNode(renderPage(), (node) => node.type === "CashClosingResult"),
     null,

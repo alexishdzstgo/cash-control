@@ -5,12 +5,16 @@ import { computeFinancialTotalsFromBalances } from "./finance";
 
 export function createInitialShift({
   id,
+  folio = getNextShiftFolio([]),
+
   openedAt,
   responsible,
   cash,
   banks,
 }: {
   id: string;
+  folio?: string;
+
   openedAt: string;
   responsible: Pick<Participant, "userId" | "userName">;
   cash: CashBalance;
@@ -19,7 +23,8 @@ export function createInitialShift({
   const totals = computeFinancialTotalsFromBalances({ cash, banks });
   return {
     id,
-    folio: "TUR-000001",
+    folio,
+
     status: "open",
     openedAt,
     responsibleUserId: responsible.userId,
@@ -144,4 +149,50 @@ export function buildShiftClosing(
       observations: input.observations?.trim() || undefined,
     },
   };
+}
+export function getNextShiftFolio(shifts: Pick<Shift, "folio">[]): string {
+  const largest = shifts.reduce((max, shift) => {
+    const match = /^TUR-(\d+)$/.exec(shift.folio);
+
+    return match ? (BigInt(match[1]) > max ? BigInt(match[1]) : max) : max;
+  }, BigInt(0));
+
+  return `TUR-${String(largest + BigInt(1)).padStart(6, "0")}`;
+}
+
+export function validateShiftOpening({
+  cash,
+  banks,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+}): string | null {
+  const amounts = [
+    cash.physicalBalance,
+    ...cash.reservedOperations.map((reserve) => reserve.amount),
+
+    ...banks.flatMap((bank) => [
+      bank.realBalance,
+      ...bank.reservedOperations.map((reserve) => reserve.amount),
+    ]),
+  ];
+
+  if (amounts.some((amount) => !Number.isFinite(amount) || amount < 0))
+    return "Los saldos iniciales y las reservas deben ser importes finitos no negativos.";
+
+  const reserved = cash.reservedOperations.reduce(
+    (sum, reserve) => sum + reserve.amount,
+    0,
+  );
+
+  if (!Number.isFinite(reserved) || reserved > cash.physicalBalance)
+    return "El efectivo apartado no puede exceder la caja física inicial.";
+
+  if (
+    new Set(banks.map((bank) => bank.id)).size !== banks.length ||
+    banks.some((bank) => !bank.id)
+  )
+    return "Los bancos iniciales deben tener identificadores únicos válidos.";
+
+  return null;
 }
