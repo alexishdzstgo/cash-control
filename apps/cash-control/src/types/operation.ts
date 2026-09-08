@@ -82,6 +82,7 @@ export type Operation = {
 
   createdAt: string;
   createdBy: string;
+  createdByUserId?: string;
 
   isEdited?: boolean;
   editedAt?: string;

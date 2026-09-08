@@ -52,23 +52,22 @@ export function getAdministrativeResources(
     ...banks
       .filter((bank) => !["unavailable", "inconsistent"].includes(bank.status))
       .map((bank) => {
-      const reservedCents = pesosToCents(
-        bank.reservedOperations.reduce(
-          (sum, operation) => sum + operation.amount,
-          0,
-        ),
-      );
-      const realBalanceCents = pesosToCents(bank.realBalance);
-
-      return {
-        id: bank.id,
-        name: bank.bankName,
-        type: "bank" as const,
-        realBalanceCents,
-        reservedCents,
-        availableCents: realBalanceCents - reservedCents,
-      };
-    }),
+        const reservedCents = pesosToCents(
+          bank.reservedOperations.reduce(
+            (sum, operation) => sum + operation.amount,
+            0,
+          ),
+        );
+        const realBalanceCents = pesosToCents(bank.realBalance);
+        return {
+          id: bank.id,
+          name: bank.bankName,
+          type: "bank" as const,
+          realBalanceCents,
+          reservedCents,
+          availableCents: realBalanceCents - reservedCents,
+        };
+      }),
   ];
 }
 
@@ -181,23 +180,121 @@ export function applyAdministrativeMovement({
     ),
   };
 }
-
+type MovementImpact = Pick<
+  AdministrativeMovement,
+  "resourceId" | "movementType" | "amountCents"
+>;
 export function calculateAdministrativeCorrectionImpact({
   original,
   corrected,
 }: {
-  original: AdministrativeMovement;
-  corrected: AdministrativeMovement;
-}): AdministrativeMovement[] {
-  return [
-    {
-      ...original,
-      movementType:
-        original.movementType === "income" ? "withdrawal" : "income",
-      amountCents: original.amountCents,
+  original: MovementImpact;
+  corrected: MovementImpact;
+}): { resourceId: string; deltaCents: number }[] {
+  const impact = (movement: MovementImpact) =>
+    movement.movementType === "income"
+      ? movement.amountCents
+      : -movement.amountCents;
+  const deltas = new Map<string, number>();
+  deltas.set(original.resourceId, -impact(original));
+  deltas.set(
+    corrected.resourceId,
+    (deltas.get(corrected.resourceId) ?? 0) + impact(corrected),
+  );
+  return Array.from(deltas, ([resourceId, deltaCents]) => ({
+    resourceId,
+    deltaCents,
+  }));
+}
+export const ADMINISTRATIVE_CORRECTION_FUNDS_ERROR =
+  "No se puede aplicar esta corrección porque dejaría fondos disponibles insuficientes.";
+export function previewAdministrativeCorrection({
+  resources,
+  original,
+  corrected,
+}: {
+  resources: AdministrativeResource[];
+  original: MovementImpact;
+  corrected: MovementImpact;
+}) {
+  return calculateAdministrativeCorrectionImpact({ original, corrected }).map(
+    ({ resourceId, deltaCents }) => {
+      const resource = resources.find((item) => item.id === resourceId);
+      return {
+        resourceId,
+        resourceName: resource?.name ?? resourceId,
+        deltaCents,
+        realBalanceAfterCents: resource
+          ? resource.realBalanceCents + deltaCents
+          : NaN,
+        availableAfterCents: resource
+          ? resource.availableCents + deltaCents
+          : NaN,
+      };
     },
+  );
+}
+export function applyAdministrativeCorrection({
+  cash,
+  banks,
+  original,
+  corrected,
+}: {
+  cash: CashBalance;
+  banks: BankAccountBalance[];
+  original: MovementImpact;
+  corrected: MovementImpact;
+}) {
+  const preview = previewAdministrativeCorrection({
+    resources: getAdministrativeResources(cash, banks),
+    original,
     corrected,
-  ];
+  });
+  if (
+    !Number.isSafeInteger(corrected.amountCents) ||
+    corrected.amountCents <= 0
+  ) {
+    return {
+      cash,
+      banks,
+      preview,
+      error:
+        "El monto debe ser mayor que cero y expresarse en centavos válidos.",
+    };
+  }
+  if (preview.some((item) => !Number.isFinite(item.availableAfterCents))) {
+    return { cash, banks, preview, error: "Recurso no disponible." };
+  }
+  if (
+    preview.some(
+      (item) => item.realBalanceAfterCents < 0 || item.availableAfterCents < 0,
+    )
+  ) {
+    return {
+      cash,
+      banks,
+      preview,
+      error: ADMINISTRATIVE_CORRECTION_FUNDS_ERROR,
+    };
+  }
+  const cashImpact = preview.find((item) => item.resourceId === "cash");
+  return {
+    cash: cashImpact
+      ? {
+          ...cash,
+          physicalBalance: centsToPesos(cashImpact.realBalanceAfterCents),
+          updatedAt: "Ahora",
+        }
+      : cash,
+    banks: banks.map((bank) => {
+      const impact = preview.find((item) => item.resourceId === bank.id);
+      return impact
+        ? { ...bank, realBalance: centsToPesos(impact.realBalanceAfterCents) }
+        : bank;
+    }),
+    preview,
+    error: null,
+  };
 }
 
 export function getMovementTypeLabel(type: AdministrativeMovementType): string {

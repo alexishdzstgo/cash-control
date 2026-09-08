@@ -9,12 +9,18 @@ import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import {
+  ADMINISTRATIVE_CORRECTION_FUNDS_ERROR,
   centsToPesos,
   filterAdministrativeMovements,
   getAdministrativeMovementsSummary,
   getMovementTypeLabel,
   parseCurrencyToCents,
+  previewAdministrativeCorrection,
 } from "@/lib/administrativeMovements";
+import {
+  type CorrectionActor,
+  canCorrectRecord,
+} from "@/lib/correctionPermissions";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import {
   focusFirstInvalidField,
@@ -87,8 +93,14 @@ export function BusinessFundsPage() {
     ? getActiveParticipation(authenticatedUser.userId)
     : undefined;
   const canCreateMovement = isOwner || Boolean(activeParticipation);
-  const canCorrectMovements = isOwner;
-
+  const correctionActor: CorrectionActor = {
+    actorUserId: authenticatedUser?.userId ?? "",
+    actorUserName: authenticatedUser?.userName ?? "Usuario no disponible",
+    actorSystemRole: authenticatedUser?.systemRole,
+    actorHasActiveParticipation: Boolean(activeParticipation),
+  };
+  const canCorrectMovement = (movement: AdministrativeMovement) =>
+    canCorrectRecord(movement, correctionActor);
   const summary = useMemo(
     () => getAdministrativeMovementsSummary(movements),
     [movements],
@@ -105,29 +117,57 @@ export function BusinessFundsPage() {
     ? resources.find((resource) => resource.id === form.resourceId)
     : undefined;
   const amountCents = form ? parseCurrencyToCents(form.amount) : null;
-  const previewBalanceAfterCents =
-    selectedResource &&
-    form &&
-    isAdministrativeMovementType(form.movementType) &&
-    amountCents !== null
-      ? selectedResource.availableCents +
-        (form.movementType === "income" ? amountCents : -amountCents)
-      : null;
-  const confirmationDescription =
-    form &&
-    selectedResource &&
-    isAdministrativeMovementType(form.movementType) &&
+  const originalMovement = movements.find(
+    (movement) => movement.id === form?.movementId,
+  );
+  const correctionPreview =
+    form?.mode === "edit" &&
+    originalMovement &&
     amountCents !== null &&
-    previewBalanceAfterCents !== null
-      ? getMovementConfirmationDescription({
-          movementType: form.movementType,
-          resource: selectedResource,
-          amountCents,
-          explanation: form.explanation,
-          balanceAfterCents: previewBalanceAfterCents,
+    isAdministrativeMovementType(form.movementType)
+      ? previewAdministrativeCorrection({
+          resources,
+          original: originalMovement,
+          corrected: {
+            resourceId: form.resourceId,
+            movementType: form.movementType,
+            amountCents,
+          },
         })
-      : "";
-
+      : [];
+  const previewBalanceAfterCents =
+    form?.mode === "edit"
+      ? (correctionPreview.find((item) => item.resourceId === form.resourceId)
+          ?.availableAfterCents ?? null)
+      : selectedResource &&
+          form &&
+          isAdministrativeMovementType(form.movementType) &&
+          amountCents !== null
+        ? selectedResource.availableCents +
+          (form.movementType === "income" ? amountCents : -amountCents)
+        : null;
+  const correctionDescription = correctionPreview
+    .map(
+      (item) =>
+        `${item.resourceName}: impacto de la corrección: ${formatCents(item.deltaCents)}. Saldo disponible después de corregir: ${formatCents(item.availableAfterCents)}.`,
+    )
+    .join(" ");
+  const confirmationDescription =
+    form?.mode === "edit"
+      ? correctionDescription
+      : form &&
+          selectedResource &&
+          isAdministrativeMovementType(form.movementType) &&
+          amountCents !== null &&
+          previewBalanceAfterCents !== null
+        ? getMovementConfirmationDescription({
+            movementType: form.movementType,
+            resource: selectedResource,
+            amountCents,
+            explanation: form.explanation,
+            balanceAfterCents: previewBalanceAfterCents,
+          })
+        : "";
   if (!authenticatedUser) {
     return null;
   }
@@ -156,7 +196,7 @@ export function BusinessFundsPage() {
   }
 
   function openEditForm(movement: AdministrativeMovement) {
-    if (!canCorrectMovements) {
+    if (!canCorrectMovement(movement)) {
       return;
     }
 
@@ -207,6 +247,18 @@ export function BusinessFundsPage() {
       });
       return;
     }
+    if (
+      form.mode === "edit" &&
+      correctionPreview.some(
+        (item) =>
+          !Number.isFinite(item.availableAfterCents) ||
+          item.availableAfterCents < 0 ||
+          item.realBalanceAfterCents < 0,
+      )
+    ) {
+      setFormError(ADMINISTRATIVE_CORRECTION_FUNDS_ERROR);
+      return;
+    }
 
     setConfirming(true);
   }
@@ -234,9 +286,11 @@ export function BusinessFundsPage() {
       });
       return;
     }
-
-    if (form.mode === "edit" && !canCorrectMovements) {
-      setFormError("Solo el owner puede corregir movimientos de fondos.");
+    if (
+      form.mode === "edit" &&
+      (!originalMovement || !canCorrectMovement(originalMovement))
+    ) {
+      setFormError("No tienes permiso para corregir este movimiento.");
       setConfirming(false);
       return;
     }
@@ -266,13 +320,12 @@ export function BusinessFundsPage() {
             amountCents: parsedAmountCents,
             explanation: form.explanation,
             editReason: form.editReason,
-            editedByUserId: actor.userId,
-            editedByUserName: actor.userName,
+            ...correctionActor,
           });
 
     if (!result.success) {
       setFormError(
-        result.error?.includes("fondos disponibles")
+        form.mode === "create" && result.error?.includes("fondos disponibles")
           ? "El recurso seleccionado no tiene fondos suficientes."
           : (result.error ?? "No fue posible registrar el movimiento."),
       );
@@ -456,7 +509,7 @@ export function BusinessFundsPage() {
                   <MovementRow
                     key={movement.id}
                     movement={movement}
-                    canEdit={canCorrectMovements}
+                    canEdit={canCorrectMovement(movement)}
                     onView={() => setDetail(movement)}
                     onEdit={() => openEditForm(movement)}
                   />
@@ -469,7 +522,7 @@ export function BusinessFundsPage() {
               <div key={movement.id} className="p-4">
                 <MovementCard
                   movement={movement}
-                  canEdit={canCorrectMovements}
+                  canEdit={canCorrectMovement(movement)}
                   onView={() => setDetail(movement)}
                   onEdit={() => openEditForm(movement)}
                 />
@@ -498,6 +551,7 @@ export function BusinessFundsPage() {
           formErrors={formErrors}
           resources={resources}
           selectedResource={selectedResource}
+          correctionDescription={correctionDescription}
           balanceAfterCents={previewBalanceAfterCents}
           onChange={(updates) =>
             setForm((current) => {
@@ -514,12 +568,16 @@ export function BusinessFundsPage() {
       <ConfirmDialog
         isOpen={confirming && Boolean(form && selectedResource)}
         title={
-          form?.movementType === "income"
-            ? "Registrar ingreso"
-            : "Registrar retiro"
+          form?.mode === "edit"
+            ? "Confirmar corrección"
+            : form?.movementType === "income"
+              ? "Registrar ingreso"
+              : "Registrar retiro"
         }
         description={confirmationDescription}
-        confirmLabel="Registrar movimiento"
+        confirmLabel={
+          form?.mode === "edit" ? "Guardar corrección" : "Registrar movimiento"
+        }
         cancelLabel="Cancelar"
         onConfirm={submitMovement}
         onCancel={() => {
@@ -590,6 +648,7 @@ function validateForm({
     amountCents !== null &&
     isAdministrativeMovementType(form.movementType) &&
     form.movementType === "withdrawal" &&
+    form.mode === "create" &&
     amountCents > selectedResource.availableCents
   ) {
     errors.amount = "El recurso seleccionado no tiene fondos suficientes.";
@@ -721,6 +780,7 @@ function MovementForm({
   resources,
   selectedResource,
   balanceAfterCents,
+  correctionDescription,
   onChange,
   onClose,
   onSubmit,
@@ -731,6 +791,7 @@ function MovementForm({
   resources: AdministrativeResource[];
   selectedResource: AdministrativeResource | undefined;
   balanceAfterCents: number | null;
+  correctionDescription: string;
   onChange: (updates: Partial<FormState>) => void;
   onClose: () => void;
   onSubmit: () => void;
@@ -756,7 +817,9 @@ function MovementForm({
             Cancelar
           </button>
           <button type="button" className="btn-primary" onClick={onSubmit}>
-            Registrar movimiento
+            {form.mode === "edit"
+              ? "Guardar corrección"
+              : "Registrar movimiento"}
           </button>
         </div>
       }
@@ -863,13 +926,20 @@ function MovementForm({
           }
         />
         <ModalFinancialInfo
-          label="Despues del movimiento"
+          label={
+            form.mode === "edit"
+              ? "Saldo después de corregir"
+              : "Despues del movimiento"
+          }
           value={
             balanceAfterCents === null
               ? "Pendiente"
               : formatCents(balanceAfterCents)
           }
         />
+        {form.mode === "edit" && (
+          <p className="sm:col-span-2 text-sm">{correctionDescription}</p>
+        )}
         {resourceBalanceAfterIsNegative && (
           <p className="sm:col-span-2 text-sm font-semibold text-red-700">
             El recurso seleccionado no tiene fondos suficientes.

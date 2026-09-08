@@ -293,6 +293,7 @@ export function WithdrawalPage() {
       observations: formData.observations.trim() || undefined,
       createdAt: now,
       createdBy: deliveredBy,
+      createdByUserId: authenticatedUser?.userId,
       isEdited: false,
     };
 

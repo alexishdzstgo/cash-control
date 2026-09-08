@@ -14,8 +14,8 @@ import {
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
 import { getBankLabel } from "@/config/banks";
 import {
+  applyAdministrativeCorrection,
   applyAdministrativeMovement,
-  calculateAdministrativeCorrectionImpact,
   getAdministrativeResources,
   validateAdministrativeWithdrawal,
 } from "@/lib/administrativeMovements";
@@ -25,6 +25,10 @@ import {
   NO_COMMISSION_RULE_MESSAGE,
   pesosToCents,
 } from "@/lib/commission";
+import {
+  type CorrectionActor,
+  canCorrectRecord,
+} from "@/lib/correctionPermissions";
 import {
   applyOperationFinancialDelta,
   applyOperationFinancialImpact,
@@ -55,16 +59,13 @@ type RegisterAdministrativeMovementInput = {
   createdByUserName: string;
   shiftId?: string;
 };
-
-type CorrectAdministrativeMovementInput = {
+type CorrectAdministrativeMovementInput = CorrectionActor & {
   movementId: string;
   movementType: AdministrativeMovementType;
   resourceId: string;
   amountCents: number;
   explanation?: string;
   editReason: string;
-  editedByUserId: string;
-  editedByUserName: string;
 };
 
 type AddOperationClarificationInput = {
@@ -74,8 +75,7 @@ type AddOperationClarificationInput = {
   reference?: string;
   createdBy: string;
 };
-
-type CorrectClientOperationInput = {
+type CorrectClientOperationInput = CorrectionActor & {
   operationId: string;
   amount?: number;
   bankResourceId?: string;
@@ -84,7 +84,6 @@ type CorrectClientOperationInput = {
   receiverName?: string;
   reason: string;
   reasonDetails?: string;
-  correctedBy: string;
 };
 
 type BusinessFundsContextValue = {
@@ -435,13 +434,18 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     if (!original) {
       return { success: false, error: "Operación no encontrada." };
     }
+    if (!canCorrectRecord(original, input)) {
+      return {
+        success: false,
+        error: "No tienes permiso para corregir esta operación.",
+      };
+    }
 
     const reason = getCorrectionReason(input.reason, input.reasonDetails);
     if (!reason) {
       return { success: false, error: "Selecciona el motivo de corrección." };
     }
-
-    const correctedBy = input.correctedBy.trim() || "Usuario no disponible";
+    const correctedBy = input.actorUserName.trim() || "Usuario no disponible";
     const now = new Date().toISOString();
     const amount =
       input.amount === undefined ? original.amount : roundMoney(input.amount);
@@ -687,7 +691,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     );
     if (!original)
       return { success: false, error: "Movimiento no encontrado." };
-
+    if (!canCorrectRecord(original, input)) {
+      return {
+        success: false,
+        error: "No tienes permiso para corregir este movimiento.",
+      };
+    }
     const resource = resources.find((item) => item.id === input.resourceId);
     if (!resource) return { success: false, error: "Recurso no disponible." };
 
@@ -702,48 +711,27 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       status: "corrected",
       isEdited: true,
       editedAt: new Date().toISOString(),
-      editedByUserId: input.editedByUserId,
-      editedByUserName: input.editedByUserName,
+      editedByUserId: input.actorUserId,
+      editedByUserName: input.actorUserName,
       editReason: input.editReason.trim(),
+      registeredResourceName:
+        original.registeredResourceName ?? original.resourceName,
       previousAmountCents: original.amountCents,
       previousResourceId: original.resourceId,
       previousResourceName: original.resourceName,
       previousMovementType: original.movementType,
     };
-
-    const impacts = calculateAdministrativeCorrectionImpact({
+    const nextBalances = applyAdministrativeCorrection({
+      cash,
+      banks,
       original,
       corrected,
     });
-
-    let nextCash = cash;
-    let nextBanks = banks;
-    for (const impact of impacts) {
-      const impactResource = getAdministrativeResources(
-        nextCash,
-        nextBanks,
-      ).find((item) => item.id === impact.resourceId);
-      if (!impactResource) {
-        return { success: false, error: "Recurso no disponible." };
-      }
-      const validation = validateAdministrativeWithdrawal({
-        movementType: impact.movementType,
-        resource: impactResource,
-        amountCents: impact.amountCents,
-      });
-      if (validation) return { success: false, error: validation };
-
-      const nextBalances = applyAdministrativeMovement({
-        cash: nextCash,
-        banks: nextBanks,
-        movement: impact,
-      });
-      nextCash = nextBalances.cash;
-      nextBanks = nextBalances.banks;
-    }
-
-    setCash(nextCash);
-    setBanks(nextBanks);
+    if (nextBalances.error)
+      return { success: false, error: nextBalances.error };
+    corrected.correctionBalances = nextBalances.preview;
+    setCash(nextBalances.cash);
+    setBanks(nextBalances.banks);
     setMovements((current) =>
       current.map((movement) =>
         movement.id === original.id ? corrected : movement,

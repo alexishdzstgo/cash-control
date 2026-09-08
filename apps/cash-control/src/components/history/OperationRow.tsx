@@ -14,6 +14,7 @@ import { OperationTypeBadge } from "./OperationTypeBadge";
 type OperationRowProps = {
   operation: Operation;
   onViewDetails: (operation: Operation) => void;
+  canCorrect: boolean;
   onCorrectOperation: (operation: Operation) => void;
   onAddClarification: (operation: Operation) => void;
   onMarkAsDelivered: (operation: Operation) => void;
@@ -22,6 +23,7 @@ type OperationRowProps = {
 export function OperationRow({
   operation,
   onViewDetails,
+  canCorrect,
   onCorrectOperation,
   onAddClarification,
   onMarkAsDelivered,
@@ -110,11 +112,17 @@ export function OperationRow({
 
           <ActionMenu
             items={[
-              {
-                label: "Corregir operación",
-                icon: <FilePenLine aria-hidden="true" className="h-4 w-4" />,
-                onClick: () => onCorrectOperation(operation),
-              },
+              ...(canCorrect
+                ? [
+                    {
+                      label: "Corregir operación",
+                      icon: (
+                        <FilePenLine aria-hidden="true" className="h-4 w-4" />
+                      ),
+                      onClick: () => onCorrectOperation(operation),
+                    },
+                  ]
+                : []),
               {
                 label: "Agregar aclaración",
                 icon: (

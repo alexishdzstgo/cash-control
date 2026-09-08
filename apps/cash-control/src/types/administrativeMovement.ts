@@ -24,6 +24,14 @@ export type AdministrativeMovement = {
   editedByUserId?: string;
   editedByUserName?: string;
   editReason?: string;
+  registeredResourceName?: string;
+  correctionBalances?: {
+    resourceId: string;
+    resourceName: string;
+    deltaCents: number;
+    realBalanceAfterCents: number;
+    availableAfterCents: number;
+  }[];
   previousAmountCents?: number;
   previousResourceId?: string;
   previousResourceName?: string;

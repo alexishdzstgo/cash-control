@@ -9,6 +9,10 @@ import {
   ModalShell,
 } from "@/components/shared/ModalShell";
 import { useOperationsHistory } from "@/hooks/useOperationsHistory";
+import {
+  type CorrectionActor,
+  canCorrectRecord,
+} from "@/lib/correctionPermissions";
 import { formatCurrency } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import type { Operation } from "@/types/operation";
@@ -56,7 +60,17 @@ export function OperationsHistoryPage() {
     addOperationClarification,
     correctClientOperation,
   } = useBusinessFunds();
-  const { authenticatedUser } = useMockSession();
+  const { authenticatedUser, getActiveParticipation } = useMockSession();
+  const correctionActor: CorrectionActor = {
+    actorUserId: authenticatedUser?.userId ?? "",
+    actorUserName: authenticatedUser?.userName ?? "Usuario no disponible",
+    actorSystemRole: authenticatedUser?.systemRole,
+    actorHasActiveParticipation: Boolean(
+      authenticatedUser && getActiveParticipation(authenticatedUser.userId),
+    ),
+  };
+  const canCorrectOperation = (operation: Operation) =>
+    canCorrectRecord(operation, correctionActor);
 
   const {
     search,
@@ -141,6 +155,7 @@ export function OperationsHistoryPage() {
   }
 
   function openCorrectionDialog(operation: Operation) {
+    if (!canCorrectOperation(operation)) return;
     setOperationToCorrect(operation);
     setCorrectionError(null);
   }
@@ -172,7 +187,7 @@ export function OperationsHistoryPage() {
       receiverName: input.receiverName,
       reason: input.reason,
       reasonDetails: input.reasonDetails,
-      correctedBy: authenticatedUser?.userName ?? "Usuario no disponible",
+      ...correctionActor,
     });
 
     if (!result.success) {
@@ -271,6 +286,7 @@ export function OperationsHistoryPage() {
         pageSize={pageSize}
         onPageChange={setCurrentPage}
         onViewDetails={(operation) => setSelectedOperationId(operation.id)}
+        canCorrectOperation={canCorrectOperation}
         onCorrectOperation={openCorrectionDialog}
         onAddClarification={openClarificationDialog}
         onMarkAsDelivered={(operation) => {

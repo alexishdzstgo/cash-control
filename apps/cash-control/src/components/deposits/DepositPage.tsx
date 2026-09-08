@@ -203,6 +203,7 @@ export function DepositPage() {
       observations: formData.observations.trim() || undefined,
       createdAt: now,
       createdBy: receivedBy,
+      createdByUserId: authenticatedUser?.userId,
       isEdited: false,
     };
 

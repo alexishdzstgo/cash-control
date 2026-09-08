@@ -52,11 +52,19 @@ export function AdministrativeMovementDetailsModal({
               value={formatCents(movement.amountCents)}
             />
             <ModalInfoItem
-              label="Saldo anterior"
+              label={
+                movement.isEdited
+                  ? "Saldo anterior al registro original"
+                  : "Saldo anterior"
+              }
               value={formatCents(movement.balanceBeforeCents)}
             />
             <ModalInfoItem
-              label="Saldo posterior"
+              label={
+                movement.isEdited
+                  ? "Saldo posterior al registro original"
+                  : "Saldo posterior"
+              }
               value={formatCents(movement.balanceAfterCents)}
             />
             <ModalInfoItem
@@ -81,6 +89,36 @@ export function AdministrativeMovementDetailsModal({
                 value={movement.explanation ?? "Sin motivo"}
               />
             </div>
+            {movement.isEdited && (
+              <ModalInfoItem
+                label="Recurso del registro original"
+                value={
+                  movement.registeredResourceName ??
+                  movement.previousResourceName ??
+                  movement.resourceName
+                }
+              />
+            )}
+            {movement.correctionBalances?.map((balance) => (
+              <div key={balance.resourceId} className="md:col-span-2">
+                <ModalInfoItem
+                  label={`Estado después de la última corrección · ${balance.resourceName}`}
+                  value={`Impacto: ${formatCents(balance.deltaCents)}. Saldo real: ${formatCents(balance.realBalanceAfterCents)}. Disponible: ${formatCents(balance.availableAfterCents)}.`}
+                />
+              </div>
+            ))}
+            {movement.editedByUserName && (
+              <ModalInfoItem
+                label="Corregido por"
+                value={movement.editedByUserName}
+              />
+            )}
+            {movement.editedAt && (
+              <ModalInfoItem
+                label="Fecha de corrección"
+                value={formatDateTime(movement.editedAt)}
+              />
+            )}
             {movement.editReason && (
               <div className="md:col-span-2">
                 <ModalInfoItem
