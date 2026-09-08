@@ -1,10 +1,11 @@
 "use client";
 
 import { ChevronDown, Wallet } from "lucide-react";
-import { FinancialPopover } from "./FinancialPopover";
-import { formatCurrency } from "@/lib/formatters";
 import type { FinancialTotals } from "@/lib/finance";
+import { formatCurrency } from "@/lib/formatters";
+import { CashPhysicalStatus } from "./CashPhysicalStatus";
 import type { FinancialAlert } from "./FinancialAlertsPopover";
+import { FinancialPopover } from "./FinancialPopover";
 
 const STATUS_LABELS: Record<string, string> = {
   normal: "",
@@ -27,8 +28,6 @@ export function FinancialSummaryPopover({
   }>;
   alerts: FinancialAlert[];
 }) {
-  const cashLabel = STATUS_LABELS[totals.cashBalanceStatus];
-
   const button = (
     <span className="flex items-center gap-1.5">
       <Wallet className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
@@ -45,8 +44,14 @@ export function FinancialSummaryPopover({
       align="start"
     >
       <div className="space-y-1">
-        <SummaryRow label="Disponible total" value={totals.totalAvailable} emphasized />
-        <SummaryRow label="Caja" value={totals.cashAvailable} secondary={cashLabel || undefined} />
+        <SummaryRow
+          label="Disponible total"
+          value={totals.totalAvailable}
+          emphasized
+        />
+        <div className="rounded-lg px-1.5 py-2">
+          <CashPhysicalStatus totals={totals} />
+        </div>
         {bankItems.map((bank) => {
           const labelText = STATUS_LABELS[bank.status];
           return (
@@ -54,13 +59,17 @@ export function FinancialSummaryPopover({
               key={bank.id}
               label={bank.name}
               value={bank.available}
-              secondary={[
-                labelText || "",
-                bank.reserved > 0 ? `${formatCurrency(bank.reserved)} reservado` : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")
-                .trim() || undefined}
+              secondary={
+                [
+                  labelText || "",
+                  bank.reserved > 0
+                    ? `${formatCurrency(bank.reserved)} reservado`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+                  .trim() || undefined
+              }
             />
           );
         })}
@@ -78,7 +87,9 @@ export function FinancialSummaryPopover({
               }`}
             >
               <div>
-                <p className="text-xs font-semibold text-slate-900">{alert.title}</p>
+                <p className="text-xs font-semibold text-slate-900">
+                  {alert.title}
+                </p>
                 <p className="text-[11px] text-slate-600">{alert.detail}</p>
               </div>
             </div>
@@ -103,12 +114,16 @@ function SummaryRow({
   return (
     <div className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-slate-50">
       <div>
-        <p className={`text-xs ${emphasized ? "font-bold text-slate-950" : "font-semibold text-slate-900"}`}>
+        <p
+          className={`text-xs ${emphasized ? "font-bold text-slate-950" : "font-semibold text-slate-900"}`}
+        >
           {label}
         </p>
         {secondary && <p className="text-[11px] text-slate-500">{secondary}</p>}
       </div>
-      <p className={`text-sm tabular-nums ${emphasized ? "font-bold text-slate-950" : "font-semibold text-slate-900"}`}>
+      <p
+        className={`text-sm tabular-nums ${emphasized ? "font-bold text-slate-950" : "font-semibold text-slate-900"}`}
+      >
         {formatCurrency(value)}
       </p>
     </div>

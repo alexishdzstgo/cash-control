@@ -6,6 +6,10 @@ import {
   ModalSection,
   ModalShell,
 } from "@/components/shared/ModalShell";
+import {
+  getWithdrawalBankCreditAmount,
+  getWithdrawalCashDeliveryAmount,
+} from "@/lib/finance";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
 import type { Operation, OperationCorrectionSnapshot } from "@/types/operation";
@@ -225,6 +229,7 @@ export function OperationDetailsModal({
                 const changes = getCorrectionChanges(
                   correction.before,
                   correction.after,
+                  operation.type,
                 );
 
                 return (
@@ -246,12 +251,18 @@ export function OperationDetailsModal({
                       {changes.map((change) => (
                         <div
                           key={change.label}
-                          className="grid gap-1 rounded-lg bg-white/80 px-3 py-2 text-sm md:grid-cols-[140px_1fr]"
+                          className={`grid gap-1 rounded-lg bg-white/80 px-3 py-2 text-sm ${change.label === "Comisión recalculada automáticamente" ? "" : "md:grid-cols-[140px_1fr]"}`}
                         >
                           <span className="font-semibold text-slate-700">
                             {change.label}
                           </span>
-                          <span className="text-slate-600">
+                          <span
+                            className={
+                              operation.type === "retiro"
+                                ? "text-slate-600 tabular-nums"
+                                : "text-slate-600"
+                            }
+                          >
                             {change.before} →{" "}
                             <span className="font-semibold text-slate-900">
                               {change.after}
@@ -260,6 +271,12 @@ export function OperationDetailsModal({
                         </div>
                       ))}
                     </div>
+                    {operation.type === "retiro" && (
+                      <WithdrawalCorrectionOutcome
+                        operation={operation}
+                        snapshot={correction.after}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -281,8 +298,41 @@ export function OperationDetailsModal({
 function getCorrectionChanges(
   before: OperationCorrectionSnapshot,
   after: OperationCorrectionSnapshot,
+  type: Operation["type"],
 ) {
   const changes: Array<{ label: string; before: string; after: string }> = [];
+
+  if (type === "retiro") {
+    addChange(
+      changes,
+      "Monto del retiro",
+      before.amount,
+      after.amount,
+      formatCurrency,
+    );
+    addChange(changes, "Banco", before.bankFrom, after.bankFrom);
+    addChange(changes, "Folio/referencia", before.bankFolio, after.bankFolio);
+    addChange(
+      changes,
+      "Referencia",
+      before.destinationReference,
+      after.destinationReference,
+    );
+    addChange(
+      changes,
+      "Persona que recibe",
+      before.receiverName,
+      after.receiverName,
+    );
+    addChange(
+      changes,
+      "Comisión recalculada automáticamente",
+      before.commission,
+      after.commission,
+      formatCurrency,
+    );
+    return changes;
+  }
 
   addChange(changes, "Monto", before.amount, after.amount, formatCurrency);
   addChange(
@@ -331,6 +381,80 @@ function getCorrectionChanges(
   );
 
   return changes;
+}
+
+function WithdrawalCorrectionOutcome({
+  operation,
+  snapshot,
+}: {
+  operation: Operation;
+  snapshot: OperationCorrectionSnapshot;
+}) {
+  // Read this correction's saved amounts; use existing helpers for older records.
+  const correctedOperation = {
+    ...operation,
+    ...snapshot,
+    customerCashReceived: snapshot.customerCashReceived,
+    withdrawalCommissionMode: snapshot.withdrawalCommissionMode,
+  };
+  const cashDelivered = formatCurrency(
+    getWithdrawalCashDeliveryAmount(correctedOperation),
+  );
+  const bankReceived = formatCurrency(
+    snapshot.bankMovementAmount ??
+      getWithdrawalBankCreditAmount(correctedOperation),
+  );
+  const commission = formatCurrency(snapshot.commission);
+  const pending = operation.status === "pendiente";
+
+  return (
+    <div className="mt-3 border-t border-blue-100 pt-3 text-sm leading-6 text-slate-700 tabular-nums">
+      <h4 className="mb-1 font-semibold text-slate-900">
+        Cómo quedó el retiro
+      </h4>
+      <p>
+        {pending ? "Monto del retiro pendiente" : "Monto del retiro"}:{" "}
+        {formatCurrency(snapshot.amount)}
+      </p>
+      {operation.status === "cancelado" ? (
+        <p>
+          El retiro está cancelado; no mantiene efectivo apartado ni movimientos
+          financieros activos.
+        </p>
+      ) : pending ? (
+        <>
+          <p>Efectivo apartado: {cashDelivered}.</p>
+          <p>Banco receptor: {snapshot.bankFrom || "No registrado"}.</p>
+          <p>
+            La comisión todavía no se ha realizado porque el retiro sigue
+            pendiente.
+          </p>
+        </>
+      ) : snapshot.withdrawalCommissionMode === "deducted" ? (
+        <>
+          <p>Comisión: {commission}</p>
+          <p>El cliente recibió físicamente: {cashDelivered}.</p>
+          <p>El banco recibió: {bankReceived}.</p>
+          <p>La comisión se descontó del efectivo entregado.</p>
+        </>
+      ) : (
+        <>
+          <p>El cliente recibió: {cashDelivered} en efectivo.</p>
+          <p>El banco recibió: {bankReceived}.</p>
+          {snapshot.withdrawalCommissionMode === "cash" ? (
+            <p>La comisión de {commission} se cobró en efectivo.</p>
+          ) : snapshot.withdrawalCommissionMode === "deposited" ? (
+            <p>
+              De ese importe, {commission} corresponden a la comisión
+              depositada.
+            </p>
+          ) : (
+            <p>Comisión: {commission}. Forma de cobro no registrada.</p>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 function addChange<T>(

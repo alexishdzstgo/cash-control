@@ -1,10 +1,11 @@
 "use client";
 
 import { Landmark } from "lucide-react";
-import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useFinancialAlerts } from "@/components/bank-alerts/FinancialAlertsContext";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { computeFinancialTotalsFromBalances } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
+import { CashPhysicalStatus } from "./CashPhysicalStatus";
 import {
   type FinancialAlert,
   FinancialAlertsPopover,
@@ -17,7 +18,9 @@ export function GlobalFinancialStatus() {
   const { cash, banks } = useBusinessFunds();
   const totals = computeFinancialTotalsFromBalances({ cash, banks });
   const { overview } = useFinancialAlerts();
-  const cashResource = overview.resources.find((resource) => resource.id === "cash");
+  const cashResource = overview.resources.find(
+    (resource) => resource.id === "cash",
+  );
   const alerts: FinancialAlert[] = overview.alerts.map((alert) => ({
     id: `${alert.resourceId}-${alert.type}`,
     title: alert.resourceName,
@@ -50,9 +53,8 @@ export function GlobalFinancialStatus() {
           emphasized
         />
         <Divider />
-        <FinancialStatusItem
-          label="Caja"
-          value={totals.cashAvailable}
+        <CashPhysicalStatus
+          totals={totals}
           status={cashResource?.status ?? totals.cashBalanceStatus}
         />
         <Divider />
@@ -76,9 +78,8 @@ export function GlobalFinancialStatus() {
           emphasized
         />
         <Divider />
-        <FinancialStatusItem
-          label="Caja"
-          value={totals.cashAvailable}
+        <CashPhysicalStatus
+          totals={totals}
           status={cashResource?.status ?? totals.cashBalanceStatus}
         />
         <Divider />
