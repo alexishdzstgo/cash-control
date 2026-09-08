@@ -11,6 +11,7 @@ import type {
 } from "@/types/cash-closing";
 
 type CashClosingConfirmationProps = {
+  canConfirm: boolean;
   countedCash: string;
   countedAvailableCash: string;
   countedReservedCash: string;
@@ -34,6 +35,7 @@ type CashClosingConfirmationProps = {
 type ConfirmDialogState = "idle" | "confirming";
 
 export function CashClosingConfirmation({
+  canConfirm,
   countedAvailableCash,
   countedReservedCash,
   countedBanks,
@@ -76,7 +78,7 @@ export function CashClosingConfirmation({
     : NaN;
   const availableResult = getResultConfig(
     hasAvailableValue ? Math.round(availableDifference * 100) : NaN,
-    "Caja física",
+    "Caja disponible",
   );
   const reservedResult = getResultConfig(
     hasReservedValue ? Math.round(reservedDifference * 100) : NaN,
@@ -134,12 +136,13 @@ export function CashClosingConfirmation({
   );
   const isObservationMissing = hasAnyDifference && observations.trim() === "";
   const showObservationError = hasTriedSubmit && isObservationMissing;
-  const canAttemptConfirm = hasPhysicalValues && hasAllBankValues;
+  const canAttemptConfirm = canConfirm && hasPhysicalValues && hasAllBankValues;
   const commissionTitle = isOwner
     ? "Ganancias por comisiones"
     : "Comisiones del corte";
 
   function handleStartConfirm() {
+    if (!canConfirm) return;
     setHasTriedSubmit(true);
 
     if (!canAttemptConfirm || isObservationMissing) return;
@@ -148,6 +151,7 @@ export function CashClosingConfirmation({
   }
 
   function handleConfirm() {
+    if (!canAttemptConfirm || isObservationMissing) return;
     onConfirm(observations.trim());
     setDialogState("idle");
   }
@@ -183,7 +187,7 @@ export function CashClosingConfirmation({
 
           <div className="mt-4 grid gap-3 lg:grid-cols-3">
             <Metric
-              label="Caja física"
+              label="Caja disponible"
               value={
                 hasAvailableValue
                   ? formatSignedCurrency(availableDifference)
@@ -244,7 +248,7 @@ export function CashClosingConfirmation({
             Resultado del corte
           </h3>
           <div className="mt-3 space-y-2">
-            <ResultLine label="Caja física" result={availableResult} />
+            <ResultLine label="Caja disponible" result={availableResult} />
             <ResultLine
               label="Caja de retiros apartados"
               result={reservedResult}
@@ -369,7 +373,8 @@ export function CashClosingConfirmation({
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="btn-primary"
+                disabled={!canAttemptConfirm}
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cerrar corte
               </button>
@@ -391,7 +396,7 @@ export function CashClosingConfirmation({
               </div>
 
               <ModalResourceSummary
-                title="Caja física"
+                title="Caja disponible"
                 rows={[
                   ["Esperado", availableCash],
                   ["Contado", countedAvailable],
@@ -685,7 +690,8 @@ function ModalResourceSummary({
 }
 
 function parseMoney(value: string): number {
-  return value === "" ? NaN : Number(value);
+  const amount = Number(value);
+  return value === "" || !Number.isFinite(amount) || amount < 0 ? NaN : amount;
 }
 
 function sanitizeMoneyInput(rawValue: string): string {

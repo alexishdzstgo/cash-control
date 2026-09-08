@@ -201,10 +201,13 @@ export function ShiftsPage() {
 
   if (!derivedShift) {
     return (
-      <PageHeader
-        title="Turno actual"
-        description="No hay un turno abierto disponible."
-      />
+      <div className="space-y-6">
+        <PageHeader
+          title="Turno actual"
+          description="No hay un turno abierto disponible."
+        />
+        <ShiftHistory shifts={closedShifts} />
+      </div>
     );
   }
 

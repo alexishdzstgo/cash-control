@@ -8,12 +8,45 @@ export type ShiftParticipantStatus = "active" | "left";
 
 export type ShiftStatus = "open" | "closed";
 
+export type ShiftClosing = {
+  status: "balanced" | "shortage" | "surplus";
+  closedAt: string;
+  closedByUserId: string;
+  closedByUserName: string;
+  expectedCashPhysical: number;
+  countedCashPhysical: number;
+  expectedReservedCash: number;
+  countedReservedCash: number;
+  banks: Array<{
+    bankId: string;
+    bankName: string;
+    expectedBalance: number;
+    countedBalance: number;
+    difference: number;
+  }>;
+  totalDifference: number;
+  observations?: string;
+};
+
+export type CloseShiftInput = Pick<
+  ShiftClosing,
+  | "expectedCashPhysical"
+  | "countedCashPhysical"
+  | "expectedReservedCash"
+  | "countedReservedCash"
+  | "observations"
+> & {
+  shiftId: string;
+  banks: Array<Omit<ShiftClosing["banks"][number], "difference">>;
+};
+
 export type Shift = {
   id: string;
   folio: string;
   status: ShiftStatus;
   openedAt: string;
   closedAt?: string;
+  closing?: ShiftClosing;
   responsibleUserId: string;
   responsibleUserName: string;
   openingBalances: {

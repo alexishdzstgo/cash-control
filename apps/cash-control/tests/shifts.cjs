@@ -20,6 +20,11 @@ const react = {
   useContext: (context) => context.value,
   useMemo: (fn) => fn(),
   useCallback: (fn) => fn,
+  useRef: (initial) => {
+    const index = cursor++;
+    if (!(index in currentStore)) currentStore[index] = { current: initial };
+    return currentStore[index];
+  },
   useState: (initial) => {
     const store = currentStore;
     const index = cursor++;
@@ -45,6 +50,18 @@ const react = {
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === "react") return react;
+  if (request === "lucide-react")
+    return new Proxy({}, { get: (_, name) => name });
+  if (request === "next/link") return "Link";
+  for (const component of [
+    "CashClosingConfirmation",
+    "CashClosingResult",
+    "CashMovementBreakdown",
+    "MovementDetailsModal",
+    "ShiftClosingHeader",
+  ]) {
+    if (request.endsWith(`/${component}`)) return { [component]: component };
+  }
   if (request === "react/jsx-runtime")
     return {
       jsx: (type, props) => ({ type, props }),
@@ -89,6 +106,9 @@ const {
   buildInitialZeroBanks,
 } = require("../src/components/balances/balanceMockData.ts");
 const { getOperationCorrectionSnapshot } = require("../src/lib/finance.ts");
+const {
+  CashClosingPage,
+} = require("../src/components/cash-closing/CashClosingPage.tsx");
 
 let session;
 let shift;
@@ -523,4 +543,209 @@ test("Day 1 reset clears derived activity without another reset system or a new 
     clarifications: 0,
   });
   assert.deepEqual(activity(), []);
+});
+
+function closingInput() {
+  const { buildCashClosingStory } = require("../src/lib/cashClosing.ts");
+  const story = buildCashClosingStory({
+    shiftId: shift.currentShift.id,
+    openingBalances: shift.currentShift.openingBalances,
+    cash: funds.cash,
+    banks: funds.banks,
+    operations: funds.operations,
+    administrativeMovements: funds.movements,
+  });
+  return {
+    shiftId: shift.currentShift.id,
+    expectedCashPhysical: story.expectedCash,
+    countedCashPhysical: story.expectedCash,
+    expectedReservedCash: story.reservedCash.total,
+    countedReservedCash: story.reservedCash.total,
+    banks: story.bankStories.map((bank) => ({
+      bankId: bank.bankId,
+      bankName: bank.bankName,
+      expectedBalance: bank.expectedBalance,
+      countedBalance: bank.expectedBalance,
+    })),
+  };
+}
+
+test("closing domain blocks support, inactive owners and stale permission callbacks", () => {
+  reset();
+  const input = closingInput();
+  login("juan-perez", "Juan Pérez");
+  assert.equal(act(() => shift.closeCurrentShift(input)).success, false);
+  login("carlos-martinez", "Carlos Martínez", "owner");
+  assert.equal(act(() => shift.closeCurrentShift(input)).success, false);
+  login("maria-lopez", "María López", "owner");
+  const staleClose = shift.closeCurrentShift;
+  expectSuccess(
+    act(() =>
+      session.transferResponsibility("maria-lopez", "juan-perez", "1234"),
+    ),
+  );
+  assert.equal(
+    staleClose(input).success,
+    false,
+    "old owner callback must see current support role",
+  );
+  assert.equal(shift.currentShift.status, "open");
+});
+
+test("H-I: successful close saves result, clears current shift, and blocks double submission synchronously", () => {
+  reset();
+  addFunds();
+  login("maria-lopez", "María López", "owner");
+  const input = closingInput();
+  const financialState = structuredClone({
+    cash: funds.cash,
+    banks: funds.banks,
+    operations: funds.operations,
+    movements: funds.movements,
+  });
+  const close = shift.closeCurrentShift;
+  const result = expectSuccess(close(input));
+  assert.equal(
+    close(input).success,
+    false,
+    "double-click before rerender is rejected",
+  );
+  render();
+  assert.equal(shift.currentShift, null);
+  assert.equal(shift.getCurrentShift(), null);
+  assert.equal(shift.isShiftOpen(), false);
+  assert.equal(shift.canCloseCurrentShift(), false);
+  assert.equal(shift.shifts.length, 1);
+  const saved = shift.getShiftById(input.shiftId);
+  assert.equal(saved.status, "closed");
+  assert.equal(saved.closedAt, saved.closing.closedAt);
+  assert.equal(saved.closing.status, "balanced");
+  assert.equal(saved.closing.closedByUserId, "maria-lopez");
+  assert.equal(saved.closing.countedCashPhysical, 10000);
+  assert.deepEqual(saved, result.shift);
+  assert.deepEqual(
+    {
+      cash: funds.cash,
+      banks: funds.banks,
+      operations: funds.operations,
+      movements: funds.movements,
+    },
+    financialState,
+    "closing does not reconcile or mutate balances",
+  );
+  assert.equal(act(() => shift.closeCurrentShift(input)).success, false);
+  assert.equal(shift.currentShift, null, "no automatic next shift");
+});
+
+function renderPage() {
+  if (!stores.has(CashClosingPage)) stores.set(CashClosingPage, []);
+  currentStore = stores.get(CashClosingPage);
+  cursor = 0;
+  return CashClosingPage();
+}
+function findNode(node, predicate) {
+  if (!node || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findNode(child, predicate);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (predicate(node)) return node;
+  return findNode(node.props?.children, predicate);
+}
+function confirmation() {
+  return findNode(
+    renderPage(),
+    (node) => node.type === "CashClosingConfirmation",
+  );
+}
+function startCount() {
+  const ready = findNode(
+    renderPage(),
+    (node) => node.type?.name === "ReadyToCountCard",
+  );
+  ready.props.onStartCount();
+}
+function fillCount() {
+  const input = closingInput();
+  confirmation().props.onCountedAvailableCashChange(
+    String(input.countedCashPhysical - input.countedReservedCash),
+  );
+  confirmation().props.onCountedReservedCashChange(
+    String(input.countedReservedCash),
+  );
+  for (const bank of input.banks)
+    confirmation().props.onCountedBankChange(
+      bank.bankId,
+      String(bank.countedBalance),
+    );
+}
+
+test("A-C: page guards manual start and confirm, including responsibility lost during counting", () => {
+  reset();
+  global.window = { setTimeout: () => 0 };
+  login("juan-perez", "Juan Pérez");
+  const ready = findNode(
+    renderPage(),
+    (node) => node.type?.name === "ReadyToCountCard",
+  );
+  assert.equal(ready.props.canStart, false);
+  ready.props.onStartCount();
+  assert.equal(confirmation(), null, "manual start is blocked for support");
+  login("maria-lopez", "María López", "owner");
+  startCount();
+  fillCount();
+  assert.equal(confirmation().props.canConfirm, true);
+  const staleConfirm = confirmation().props.onConfirm;
+  expectSuccess(
+    act(() =>
+      session.transferResponsibility("maria-lopez", "juan-perez", "1234"),
+    ),
+  );
+  assert.equal(confirmation().props.canConfirm, false);
+  confirmation().props.onConfirm("");
+  staleConfirm("");
+  assert.equal(
+    shift.currentShift.status,
+    "open",
+    "both current and stale callbacks blocked",
+  );
+  assert.equal(
+    findNode(renderPage(), (node) => node.type === "CashClosingResult"),
+    null,
+  );
+  delete global.window;
+});
+
+test("page marks completion only after successful close and preserves the saved result", () => {
+  reset();
+  global.window = { setTimeout: () => 0 };
+  login("maria-lopez", "María López", "owner");
+  startCount();
+  fillCount();
+  const realClose = shift.closeCurrentShift;
+  shift.closeCurrentShift = () => ({
+    success: false,
+    error: "Cierre rechazado",
+  });
+  confirmation().props.onConfirm("");
+  assert.equal(
+    findNode(renderPage(), (node) => node.type === "CashClosingResult"),
+    null,
+  );
+  assert.equal(shift.currentShift.status, "open");
+  shift.closeCurrentShift = realClose;
+  confirmation().props.onConfirm("");
+  render();
+  const result = findNode(
+    renderPage(),
+    (node) => node.type === "CashClosingResult",
+  );
+  assert.ok(result);
+  assert.equal(result.props.shift.status, "closed");
+  assert.equal(result.props.shift.closing.status, "balanced");
+  assert.equal(shift.currentShift, null);
+  delete global.window;
 });

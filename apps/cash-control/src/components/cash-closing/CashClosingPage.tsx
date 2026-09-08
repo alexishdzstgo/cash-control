@@ -10,11 +10,13 @@ import {
   PiggyBank,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { buildCashClosingStory } from "@/lib/cashClosing";
 import { formatCurrency } from "@/lib/formatters";
 import type {
@@ -26,10 +28,10 @@ import type {
   FinancialTimelineEvent,
   FinancialTimelineImpact,
 } from "@/types/cash-closing";
+import type { Shift } from "@/types/shift";
 import { CashClosingConfirmation } from "./CashClosingConfirmation";
 import { CashClosingResult } from "./CashClosingResult";
 import { CashMovementBreakdown } from "./CashMovementBreakdown";
-import { mockCashClosingData } from "./cashClosingMockData";
 import { MovementDetailsModal } from "./MovementDetailsModal";
 import { ShiftClosingHeader } from "./ShiftClosingHeader";
 
@@ -37,6 +39,7 @@ type CashClosingPageState = {
   status: CashClosingStatus;
   isCounting: boolean;
   isDone: boolean;
+  closedShift: Shift | null;
   countedCash: string;
   countedAvailableCash: string;
   countedReservedCash: string;
@@ -52,6 +55,7 @@ const INITIAL_STATE: CashClosingPageState = {
   status: "pending",
   isCounting: false,
   isDone: false,
+  closedShift: null,
   countedCash: "",
   countedAvailableCash: "",
   countedReservedCash: "",
@@ -68,6 +72,8 @@ export function CashClosingPage() {
     operations,
   } = useBusinessFunds();
   const { authenticatedUser } = useMockSession();
+  const { currentShift, canCloseCurrentShift, closeCurrentShift } = useShift();
+  const [closeError, setCloseError] = useState<string | null>(null);
   const [state, setState] = useState<CashClosingPageState>(INITIAL_STATE);
   const storyRef = useRef<HTMLDivElement>(null);
   const countRef = useRef<HTMLDivElement>(null);
@@ -76,17 +82,36 @@ export function CashClosingPage() {
   const outputsRef = useRef<HTMLDivElement>(null);
   const isOwner = authenticatedUser?.systemRole === "owner";
 
+  const closingShift = currentShift ?? state.closedShift;
   const story = useMemo(
     () =>
-      buildCashClosingStory({
-        cash,
-        banks,
-        operations,
-        administrativeMovements,
-        fallbackOpeningBalance: mockCashClosingData.openingBalance,
-      }),
-    [cash, banks, operations, administrativeMovements],
+      closingShift
+        ? buildCashClosingStory({
+            shiftId: closingShift.id,
+            openingBalances: closingShift.openingBalances,
+            cash,
+            banks,
+            operations,
+            administrativeMovements,
+          })
+        : null,
+    [cash, banks, operations, administrativeMovements, closingShift],
   );
+
+  if (!closingShift || !story) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Corte de caja"
+          description="No hay un turno abierto para realizar el corte."
+        />
+        <Link href="/shifts" className="btn-secondary">
+          Ver historial de turnos
+        </Link>
+      </div>
+    );
+  }
+  const canClose = canCloseCurrentShift();
 
   const countedAvailableNumeric =
     state.countedAvailableCash === ""
@@ -102,7 +127,10 @@ export function CashClosingPage() {
   const hasCountedValue =
     state.countedAvailableCash !== "" &&
     state.countedReservedCash !== "" &&
-    !Number.isNaN(countedNumeric);
+    Number.isFinite(countedAvailableNumeric) &&
+    countedAvailableNumeric >= 0 &&
+    Number.isFinite(countedReservedNumeric) &&
+    countedReservedNumeric >= 0;
   const difference = hasCountedValue
     ? countedNumeric - story.expectedCash
     : NaN;
@@ -125,17 +153,14 @@ export function CashClosingPage() {
     };
   });
   const hasAllBankValues = bankDifferences.every(
-    (bank) => bank.countedValue !== "" && !Number.isNaN(bank.counted),
+    (bank) =>
+      bank.countedValue !== "" &&
+      Number.isFinite(bank.counted) &&
+      bank.counted >= 0,
   );
-  const totalControlledDifference =
-    (hasCountedValue ? difference : 0) +
-    bankDifferences.reduce(
-      (sum, bank) =>
-        sum + (Number.isNaN(bank.difference) ? 0 : bank.difference),
-      0,
-    );
-
   function handleStartCount() {
+    if (!canCloseCurrentShift() || state.isDone) return;
+    setCloseError(null);
     setState((current) => ({
       ...current,
       isCounting: true,
@@ -165,28 +190,53 @@ export function CashClosingPage() {
   }
 
   function handleConfirm(observations: string) {
+    if (!canCloseCurrentShift() || state.isDone || !state.isCounting) return;
+    if (!story || !closingShift) return;
     if (!hasCountedValue || !hasAllBankValues) return;
-
     const hasAnyDifference =
       Math.round(availableDifference * 100) !== 0 ||
       Math.round(reservedDifference * 100) !== 0 ||
       bankDifferences.some((bank) => Math.round(bank.difference * 100) !== 0);
-    const nextStatus = !hasAnyDifference
-      ? "balanced"
-      : totalControlledDifference < 0
-        ? "shortage"
-        : "surplus";
-
+    if (hasAnyDifference && !observations.trim()) {
+      setCloseError(
+        "Agrega una observación para explicar las diferencias antes de cerrar.",
+      );
+      return;
+    }
+    const result = closeCurrentShift({
+      shiftId: closingShift.id,
+      expectedCashPhysical: story.expectedCash,
+      countedCashPhysical: countedNumeric,
+      expectedReservedCash: story.reservedCash.total,
+      countedReservedCash: countedReservedNumeric,
+      banks: story.bankStories.map((bank) => ({
+        bankId: bank.bankId,
+        bankName: bank.bankName,
+        expectedBalance: bank.expectedBalance,
+        countedBalance: Number(state.countedBanks[bank.bankId]),
+      })),
+      observations,
+    });
+    if (!result.success || !result.shift?.closing) {
+      setCloseError(
+        result.error ??
+          "No se pudo cerrar el turno. Revisa los datos e inténtalo de nuevo.",
+      );
+      return;
+    }
+    setCloseError(null);
     setState((current) => ({
       ...current,
       isDone: true,
-      status: nextStatus,
+      closedShift: result.shift ?? null,
+      status: result.shift?.closing?.status ?? current.status,
       countedCash: countedNumeric.toFixed(2),
       observations,
     }));
   }
 
   function handleViewCategory(category: CashMovementCategory) {
+    if (!story) return;
     setState((current) => ({
       ...current,
       activeDetail: {
@@ -199,10 +249,11 @@ export function CashClosingPage() {
   }
 
   function handleViewReserved() {
+    if (!story) return;
     setState((current) => ({
       ...current,
       activeDetail: {
-        category: "delivered_withdrawal",
+        category: "reserved_withdrawal",
         movements: story.reservedCash.movements,
       },
     }));
@@ -212,27 +263,14 @@ export function CashClosingPage() {
     setState((current) => ({ ...current, activeDetail: null }));
   }
 
-  function handleReset() {
-    setState(INITIAL_STATE);
-  }
-
-  if (state.isDone) {
+  if (state.isDone && state.closedShift) {
     return (
       <div className="space-y-6">
         <PageHeader
           title="Corte de caja"
-          description="Resumen final del corte cerrado en esta demostración mock."
+          description="El corte quedó guardado en el turno cerrado."
         />
-        <CashClosingResult
-          status={state.status}
-          countedCash={state.countedCash}
-          expectedCash={story.expectedCash}
-          difference={difference}
-          shiftName="Corte actual"
-          responsibleName={mockCashClosingData.shift.responsibleName}
-          observations={state.observations}
-          onReset={handleReset}
-        />
+        <CashClosingResult shift={state.closedShift} />
       </div>
     );
   }
@@ -244,7 +282,17 @@ export function CashClosingPage() {
         description="Entiende de dónde salió cada peso antes de cerrar el corte."
       />
 
-      <ShiftClosingHeader shift={mockCashClosingData.shift} />
+      <ShiftClosingHeader shift={closingShift} />
+      {!canClose && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          Solo el responsable actual del turno puede realizar el corte de caja.
+        </p>
+      )}
+      {closeError && (
+        <p role="alert" className="text-sm text-red-700">
+          {closeError}
+        </p>
+      )}
 
       <TurnStoryHero expectedCash={story.expectedCash} />
 
@@ -303,10 +351,11 @@ export function CashClosingPage() {
       />
 
       {!state.isCounting ? (
-        <ReadyToCountCard onStartCount={handleStartCount} />
+        <ReadyToCountCard onStartCount={handleStartCount} canStart={canClose} />
       ) : (
         <section ref={countRef} className="space-y-6 scroll-mt-6">
           <CashClosingConfirmation
+            canConfirm={canClose}
             countedCash={state.countedCash}
             countedAvailableCash={state.countedAvailableCash}
             countedReservedCash={state.countedReservedCash}
@@ -460,7 +509,7 @@ function TimelineStart({ timeline }: { timeline: FinancialTimeline }) {
           </p>
           <div className="mt-3 space-y-2 text-sm">
             <SplitRow
-              label="Caja física"
+              label="Caja disponible"
               value={timeline.initialAvailableCash}
             />
             <SplitRow
@@ -847,7 +896,10 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-blue-100 bg-white p-4">
           <p className="text-sm font-semibold text-slate-900">Efectivo</p>
-          <SplitRow label="Caja física" value={timeline.finalAvailableCash} />
+          <SplitRow
+            label="Caja disponible"
+            value={timeline.finalAvailableCash}
+          />
           <SplitRow
             label="Caja de retiros apartados"
             value={timeline.finalReservedCash}
@@ -880,7 +932,7 @@ function TimelineFinal({ timeline }: { timeline: FinancialTimeline }) {
       </div>
       <div className="mt-4 rounded-xl border border-blue-100 bg-white p-4">
         <p className="text-sm font-bold text-slate-950">Total controlado</p>
-        <SplitRow label="Caja física" value={timeline.finalAvailableCash} />
+        <SplitRow label="Caja disponible" value={timeline.finalAvailableCash} />
         <SplitRow
           label="Caja de retiros apartados"
           value={timeline.finalReservedCash}
@@ -987,7 +1039,13 @@ function ReservedCashCard({
         <StoryLine
           icon={PiggyBank}
           label="Apartado para retiros pendientes"
-          helper={`${movements.length} ${movements.length === 1 ? "retiro pendiente" : "retiros pendientes"}`}
+          helper={
+            movements.length > 0
+              ? `${movements.length} ${movements.length === 1 ? "retiro pendiente registrado" : "retiros pendientes registrados"} en este turno`
+              : reservedCash > 0
+                ? "Apartados registrados al iniciar el turno"
+                : "Sin efectivo apartado"
+          }
           value={reservedCash}
           tone="reserved"
         />
@@ -1198,7 +1256,13 @@ function BankFormulaLine({
   );
 }
 
-function ReadyToCountCard({ onStartCount }: { onStartCount: () => void }) {
+function ReadyToCountCard({
+  onStartCount,
+  canStart,
+}: {
+  onStartCount: () => void;
+  canStart: boolean;
+}) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1211,7 +1275,12 @@ function ReadyToCountCard({ onStartCount }: { onStartCount: () => void }) {
             el efectivo físico que tienes en caja.
           </p>
         </div>
-        <button type="button" onClick={onStartCount} className="btn-primary">
+        <button
+          type="button"
+          onClick={onStartCount}
+          disabled={!canStart}
+          className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
           <ClipboardList className="h-4 w-4" />
           Iniciar corte de caja
         </button>

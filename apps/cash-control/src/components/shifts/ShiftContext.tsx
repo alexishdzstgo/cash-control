@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -13,11 +14,12 @@ import {
 } from "@/components/balances/balanceMockData";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import {
+  buildShiftClosing,
   canCloseShift,
   createInitialShift,
   getShiftResponsible,
 } from "@/lib/shifts";
-import type { Shift } from "@/types/shift";
+import type { CloseShiftInput, Shift } from "@/types/shift";
 
 type ShiftContextValue = {
   currentShift: Shift | null;
@@ -26,6 +28,11 @@ type ShiftContextValue = {
   getShiftById: (id: string) => Shift | undefined;
   isShiftOpen: () => boolean;
   canCloseCurrentShift: () => boolean;
+  closeCurrentShift: (input: CloseShiftInput) => {
+    success: boolean;
+    shift?: Shift;
+    error?: string;
+  };
 };
 
 const ShiftContext = createContext<ShiftContextValue | null>(null);
@@ -63,6 +70,68 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       : shift,
   );
   const currentShift = shifts.find((shift) => shift.status === "open") ?? null;
+  const closedIds = useRef(new Set<string>());
+  const latest = useRef({ currentShift, authenticatedUser, participants });
+  latest.current = { currentShift, authenticatedUser, participants };
+
+  function canCloseCurrentShift() {
+    const current = latest.current;
+    return Boolean(
+      current.currentShift &&
+        !closedIds.current.has(current.currentShift.id) &&
+        canCloseShift(
+          current.currentShift,
+          current.authenticatedUser?.userId,
+          current.participants,
+        ),
+    );
+  }
+
+  function closeCurrentShift(input: CloseShiftInput) {
+    const { currentShift: activeShift, authenticatedUser: actor } =
+      latest.current;
+    if (
+      !canCloseCurrentShift() ||
+      !activeShift ||
+      !actor ||
+      activeShift.id !== input.shiftId
+    ) {
+      return {
+        success: false,
+        error:
+          "Solo el responsable actual de un turno abierto puede confirmar su corte.",
+      };
+    }
+    if (
+      activeShift.openingBalances.banks.some(
+        (bank) =>
+          !input.banks.some((counted) => counted.bankId === bank.bankId),
+      )
+    ) {
+      return {
+        success: false,
+        error: "Completa el conteo de todos los bancos del turno.",
+      };
+    }
+    const closedAt = new Date().toISOString();
+    const result = buildShiftClosing(input, actor, closedAt);
+    if (result.error || !result.closing)
+      return { success: false, error: result.error };
+    const closedShift: Shift = {
+      ...activeShift,
+      status: "closed",
+      closedAt,
+      closing: result.closing,
+    };
+    // Synchronous lock prevents a second submission before React commits the update.
+    closedIds.current.add(activeShift.id);
+    setStoredShifts((current) =>
+      current.map((shift) =>
+        shift.id === activeShift.id ? closedShift : shift,
+      ),
+    );
+    return { success: true, shift: closedShift };
+  }
 
   return (
     <ShiftContext.Provider
@@ -72,8 +141,8 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         getCurrentShift: () => currentShift,
         getShiftById: (id) => shifts.find((shift) => shift.id === id),
         isShiftOpen: () => currentShift?.status === "open",
-        canCloseCurrentShift: () =>
-          canCloseShift(currentShift, authenticatedUser?.userId, participants),
+        canCloseCurrentShift,
+        closeCurrentShift,
       }}
     >
       {children}

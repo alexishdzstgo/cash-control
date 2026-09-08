@@ -1,149 +1,124 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
-import type { CashClosingStatus } from "@/types/cash-closing";
+import Link from "next/link";
+import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import type { Shift } from "@/types/shift";
 
-type CashClosingResultProps = {
-  status: CashClosingStatus;
-  countedCash: string;
-  expectedCash: number;
-  difference: number;
-  shiftName: string;
-  responsibleName: string;
-  observations: string;
-  onReset: () => void;
+export const closingResultLabels = {
+  balanced: "Cuadrado",
+  shortage: "Faltante",
+  surplus: "Sobrante",
 };
 
 export function CashClosingResult({
-  status,
-  countedCash,
-  expectedCash,
-  difference,
-  shiftName,
-  responsibleName,
-  observations,
-  onReset,
-}: CashClosingResultProps) {
-  const countedNumeric = Number(countedCash);
-  const resultStatus: "balanced" | "shortage" | "surplus" =
-    status === "review_required"
-      ? difference < 0
-        ? "shortage"
-        : "surplus"
-      : status === "balanced" || status === "shortage" || status === "surplus"
-        ? status
-        : "balanced";
-
-  const config = {
-    balanced: {
-      title: "Caja correcta",
-      subtitle: "Corte realizado",
-      description:
-        "El efectivo contado coincide con los movimientos registrados.",
-      icon: CheckCircle2,
-      iconClassName: "text-emerald-500",
-      badgeClassName: "bg-emerald-50 text-emerald-700",
-      valueClassName: "text-emerald-700",
-    },
-    shortage: {
-      title: "Falta efectivo",
-      subtitle: "Corte realizado con faltante",
-      description:
-        "Hay menos efectivo del que debería existir según los movimientos registrados.",
-      icon: AlertTriangle,
-      iconClassName: "text-red-500",
-      badgeClassName: "bg-red-50 text-red-700",
-      valueClassName: "text-red-700",
-    },
-    surplus: {
-      title: "Sobra efectivo",
-      subtitle: "Corte realizado con sobrante",
-      description:
-        "Hay más efectivo del que debería existir según los movimientos registrados.",
-      icon: TrendingUp,
-      iconClassName: "text-blue-500",
-      badgeClassName: "bg-blue-50 text-blue-700",
-      valueClassName: "text-blue-700",
-    },
-  };
-
-  const current = config[resultStatus];
-  const Icon = current.icon;
-
-  return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <Icon className={`mt-1 h-8 w-8 shrink-0 ${current.iconClassName}`} />
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">
-              {current.title}
-            </h2>
-            <p
-              className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${current.badgeClassName}`}
-            >
-              {current.subtitle}
-            </p>
-            <p className="mt-3 text-sm text-slate-600">{current.description}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-400">
-          Resumen del corte
-        </h3>
-
-        <div className="space-y-3">
-          <ResultRow label="Esperado" value={formatCurrency(expectedCash)} />
-          <ResultRow label="Contado" value={formatCurrency(countedNumeric)} />
-          <ResultRow
-            label="Diferencia"
-            value={
-              difference > 0
-                ? `+${formatCurrency(difference)}`
-                : formatCurrency(difference)
-            }
-            className={current.valueClassName}
-          />
-
-          <div className="border-t border-slate-100 pt-3">
-            <ResultRow label="Responsable" value={responsibleName} />
-            <ResultRow label="Corte" value={shiftName} />
-          </div>
-
-          {observations.trim() !== "" && (
-            <div className="border-t border-slate-100 pt-3">
-              <p className="text-sm font-medium text-slate-700">
-                Observaciones
-              </p>
-              <p className="mt-1 text-sm text-slate-600">{observations}</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <button type="button" onClick={onReset} className="btn-secondary w-full">
-        Reiniciar demostración
-      </button>
-    </div>
-  );
-}
-
-function ResultRow({
-  label,
-  value,
-  className = "text-slate-900",
+  shift,
+  showHistoryLink = true,
 }: {
-  label: string;
-  value: string;
-  className?: string;
+  shift: Shift;
+  showHistoryLink?: boolean;
 }) {
+  const closing = shift.closing;
+  if (!closing) return null;
+  const tone = {
+    balanced: "text-emerald-700",
+    shortage: "text-red-700",
+    surplus: "text-blue-700",
+  }[closing.status];
+  const rows = [
+    {
+      id: "cash",
+      name: "Caja física total",
+      expected: closing.expectedCashPhysical,
+      counted: closing.countedCashPhysical,
+      difference: closing.countedCashPhysical - closing.expectedCashPhysical,
+    },
+    {
+      id: "reserved",
+      name: "Apartado (incluido en caja física)",
+      expected: closing.expectedReservedCash,
+      counted: closing.countedReservedCash,
+      difference: closing.countedReservedCash - closing.expectedReservedCash,
+    },
+    ...closing.banks.map((bank) => ({
+      id: bank.bankId,
+      name: bank.bankName,
+      expected: bank.expectedBalance,
+      counted: bank.countedBalance,
+      difference: bank.difference,
+    })),
+  ];
   return (
-    <div className="flex items-center justify-between gap-3 text-sm">
-      <span className="text-slate-600">{label}</span>
-      <span className={`font-medium tabular-nums ${className}`}>{value}</span>
+    <div className="space-y-5">
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <p className="text-sm text-slate-500">Turno cerrado · {shift.folio}</p>
+        <h2 className={`mt-1 text-2xl font-bold ${tone}`}>
+          {closingResultLabels[closing.status]}
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Cerrado el {formatDateTime(closing.closedAt)} por{" "}
+          {closing.closedByUserName}.
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          Responsable: {shift.responsibleUserName}
+        </p>
+      </section>
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 className="text-sm font-bold text-slate-900">
+          Resultado del conteo
+        </h3>
+        <div className="mt-4 space-y-4">
+          {rows.map((row) => (
+            <div
+              key={row.id}
+              className="border-b border-slate-100 pb-3 last:border-0"
+            >
+              <p className="text-sm font-semibold text-slate-800">{row.name}</p>
+              <dl className="mt-2 grid grid-cols-3 gap-2 text-xs tabular-nums sm:text-sm">
+                <div>
+                  <dt className="text-slate-500">Esperado</dt>
+                  <dd>{formatCurrency(row.expected)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Contado</dt>
+                  <dd>{formatCurrency(row.counted)}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Diferencia</dt>
+                  <dd className="font-semibold">
+                    {formatCurrency(row.difference)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 flex justify-between gap-3 text-sm font-bold text-slate-900">
+          Diferencia total{" "}
+          <span className="tabular-nums">
+            {formatCurrency(closing.totalDifference)}
+          </span>
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Incluye caja física y bancos. El apartado forma parte de la caja
+          física.
+        </p>
+        {closing.status !== "balanced" && closing.totalDifference === 0 && (
+          <p className="mt-2 text-sm text-slate-600">
+            Hay diferencias entre recursos aunque la diferencia total sea cero.
+          </p>
+        )}
+        {closing.observations && (
+          <div className="mt-4 text-sm text-slate-700">
+            <p className="font-semibold">Observaciones</p>
+            <p className="mt-1 whitespace-pre-wrap">{closing.observations}</p>
+          </div>
+        )}
+      </section>
+      {showHistoryLink && (
+        <Link href="/shifts" className="btn-secondary">
+          Ver historial de turnos
+        </Link>
+      )}
     </div>
   );
 }

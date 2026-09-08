@@ -1,11 +1,18 @@
 "use client";
 
+import { useState } from "react";
+import {
+  CashClosingResult,
+  closingResultLabels,
+} from "@/components/cash-closing/CashClosingResult";
+import { ModalShell } from "@/components/shared/ModalShell";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/formatters";
 import { formatShiftDuration } from "@/lib/shifts";
 import type { Shift } from "@/types/shift";
 
 export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
+  const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   return (
     <section className="rounded-xl border border-brand-border bg-white p-6">
       <h3 className="text-lg font-semibold text-slate-900">
@@ -28,6 +35,8 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
                     "Cierre",
                     "Duración",
                     "Estado",
+                    "Resultado",
+                    "Detalle",
                   ].map((label) => (
                     <th key={label} className="pb-3 font-medium">
                       {label}
@@ -56,6 +65,22 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
                     <td className="py-3">
                       <Badge variant="neutral">Cerrado</Badge>
                     </td>
+                    <td className="py-3">
+                      {shift.closing
+                        ? closingResultLabels[shift.closing.status]
+                        : "Sin corte registrado"}
+                    </td>
+                    <td className="py-3">
+                      {shift.closing && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setSelectedShift(shift)}
+                        >
+                          Ver corte
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -71,6 +96,18 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
                   <p className="font-medium text-slate-900">{shift.folio}</p>
                   <Badge variant="neutral">Cerrado</Badge>
                 </div>
+                {shift.closing && (
+                  <div className="mt-3 flex items-center justify-between gap-2 text-sm">
+                    <span>{closingResultLabels[shift.closing.status]}</span>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setSelectedShift(shift)}
+                    >
+                      Ver corte
+                    </button>
+                  </div>
+                )}
                 <p className="mt-1 text-xs text-slate-500">
                   Responsable: {shift.responsibleUserName || "Sin asignar"}
                 </p>
@@ -85,6 +122,16 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
             ))}
           </div>
         </>
+      )}
+      {selectedShift && (
+        <ModalShell
+          title={`Corte de ${selectedShift.folio}`}
+          onClose={() => setSelectedShift(null)}
+          closeOnOverlayClick
+          maxWidth="lg"
+        >
+          <CashClosingResult shift={selectedShift} showHistoryLink={false} />
+        </ModalShell>
       )}
     </section>
   );

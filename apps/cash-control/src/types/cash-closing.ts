@@ -12,6 +12,7 @@ export type CashMovementCategory =
   | "cash_commission"
   | "bank_commission"
   | "delivered_withdrawal"
+  | "reserved_withdrawal"
   | "business_fund_income"
   | "business_fund_withdrawal";
 

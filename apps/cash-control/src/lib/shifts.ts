@@ -1,6 +1,6 @@
 import type { Participant } from "@/components/workstation/types";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
-import type { Shift } from "@/types/shift";
+import type { CloseShiftInput, Shift, ShiftClosing } from "@/types/shift";
 import { computeFinancialTotalsFromBalances } from "./finance";
 
 export function createInitialShift({
@@ -67,4 +67,81 @@ export function formatShiftDuration(openedAt: string, endedAt: string): string {
     Math.floor((Date.parse(endedAt) - Date.parse(openedAt)) / 60000),
   );
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
+export function buildShiftClosing(
+  input: CloseShiftInput,
+  actor: { userId: string; userName: string },
+  closedAt: string,
+):
+  | { closing: ShiftClosing; error?: never }
+  | { closing?: never; error: string } {
+  const amounts = [
+    input.expectedCashPhysical,
+    input.countedCashPhysical,
+    input.expectedReservedCash,
+    input.countedReservedCash,
+    ...input.banks.flatMap((bank) => [
+      bank.expectedBalance,
+      bank.countedBalance,
+    ]),
+  ];
+  if (
+    amounts.some((amount) => !Number.isFinite(amount) || amount < 0) ||
+    input.countedReservedCash > input.countedCashPhysical
+  ) {
+    return {
+      error:
+        "Captura importes válidos. El apartado es parte del efectivo físico contado.",
+    };
+  }
+  if (
+    new Set(input.banks.map((bank) => bank.bankId)).size !== input.banks.length
+  ) {
+    return { error: "Un banco no puede aparecer más de una vez en el corte." };
+  }
+  const round = (amount: number) => Math.round(amount * 100) / 100;
+  const banks = input.banks.map((bank) => ({
+    ...bank,
+    difference: round(bank.countedBalance - bank.expectedBalance),
+  }));
+  const cashDifference = round(
+    input.countedCashPhysical - input.expectedCashPhysical,
+  );
+  const reservedDifference = round(
+    input.countedReservedCash - input.expectedReservedCash,
+  );
+  // Reserved cash is already included in physical cash; never add its difference twice.
+  const totalDifference = round(
+    cashDifference + banks.reduce((sum, bank) => sum + bank.difference, 0),
+  );
+  const differences = [
+    cashDifference,
+    reservedDifference,
+    ...banks.map((bank) => bank.difference),
+  ];
+  const status = differences.every((difference) => difference === 0)
+    ? "balanced"
+    : totalDifference < 0
+      ? "shortage"
+      : totalDifference > 0
+        ? "surplus"
+        : differences.some((difference) => difference < 0)
+          ? "shortage"
+          : "surplus";
+  return {
+    closing: {
+      status,
+      closedAt,
+      closedByUserId: actor.userId,
+      closedByUserName: actor.userName,
+      expectedCashPhysical: input.expectedCashPhysical,
+      countedCashPhysical: input.countedCashPhysical,
+      expectedReservedCash: input.expectedReservedCash,
+      countedReservedCash: input.countedReservedCash,
+      banks,
+      totalDifference,
+      observations: input.observations?.trim() || undefined,
+    },
+  };
 }

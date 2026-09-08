@@ -18,6 +18,7 @@ import type {
   ShiftCommissionProfitSummary,
 } from "@/types/cash-closing";
 import type { Operation } from "@/types/operation";
+import type { Shift } from "@/types/shift";
 import {
   getWithdrawalBankCreditAmount,
   getWithdrawalCashDeliveryAmount,
@@ -56,6 +57,11 @@ export const CASH_CLOSING_CATEGORY_META: Record<
     helperText: "Efectivo que salió de caja para entregar a clientes.",
     direction: "out",
   },
+  reserved_withdrawal: {
+    label: "Retiros pendientes",
+    helperText: "Efectivo apartado que permanece físicamente en caja.",
+    direction: "out",
+  },
   business_fund_income: {
     label: "Fondos agregados al negocio",
     helperText: "Dinero interno agregado a caja; no es ganancia.",
@@ -68,48 +74,134 @@ export const CASH_CLOSING_CATEGORY_META: Record<
   },
 };
 
+type ShiftOperationStage = {
+  operation: Operation;
+  delivery: boolean;
+  reservedDelta: number;
+};
+
+// A pending withdrawal has two financial moments, possibly in different shifts.
+function getShiftOperationStages(
+  shiftId: string,
+  operations: Operation[],
+): ShiftOperationStage[] {
+  const stages: ShiftOperationStage[] = [];
+  for (const operation of operations) {
+    if (operation.status === "cancelado") continue;
+    const wasPending =
+      operation.type === "retiro" &&
+      (operation.status === "pendiente" || Boolean(operation.pendingDelivery));
+    if (operation.shiftId === shiftId) {
+      stages.push({
+        operation: wasPending
+          ? {
+              ...operation,
+              status: "pendiente",
+              commission: 0,
+              total: operation.amount,
+              withdrawalCommissionMode: undefined,
+              customerCashReceived: operation.amount,
+              bankMovementAmount: operation.amount,
+            }
+          : operation,
+        delivery: false,
+        reservedDelta: wasPending ? operation.amount : 0,
+      });
+    }
+    if (
+      operation.type === "retiro" &&
+      operation.status !== "pendiente" &&
+      operation.pendingDelivery?.shiftId === shiftId
+    ) {
+      stages.push({
+        operation: {
+          ...operation,
+          createdAt: operation.pendingDelivery.deliveredAt,
+          createdBy: operation.pendingDelivery.deliveredBy,
+        },
+        delivery: true,
+        reservedDelta: -operation.amount,
+      });
+    }
+  }
+  return stages;
+}
+
 export function buildCashClosingStory({
-  cash,
+  shiftId,
+  openingBalances,
   banks,
   operations,
   administrativeMovements,
-  fallbackOpeningBalance,
 }: {
+  shiftId: string;
+  openingBalances: Shift["openingBalances"];
   cash: CashBalance;
   banks: BankAccountBalance[];
   operations: Operation[];
   administrativeMovements: AdministrativeMovement[];
-  fallbackOpeningBalance: number;
 }): CashClosingStory {
-  const shiftOperations = operations.filter(isCurrentShiftOperation);
-  const operationMovements = shiftOperations.flatMap(operationToCashMovements);
+  const stages = getShiftOperationStages(shiftId, operations);
+  const shiftMovements = administrativeMovements.filter(
+    (movement) => movement.shiftId === shiftId,
+  );
+  const operationMovements = stages.flatMap(({ operation }) =>
+    operationToCashMovements(operation),
+  );
   const bankMovements = [
-    ...shiftOperations.flatMap((operation) =>
-      operationToBankMovements(operation, banks),
+    ...stages.flatMap((stage) =>
+      operationToBankMovements(stage.operation, banks)
+        .map((movement) =>
+          stage.delivery
+            ? {
+                ...movement,
+                id: `${movement.id}-delivery`,
+                description: "Comisión depositada al entregar retiro pendiente",
+                amount:
+                  stage.operation.withdrawalCommissionMode === "deposited"
+                    ? stage.operation.commission
+                    : 0,
+              }
+            : movement,
+        )
+        .filter((movement) => movement.amount !== 0),
     ),
-    ...administrativeMovements
+    ...shiftMovements
       .filter((movement) => movement.resourceType === "bank")
       .map(administrativeMovementToBankMovement),
   ];
-  const administrativeCashMovements = administrativeMovements
-    .filter((movement) => movement.resourceType === "cash")
-    .map(administrativeMovementToCashMovement);
-  const allMovements = [...operationMovements, ...administrativeCashMovements];
+  const allMovements = [
+    ...operationMovements,
+    ...shiftMovements
+      .filter((movement) => movement.resourceType === "cash")
+      .map(administrativeMovementToCashMovement),
+  ];
   const totalEntries = sumMovements(allMovements, "in");
   const totalOutputs = sumMovements(allMovements, "out");
-  const reconstructedOpeningBalance =
-    cash.physicalBalance - totalEntries + totalOutputs;
-  const openingBalance =
-    reconstructedOpeningBalance >= 0
-      ? reconstructedOpeningBalance
-      : fallbackOpeningBalance;
+  const openingBalance = openingBalances.cashPhysical;
   const expectedCash = openingBalance + totalEntries - totalOutputs;
-  const reservedMovements = cash.reservedOperations.map(reservedToCashMovement);
-  const reservedTotal = reservedMovements.reduce(
-    (sum, movement) => sum + movement.amount,
-    0,
-  );
-
+  const reservedTotal =
+    openingBalances.cashReserved +
+    stages.reduce((sum, stage) => sum + stage.reservedDelta, 0);
+  const reservedMovements = operations
+    .filter(
+      (operation) =>
+        operation.shiftId === shiftId &&
+        operation.type === "retiro" &&
+        operation.status === "pendiente",
+    )
+    .map((operation) =>
+      reservedToCashMovement({
+        id: operation.id,
+        folio: operation.bankFolio,
+        type: "retiro",
+        customerName: operation.receiverName || operation.senderName,
+        amount: operation.amount,
+        registeredAt: operation.createdAt,
+        registeredBy: operation.createdBy,
+        status: "pending",
+      }),
+    );
   return {
     openingBalance,
     entries: summarizeCategories(allMovements, "in"),
@@ -118,28 +210,27 @@ export function buildCashClosingStory({
     totalEntries,
     totalOutputs,
     expectedCash,
-    reservedCash: {
-      total: reservedTotal,
-      movements: reservedMovements,
-    },
+    reservedCash: { total: reservedTotal, movements: reservedMovements },
     availableCash: expectedCash - reservedTotal,
-    bankStories: buildBankStories(banks, bankMovements),
+    bankStories: buildBankStories(banks, bankMovements, openingBalances),
     timeline: buildFinancialTimeline({
-      cash,
+      openingBalances,
       banks,
-      operations: shiftOperations,
-      administrativeMovements,
-      reservedOperations: cash.reservedOperations,
+      stages,
+      administrativeMovements: shiftMovements,
     }),
-    commissionProfit: buildCommissionProfitSummary(shiftOperations, banks),
+    commissionProfit: buildCommissionProfitSummary(
+      stages
+        .filter((stage) => stage.operation.status !== "pendiente")
+        .map((stage) => stage.operation),
+      banks,
+    ),
   };
 }
 
-function isCurrentShiftOperation(operation: Operation): boolean {
-  return operation.status !== "cancelado";
-}
-
 function operationToCashMovements(operation: Operation): CashMovement[] {
+  if (operation.type === "retiro" && operation.status === "pendiente")
+    return [];
   const commission = operation.commission ?? 0;
 
   if (operation.type === "deposito") {
@@ -322,7 +413,7 @@ function reservedToCashMovement(operation: ReservedOperation): CashMovement {
   return {
     id: operation.id,
     folio: operation.folio,
-    category: "delivered_withdrawal",
+    category: "reserved_withdrawal",
     direction: "out",
     description: `Retiro pendiente para ${operation.customerName}`,
     amount: operation.amount,
@@ -337,6 +428,7 @@ function reservedToCashMovement(operation: ReservedOperation): CashMovement {
 function buildBankStories(
   banks: BankAccountBalance[],
   movements: BankClosingMovement[],
+  openingBalances: Shift["openingBalances"],
 ): BankClosingStory[] {
   return banks.map((bank) => {
     const bankMovements = movements.filter(
@@ -356,7 +448,9 @@ function buildBankStories(
       (sum, movement) => sum + movement.amount,
       0,
     );
-    const openingBalance = bank.realBalance - totalEntries + totalOutputs;
+    const openingBalance =
+      openingBalances.banks.find((opening) => opening.bankId === bank.id)
+        ?.balance ?? 0;
 
     return {
       bankId: bank.id,
@@ -549,59 +643,58 @@ function getOperationBank(
 }
 
 function buildFinancialTimeline({
-  cash,
+  openingBalances,
   banks,
-  operations,
+  stages,
   administrativeMovements,
-  reservedOperations,
 }: {
-  cash: CashBalance;
+  openingBalances: Shift["openingBalances"];
   banks: BankAccountBalance[];
-  operations: Operation[];
+  stages: ShiftOperationStage[];
   administrativeMovements: AdministrativeMovement[];
-  reservedOperations: ReservedOperation[];
 }): FinancialTimeline {
-  const reservedTotal = reservedOperations.reduce(
-    (sum, operation) => sum + operation.amount,
-    0,
-  );
   const rawEvents = [
-    ...operations.map((operation) => operationToTimelineSeed(operation, banks)),
-    ...reservedOperations.map(reservedOperationToTimelineSeed),
-    ...administrativeMovements
-      .filter((movement) => movement.status === "active")
-      .map(administrativeMovementToTimelineSeed),
+    ...stages.map((stage) => {
+      const seed = operationToTimelineSeed(stage.operation, banks);
+      if (!seed) return null;
+      seed.resourceDeltas.availableCash =
+        (seed.resourceDeltas.availableCash ?? 0) - stage.reservedDelta;
+      if (stage.reservedDelta !== 0)
+        seed.resourceDeltas.reservedCash = stage.reservedDelta;
+      if (stage.delivery) {
+        seed.id = `${seed.id}-delivery`;
+        seed.title = "Entrega de retiro pendiente";
+        seed.note =
+          "Se libera el apartado y se entrega el efectivo. El importe del retiro ya ingresó al banco al registrarlo.";
+        const bank = getOperationBank(stage.operation, banks);
+        seed.resourceDeltas.banks =
+          bank && stage.operation.withdrawalCommissionMode === "deposited"
+            ? { [bank.id]: stage.operation.commission }
+            : {};
+      } else if (stage.operation.status === "pendiente") {
+        seed.title = "Registro de retiro pendiente";
+        seed.cashDetail =
+          "Se aparta efectivo disponible; no hay salida física de caja.";
+        seed.reservedCashDetail =
+          "Este efectivo sigue físicamente en el negocio.";
+      }
+      return seed;
+    }),
+    ...administrativeMovements.map(administrativeMovementToTimelineSeed),
   ]
     .filter((event): event is TimelineSeed => event !== null)
     .sort(
       (a, b) =>
         getTimelineSortTime(a.occurredAt) - getTimelineSortTime(b.occurredAt),
     );
-
-  const totalAvailableCashDelta = rawEvents.reduce(
-    (sum, event) => sum + (event.resourceDeltas.availableCash ?? 0),
-    0,
-  );
-  const totalReservedCashDelta = rawEvents.reduce(
-    (sum, event) => sum + (event.resourceDeltas.reservedCash ?? 0),
-    0,
-  );
-  const totalBankDeltas = new Map<string, number>();
-
-  for (const event of rawEvents) {
-    for (const [bankId, amount] of Object.entries(event.resourceDeltas.banks)) {
-      totalBankDeltas.set(bankId, (totalBankDeltas.get(bankId) ?? 0) + amount);
-    }
-  }
-
-  const finalAvailableCash = cash.physicalBalance - reservedTotal;
   const balances = {
-    availableCash: finalAvailableCash - totalAvailableCashDelta,
-    reservedCash: reservedTotal - totalReservedCashDelta,
+    availableCash: openingBalances.cashPhysical - openingBalances.cashReserved,
+    reservedCash: openingBalances.cashReserved,
     banks: new Map(
       banks.map((bank) => [
         bank.id,
-        bank.realBalance - (totalBankDeltas.get(bank.id) ?? 0),
+        openingBalances.banks.find((opening) => opening.bankId === bank.id)
+          ?.balance ?? 0,
       ]),
     ),
   };
@@ -614,7 +707,7 @@ function buildFinancialTimeline({
     bankName: bank.bankName,
     accountName: bank.accountName,
     initialBalance: balances.banks.get(bank.id) ?? 0,
-    finalBalance: bank.realBalance,
+    finalBalance: balances.banks.get(bank.id) ?? 0,
   }));
   const events: FinancialTimelineEvent[] = [];
 
@@ -627,7 +720,7 @@ function buildFinancialTimeline({
       const after = before + amount;
       impacts.push({
         resourceId: "cash_available",
-        resourceName: "Caja física",
+        resourceName: "Caja disponible",
         resourceType: "cash",
         before,
         amount,
@@ -699,34 +792,6 @@ function buildFinancialTimeline({
   );
   const reconstructionIssues: string[] = [];
   const reconstructedTotalCash = balances.availableCash + balances.reservedCash;
-
-  if (
-    Math.round(reconstructedTotalCash * 100) !==
-    Math.round(cash.physicalBalance * 100)
-  ) {
-    reconstructionIssues.push(
-      "La caja reconstruida no coincide con el saldo actual.",
-    );
-  }
-
-  if (
-    Math.round(balances.reservedCash * 100) !== Math.round(reservedTotal * 100)
-  ) {
-    reconstructionIssues.push(
-      "La caja de retiros apartados reconstruida no coincide con el saldo actual.",
-    );
-  }
-
-  for (const bank of banks) {
-    const reconstructed = balances.banks.get(bank.id) ?? 0;
-    if (
-      Math.round(reconstructed * 100) !== Math.round(bank.realBalance * 100)
-    ) {
-      reconstructionIssues.push(
-        `El saldo reconstruido de ${bank.bankName} no coincide con el saldo actual.`,
-      );
-    }
-  }
 
   return {
     initialCash,
@@ -887,34 +952,6 @@ function administrativeMovementToTimelineSeed(
       banks: isCash ? {} : { [movement.resourceId]: delta },
     },
     note: "No es ganancia.",
-  };
-}
-
-function reservedOperationToTimelineSeed(
-  operation: ReservedOperation,
-): TimelineSeed {
-  return {
-    id: `reserved-${operation.id}`,
-    type: "reserved_cash_allocation",
-    title: "Apartado para retiro",
-    badge: "APARTADO PARA RETIRO",
-    occurredAt: operation.registeredAt,
-    actor: operation.registeredBy,
-    description: operation.customerName,
-    details: [
-      { label: "Folio", value: operation.folio },
-      { label: "Monto apartado", value: formatPlainCurrency(operation.amount) },
-      { label: "Estado", value: "Pendiente" },
-    ],
-    resourceDeltas: {
-      availableCash: -operation.amount,
-      reservedCash: operation.amount,
-      banks: {},
-    },
-    cashDetail: "Sale de la caja disponible.",
-    reservedCashDetail:
-      "Queda físicamente separado para este retiro pendiente.",
-    note: "Redistribución interna: el total en efectivo no cambia.",
   };
 }
 
