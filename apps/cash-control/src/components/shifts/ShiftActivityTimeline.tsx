@@ -12,6 +12,13 @@ const activityDotColors: Record<ShiftActivityType, string> = {
   participant_left: "bg-amber-500",
   responsibility_transferred: "bg-violet-500",
   operation_registered: "bg-slate-500",
+  deposit_registered: "bg-emerald-500",
+  withdrawal_registered: "bg-sky-500",
+  pending_withdrawal_registered: "bg-amber-500",
+  pending_withdrawal_delivered: "bg-emerald-500",
+  funds_movement: "bg-slate-500",
+  operation_corrected: "bg-blue-500",
+  operation_clarified: "bg-amber-500",
   closing_started: "bg-amber-600",
   shift_closed: "bg-emerald-700",
 };
@@ -23,7 +30,7 @@ export function ShiftActivityTimeline({
     return (
       <div className="rounded-xl border border-brand-border bg-white p-6">
         <h3 className="text-lg font-semibold text-slate-900">
-          Actividad del turno
+          Actividad reciente del turno
         </h3>
         <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-8 text-center">
           <p className="text-sm text-slate-500">
@@ -37,7 +44,7 @@ export function ShiftActivityTimeline({
   return (
     <div className="rounded-xl border border-brand-border bg-white p-6">
       <h3 className="text-lg font-semibold text-slate-900">
-        Actividad del turno
+        Actividad reciente del turno
       </h3>
 
       <div className="mt-4 space-y-4">
@@ -63,6 +70,11 @@ export function ShiftActivityTimeline({
                 <p className="text-xs font-medium text-slate-500">{time}</p>
                 <p className="mt-1 text-sm text-slate-700">
                   {activity.description}
+                </p>
+                <p className="mt-1 break-words text-xs text-slate-500">
+                  {[activity.reference, activity.detail]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
             </div>

@@ -70,11 +70,7 @@ const movementFormFieldOrder = [
 ] as const;
 
 export function BusinessFundsPage() {
-  const {
-    authenticatedUser,
-    getActiveParticipation,
-    getContextResponsibleUserId,
-  } = useMockSession();
+  const { authenticatedUser, getActiveParticipation } = useMockSession();
   const { movements, resources, registerMovement, correctMovement } =
     useBusinessFunds();
   const [filters, setFilters] =
@@ -309,9 +305,6 @@ export function BusinessFundsPage() {
             explanation: form.explanation,
             createdByUserId: actor.userId,
             createdByUserName: actor.userName,
-            shiftId: getContextResponsibleUserId()
-              ? "shift-current"
-              : undefined,
           })
         : correctMovement({
             movementId: form.movementId ?? "",

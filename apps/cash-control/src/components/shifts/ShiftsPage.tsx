@@ -1,21 +1,27 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { TransferResponsibilityModal } from "@/components/participation/TransferResponsibilityModal";
 import { useResponsibilityTransfer } from "@/components/participation/useResponsibilityTransfer";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { mockRegisteredUsers } from "@/components/workstation/mockData";
 import type { Participant } from "@/components/workstation/types";
-import type { Shift, ShiftParticipant } from "@/types/shift";
+import {
+  getRecentShiftActivity,
+  getShiftActivitySummary,
+} from "@/lib/shiftActivity";
+import type { ShiftParticipant, ShiftViewModel } from "@/types/shift";
 import { ActiveShiftCard } from "./ActiveShiftCard";
 import { AddParticipantModal } from "./AddParticipantModal";
 import { RemoveParticipantDialog } from "./RemoveParticipantDialog";
+import { ShiftActivitySummary } from "./ShiftActivitySummary";
 import { ShiftActivityTimeline } from "./ShiftActivityTimeline";
+import { useShift } from "./ShiftContext";
 import { ShiftDetailsModal } from "./ShiftDetailsModal";
 import { ShiftHistory } from "./ShiftHistory";
 import { ShiftParticipants } from "./ShiftParticipants";
-import { mockShifts } from "./shiftsMockData";
 
 /**
  * Maps a systemRole from the workstation types to the shift types.
@@ -77,8 +83,9 @@ function getAvailableUsers(contextParticipants: Participant[]) {
 }
 
 export function ShiftsPage() {
-  const [shift, setShift] = useState<Shift>(mockShifts.active);
-  const [closedShifts] = useState<Shift[]>(mockShifts.closed);
+  const { currentShift, shifts } = useShift();
+  const { operations, movements } = useBusinessFunds();
+  const closedShifts = shifts.filter((shift) => shift.status === "closed");
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
@@ -123,8 +130,7 @@ export function ShiftsPage() {
     [activeContextParticipants, getUserAvatar],
   );
 
-  const contextResponsibleUserId =
-    getContextResponsibleUserId() ?? shift.responsibleUserId;
+  const contextResponsibleUserId = getContextResponsibleUserId() ?? "";
 
   // ── Derived available users (computed from context, no local state) ──
 
@@ -139,13 +145,25 @@ export function ShiftsPage() {
 
   // ── Derived shift for child components ──
 
-  const derivedShift = useMemo<Shift>(
-    () => ({
-      ...shift,
-      participants: displayParticipants,
-      responsibleUserId: contextResponsibleUserId,
-    }),
-    [shift, displayParticipants, contextResponsibleUserId],
+  const derivedShift = useMemo<ShiftViewModel | null>(
+    () =>
+      currentShift
+        ? {
+            ...currentShift,
+            participants: displayParticipants,
+            summary: getShiftActivitySummary(
+              currentShift.id,
+              operations,
+              movements,
+            ),
+            activity: getRecentShiftActivity(
+              currentShift.id,
+              operations,
+              movements,
+            ),
+          }
+        : null,
+    [currentShift, displayParticipants, operations, movements],
   );
 
   // ── Permissions (delegated to domain capabilities) ──
@@ -160,24 +178,10 @@ export function ShiftsPage() {
     if (!canAddParticipant()) return;
 
     addParticipant(user.userId);
-
-    // Only update shift activity — the participant is managed by context
-    const newActivity = {
-      id: `activity-${Date.now()}`,
-      type: "participant_joined" as const,
-      description: `${user.name} se incorporó como participante`,
-      occurredAt: new Date().toISOString(),
-      performedBy: user.name,
-    };
-
-    setShift((prev) => ({
-      ...prev,
-      activity: [...prev.activity, newActivity],
-    }));
   };
 
   const handleRemoveParticipant = (participantId: string) => {
-    const participant = derivedShift.participants.find(
+    const participant = derivedShift?.participants.find(
       (p) => p.id === participantId,
     );
     if (!participant) return;
@@ -186,20 +190,6 @@ export function ShiftsPage() {
 
     const result = removeParticipant(participant.userId);
     if (!result.success) return;
-
-    // Only update shift activity — the participant is managed by context
-    const newActivity = {
-      id: `activity-${Date.now()}`,
-      type: "participant_left" as const,
-      description: `${participant.name} salió del turno`,
-      occurredAt: new Date().toISOString(),
-      performedBy: participant.name,
-    };
-
-    setShift((prev) => ({
-      ...prev,
-      activity: [...prev.activity, newActivity],
-    }));
   };
 
   const handleTransferFromCard = (participant: ShiftParticipant) => {
@@ -209,9 +199,14 @@ export function ShiftsPage() {
     }
   };
 
-  const handleStartClosing = () => {
-    window.location.href = "/cash-closing";
-  };
+  if (!derivedShift) {
+    return (
+      <PageHeader
+        title="Turno actual"
+        description="No hay un turno abierto disponible."
+      />
+    );
+  }
 
   return (
     <div>
@@ -238,8 +233,10 @@ export function ShiftsPage() {
               }
             }
           }}
-          onStartClosing={handleStartClosing}
+          canTransferResponsibility={isCurrentUserResponsible()}
         />
+
+        <ShiftActivitySummary summary={derivedShift.summary} />
 
         <div
           id="participants-section"
@@ -255,7 +252,7 @@ export function ShiftsPage() {
             onTransferResponsibility={handleTransferFromCard}
           />
 
-          <ShiftActivityTimeline activities={shift.activity} />
+          <ShiftActivityTimeline activities={derivedShift.activity} />
         </div>
 
         <ShiftHistory shifts={closedShifts} />

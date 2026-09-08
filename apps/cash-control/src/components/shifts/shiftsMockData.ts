@@ -1,4 +1,4 @@
-import type { Shift, ShiftParticipant } from "@/types/shift";
+import type { MockShift as Shift, ShiftParticipant } from "@/types/shift";
 
 export const activeShift: Shift = {
   id: "shift-001",

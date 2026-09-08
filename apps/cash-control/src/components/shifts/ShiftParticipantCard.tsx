@@ -22,7 +22,7 @@ const systemRoleLabels: Record<string, string> = {
 
 const shiftRoleLabels: Record<string, string> = {
   shift_responsible: "Responsable del turno",
-  operator: "Operador",
+  operator: "Apoyo",
 };
 
 const systemRoleBadgeVariants: Record<string, "brand" | "neutral"> = {

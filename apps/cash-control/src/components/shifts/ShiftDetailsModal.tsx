@@ -4,12 +4,12 @@ import { useEffect } from "react";
 import { ModalShell } from "@/components/shared/ModalShell";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
-import type { Shift } from "@/types/shift";
+import type { ShiftViewModel } from "@/types/shift";
 
 interface ShiftDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  shift: Shift;
+  shift: ShiftViewModel;
 }
 
 export function ShiftDetailsModal({
@@ -50,7 +50,7 @@ export function ShiftDetailsModal({
   return (
     <ModalShell
       title="Detalles del turno"
-      description={shift.name}
+      description={shift.folio}
       onClose={onClose}
       maxWidth="lg"
       footer={
@@ -68,13 +68,15 @@ export function ShiftDetailsModal({
           </h3>
           <div className="mt-3 space-y-3">
             <div>
-              <p className="text-xs text-slate-400">Nombre</p>
-              <p className="text-sm font-medium text-slate-900">{shift.name}</p>
+              <p className="text-xs text-slate-400">Folio</p>
+              <p className="text-sm font-medium text-slate-900">
+                {shift.folio}
+              </p>
             </div>
             <div>
               <p className="text-xs text-slate-400">Estado</p>
               <p className="text-sm font-medium text-slate-900 capitalize">
-                {shift.status.replace("_", " ")}
+                {shift.status === "open" ? "Abierto" : "Cerrado"}
               </p>
             </div>
             <div>
@@ -86,7 +88,7 @@ export function ShiftDetailsModal({
             <div>
               <p className="text-xs text-slate-400">Inicio</p>
               <p className="text-sm font-medium text-slate-900">
-                {new Date(shift.startedAt).toLocaleString("es-MX", {
+                {new Date(shift.openedAt).toLocaleString("es-MX", {
                   day: "numeric",
                   month: "long",
                   year: "numeric",
@@ -96,17 +98,29 @@ export function ShiftDetailsModal({
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">Duración</p>
+              <p className="text-xs text-slate-400">Caja física al abrir</p>
               <p className="text-sm font-medium text-slate-900">
-                {shift.currentDuration ?? "—"}
+                {formatCurrency(shift.openingBalances.cashPhysical)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">Saldo inicial</p>
-              <p className="text-sm font-medium text-slate-900">
-                {formatCurrency(shift.openingBalance)}
+              <p className="text-xs text-slate-400">
+                Efectivo apartado al abrir
+              </p>
+              <p className="text-sm font-medium text-slate-900 tabular-nums">
+                {formatCurrency(shift.openingBalances.cashReserved)}
               </p>
             </div>
+            {shift.openingBalances.banks.map((bank) => (
+              <div key={bank.bankId}>
+                <p className="text-xs text-slate-400">
+                  {bank.bankName} al abrir
+                </p>
+                <p className="text-sm font-medium text-slate-900 tabular-nums">
+                  {formatCurrency(bank.balance)}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -140,7 +154,7 @@ export function ShiftDetailsModal({
             <div>
               <p className="text-xs text-slate-400">Operaciones registradas</p>
               <p className="text-sm font-medium text-slate-900">
-                {shift.activity.length}
+                {shift.summary.deposits + shift.summary.withdrawals}
               </p>
             </div>
           </div>
@@ -158,6 +172,11 @@ export function ShiftDetailsModal({
               className="rounded-lg border border-slate-200 bg-white p-3"
             >
               <p className="text-sm text-slate-700">{activity.description}</p>
+              <p className="text-xs text-slate-600">
+                {[activity.reference, activity.detail]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
               <p className="mt-1 text-xs text-slate-500">
                 {new Date(activity.occurredAt).toLocaleString("es-MX", {
                   day: "numeric",

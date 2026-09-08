@@ -7,6 +7,7 @@ import { CommissionRulesProvider } from "@/components/commissions/CommissionRule
 import { ReceiptPreferencesProvider } from "@/components/receipts/ReceiptPreferencesContext";
 import { MockSessionProvider } from "@/components/session/MockSessionContext";
 import { SettingsProvider } from "@/components/settings/SettingsContext";
+import { ShiftProvider } from "@/components/shifts/ShiftContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,15 +40,17 @@ export default function RootLayout({
     >
       <body className="h-full">
         <CommissionRulesProvider>
-          <BusinessFundsProvider>
-            <FinancialAlertsProvider>
-              <ReceiptPreferencesProvider>
-                <SettingsProvider>
-                  <MockSessionProvider>{children}</MockSessionProvider>
-                </SettingsProvider>
-              </ReceiptPreferencesProvider>
-            </FinancialAlertsProvider>
-          </BusinessFundsProvider>
+          <MockSessionProvider>
+            <ShiftProvider>
+              <BusinessFundsProvider>
+                <FinancialAlertsProvider>
+                  <ReceiptPreferencesProvider>
+                    <SettingsProvider>{children}</SettingsProvider>
+                  </ReceiptPreferencesProvider>
+                </FinancialAlertsProvider>
+              </BusinessFundsProvider>
+            </ShiftProvider>
+          </MockSessionProvider>
         </CommissionRulesProvider>
       </body>
     </html>

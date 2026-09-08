@@ -39,6 +39,12 @@ Module._load = function (request, parent, isMain) {
   if (request === "react") return react;
   if (request.includes("CommissionRulesContext"))
     return { useCommissionRules: () => ({ rules: [] }) };
+  if (request.includes("shifts/ShiftContext"))
+    return {
+      useShift: () => ({
+        getCurrentShift: () => ({ id: "test-shift", status: "open" }),
+      }),
+    };
   if (request.startsWith("@/"))
     request = path.resolve(__dirname, "../src", request.slice(2));
   return originalLoad.call(this, request, parent, isMain);

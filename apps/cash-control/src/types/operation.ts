@@ -15,6 +15,7 @@ export type OperationStatus =
 
 export type OperationClarification = {
   id: string;
+  shiftId?: string;
   reason: string;
   note: string;
   reference?: string;
@@ -41,6 +42,7 @@ export type OperationCorrectionSnapshot = {
 
 export type OperationCorrection = {
   id: string;
+  shiftId?: string;
   reason: string;
   createdAt: string;
   createdBy: string;
@@ -50,6 +52,7 @@ export type OperationCorrection = {
 
 export type Operation = {
   id: string;
+  shiftId?: string;
   type: OperationType;
   status: OperationStatus;
 
@@ -83,6 +86,11 @@ export type Operation = {
   createdAt: string;
   createdBy: string;
   createdByUserId?: string;
+  pendingDelivery?: {
+    deliveredAt: string;
+    deliveredBy: string;
+    shiftId: string;
+  };
 
   isEdited?: boolean;
   editedAt?: string;

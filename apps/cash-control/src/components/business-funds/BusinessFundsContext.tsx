@@ -12,6 +12,7 @@ import {
   buildInitialZeroCash,
 } from "@/components/balances/balanceMockData";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { getBankLabel } from "@/config/banks";
 import {
   applyAdministrativeCorrection,
@@ -57,7 +58,6 @@ type RegisterAdministrativeMovementInput = {
   explanation?: string;
   createdByUserId: string;
   createdByUserName: string;
-  shiftId?: string;
 };
 type CorrectAdministrativeMovementInput = CorrectionActor & {
   movementId: string;
@@ -141,6 +141,7 @@ const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
 );
 
 export function BusinessFundsProvider({ children }: { children: ReactNode }) {
+  const { getCurrentShift } = useShift();
   const { rules: commissionRules } = useCommissionRules();
   const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
   const [banks, setBanks] = useState<BankAccountBalance[]>(() =>
@@ -162,6 +163,9 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     movement?: AdministrativeMovement;
     error?: string;
   } {
+    const currentShift = getCurrentShift();
+    if (!currentShift)
+      return { success: false, error: "No hay un turno abierto." };
     const resource = resources.find((item) => item.id === input.resourceId);
     if (!resource) return { success: false, error: "Recurso no disponible." };
 
@@ -191,7 +195,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       createdByUserId: input.createdByUserId,
       createdByUserName: input.createdByUserName,
       createdAt: new Date().toISOString(),
-      shiftId: input.shiftId,
+      shiftId: currentShift.id,
       status: "active",
       isEdited: false,
     };
@@ -203,11 +207,15 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, movement };
   }
 
-  function registerClientOperation(operation: Operation): {
+  function registerClientOperation(input: Operation): {
     success: boolean;
     operation?: Operation;
     error?: string;
   } {
+    const currentShift = getCurrentShift();
+    if (!currentShift)
+      return { success: false, error: "No hay un turno abierto." };
+    const operation: Operation = { ...input, shiftId: currentShift.id };
     const validation = validateOperationFinancialImpact({
       cash,
       banks,
@@ -238,6 +246,9 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     bankMovementAmount?: number;
     appliedCommissionSnapshot?: AppliedCommissionSnapshot;
   }): { success: boolean; operation?: Operation; error?: string } {
+    const currentShift = getCurrentShift();
+    if (!currentShift)
+      return { success: false, error: "No hay un turno abierto." };
     const receiverName = input.receiverName.trim();
     if (!receiverName) {
       return {
@@ -304,6 +315,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       bankMovementAmount: input.bankMovementAmount,
       editedAt: new Date().toISOString(),
       editedBy: input.deliveredBy,
+      pendingDelivery: {
+        deliveredAt: new Date().toISOString(),
+        deliveredBy: input.deliveredBy,
+        shiftId: currentShift.id,
+      },
     };
 
     setCash((currentCash) => ({
@@ -363,6 +379,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
     const clarification = {
       id: `op-clarification-${Date.now()}-${crypto.randomUUID()}`,
+      shiftId: getCurrentShift()?.id,
       reason,
       note,
       reference: reference || undefined,
@@ -644,6 +661,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
     const correction: OperationCorrection = {
       id: `op-correction-${Date.now()}-${crypto.randomUUID()}`,
+      shiftId: getCurrentShift()?.id,
       reason,
       createdAt: now,
       createdBy: correctedBy,

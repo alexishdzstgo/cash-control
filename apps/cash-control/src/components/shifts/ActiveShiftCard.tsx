@@ -4,14 +4,14 @@ import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
-import type { Shift } from "@/types/shift";
+import type { ShiftViewModel } from "@/types/shift";
 
 interface ActiveShiftCardProps {
-  shift: Shift;
+  shift: ShiftViewModel;
   onViewDetails: () => void;
   onManageParticipants: () => void;
   onTransferResponsibility: () => void;
-  onStartClosing: () => void;
+  canTransferResponsibility: boolean;
 }
 
 export function ActiveShiftCard({
@@ -19,7 +19,7 @@ export function ActiveShiftCard({
   onViewDetails,
   onManageParticipants,
   onTransferResponsibility,
-  onStartClosing,
+  canTransferResponsibility,
 }: ActiveShiftCardProps) {
   const responsible = shift.participants.find(
     (p) => p.userId === shift.responsibleUserId,
@@ -33,12 +33,14 @@ export function ActiveShiftCard({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-bold text-slate-900">{shift.name}</h2>
-            <Badge variant="success">Activo</Badge>
+            <h2 className="text-xl font-bold text-slate-900">Turno actual</h2>
+            <Badge variant={shift.status === "open" ? "success" : "neutral"}>
+              {shift.status === "open" ? "Abierto" : "Cerrado"}
+            </Badge>
           </div>
           <p className="mt-1 text-sm text-slate-500">
             Iniciado el{" "}
-            {new Date(shift.startedAt).toLocaleDateString("es-MX", {
+            {new Date(shift.openedAt).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "long",
               year: "numeric",
@@ -74,10 +76,10 @@ export function ActiveShiftCard({
 
         <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Duración
+            Folio
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
-            {shift.currentDuration ?? "—"}
+            {shift.folio}
           </p>
         </div>
 
@@ -92,25 +94,26 @@ export function ActiveShiftCard({
 
         <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-3">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Saldo inicial
+            Caja física al abrir
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900 tabular-nums">
-            {formatCurrency(shift.openingBalance)}
+            {formatCurrency(shift.openingBalances.cashPhysical)}
           </p>
         </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <Button variant="default" onClick={onStartClosing}>
-          Iniciar cierre
-        </Button>
         <Button variant="outline" onClick={onViewDetails}>
           Ver detalles
         </Button>
         <Button variant="outline" onClick={onManageParticipants}>
           Administrar participantes
         </Button>
-        <Button variant="outline" onClick={onTransferResponsibility}>
+        <Button
+          variant="outline"
+          onClick={onTransferResponsibility}
+          disabled={!canTransferResponsibility}
+        >
           Transferir responsabilidad
         </Button>
       </div>

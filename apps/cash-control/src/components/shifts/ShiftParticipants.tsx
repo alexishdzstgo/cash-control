@@ -1,11 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { Shift, ShiftParticipant } from "@/types/shift";
+import type { ShiftParticipant, ShiftViewModel } from "@/types/shift";
 import { ShiftParticipantCard } from "./ShiftParticipantCard";
 
 interface ShiftParticipantsProps {
-  shift: Shift;
+  shift: ShiftViewModel;
   canAddParticipants: boolean;
   canRemoveParticipants: boolean;
   canTransferResponsibility: boolean;
