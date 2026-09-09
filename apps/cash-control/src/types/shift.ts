@@ -133,3 +133,12 @@ export type MockShift = {
   participants: ShiftParticipant[];
   activity: ShiftActivity[];
 };
+
+// Only persisted or explicitly recorded events belong here; never infer them from current participants.
+export type ShiftOperationalEvent = Omit<ShiftActivity, "type"> & {
+  shiftId: string;
+  type:
+    | "participant_joined"
+    | "participant_left"
+    | "responsibility_transferred";
+};

@@ -1,6 +1,11 @@
 import type { AdministrativeMovement } from "@/types/administrativeMovement";
 import type { Operation } from "@/types/operation";
-import type { ShiftActivity, ShiftActivitySummary } from "@/types/shift";
+import type {
+  Shift,
+  ShiftActivity,
+  ShiftActivitySummary,
+  ShiftOperationalEvent,
+} from "@/types/shift";
 import { formatCurrency } from "./formatters";
 
 export function getShiftActivitySummary(
@@ -31,13 +36,25 @@ export function getShiftActivitySummary(
   };
 }
 
-export function getRecentShiftActivity(
-  shiftId: string,
+export function getShiftActivity(
+  shift: Shift | string,
   operations: Operation[],
   movements: AdministrativeMovement[],
-  limit = 10,
+  operationalEvents: ShiftOperationalEvent[] = [],
 ): ShiftActivity[] {
-  const events: ShiftActivity[] = [];
+  const shiftId = typeof shift === "string" ? shift : shift.id;
+  const events: ShiftActivity[] = operationalEvents.filter(
+    (event) => event.shiftId === shiftId,
+  );
+  if (typeof shift !== "string")
+    events.push({
+      id: `started-${shift.id}`,
+      type: "shift_started",
+      occurredAt: shift.openedAt,
+      performedBy: shift.responsibleUserName,
+      reference: shift.folio,
+      description: `${shift.responsibleUserName} inició ${shift.folio}`,
+    });
   for (const operation of operations) {
     if (operation.shiftId === shiftId) {
       const pending =
@@ -112,11 +129,24 @@ export function getRecentShiftActivity(
       detail: `${movement.movementType === "income" ? "Ingreso" : "Salida"} · ${movement.resourceName}${movement.explanation ? ` · ${movement.explanation}` : ""}`,
     });
   }
-  return events
-    .sort(
-      (a, b) =>
-        Date.parse(b.occurredAt) - Date.parse(a.occurredAt) ||
-        a.id.localeCompare(b.id),
-    )
-    .slice(0, Math.max(0, limit));
+  return events.sort(
+    (a, b) =>
+      Date.parse(b.occurredAt) - Date.parse(a.occurredAt) ||
+      a.id.localeCompare(b.id),
+  );
+}
+
+export function getRecentShiftActivity(
+  shift: Shift | string,
+  operations: Operation[],
+  movements: AdministrativeMovement[],
+  limit = 5,
+  operationalEvents: ShiftOperationalEvent[] = [],
+): ShiftActivity[] {
+  return getShiftActivity(
+    shift,
+    operations,
+    movements,
+    operationalEvents,
+  ).slice(0, Math.max(0, limit));
 }

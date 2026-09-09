@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { useShift } from "@/components/shifts/ShiftContext";
 import {
   ADMINISTRATIVE_CORRECTION_FUNDS_ERROR,
   centsToPesos,
@@ -95,8 +96,13 @@ export function BusinessFundsPage() {
     actorSystemRole: authenticatedUser?.systemRole,
     actorHasActiveParticipation: Boolean(activeParticipation),
   };
+  const { currentShift } = useShift();
   const canCorrectMovement = (movement: AdministrativeMovement) =>
-    canCorrectRecord(movement, correctionActor);
+    Boolean(
+      currentShift?.status === "open" &&
+        movement.shiftId === currentShift.id &&
+        canCorrectRecord(movement, correctionActor),
+    );
   const summary = useMemo(
     () => getAdministrativeMovementsSummary(movements),
     [movements],

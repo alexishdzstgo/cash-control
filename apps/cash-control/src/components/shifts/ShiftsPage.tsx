@@ -8,10 +8,7 @@ import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { mockRegisteredUsers } from "@/components/workstation/mockData";
 import type { Participant } from "@/components/workstation/types";
-import {
-  getRecentShiftActivity,
-  getShiftActivitySummary,
-} from "@/lib/shiftActivity";
+import { getShiftActivity, getShiftActivitySummary } from "@/lib/shiftActivity";
 import type { ShiftParticipant, ShiftViewModel } from "@/types/shift";
 import { ActiveShiftCard } from "./ActiveShiftCard";
 import { AddParticipantModal } from "./AddParticipantModal";
@@ -168,11 +165,7 @@ export function ShiftsPage() {
               operations,
               movements,
             ),
-            activity: getRecentShiftActivity(
-              currentShift.id,
-              operations,
-              movements,
-            ),
+            activity: getShiftActivity(currentShift, operations, movements),
           }
         : null,
     [currentShift, displayParticipants, operations, movements],
@@ -298,7 +291,10 @@ export function ShiftsPage() {
             onTransferResponsibility={handleTransferFromCard}
           />
 
-          <ShiftActivityTimeline activities={derivedShift.activity} />
+          <ShiftActivityTimeline
+            activities={derivedShift.activity}
+            folio={derivedShift.folio}
+          />
         </div>
 
         <ShiftHistory shifts={closedShifts} />

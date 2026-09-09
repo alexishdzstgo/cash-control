@@ -8,6 +8,7 @@ import {
   ModalSection,
   ModalShell,
 } from "@/components/shared/ModalShell";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { useOperationsHistory } from "@/hooks/useOperationsHistory";
 import {
   type CorrectionActor,
@@ -69,8 +70,13 @@ export function OperationsHistoryPage() {
       authenticatedUser && getActiveParticipation(authenticatedUser.userId),
     ),
   };
+  const { currentShift } = useShift();
   const canCorrectOperation = (operation: Operation) =>
-    canCorrectRecord(operation, correctionActor);
+    Boolean(
+      currentShift?.status === "open" &&
+        operation.shiftId === currentShift.id &&
+        canCorrectRecord(operation, correctionActor),
+    );
 
   const {
     search,

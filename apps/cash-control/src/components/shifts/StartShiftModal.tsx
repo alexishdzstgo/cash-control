@@ -88,7 +88,9 @@ export function StartShiftModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <dt className="text-slate-500">Disponible</dt>
-            <dd className="mt-1 font-semibold tabular-nums text-slate-900">
+            <dd
+              className={`mt-1 font-semibold tabular-nums ${totals.cashAvailable < 0 ? "text-red-700" : "text-slate-900"}`}
+            >
               {formatCurrency(totals.cashAvailable)}
             </dd>
           </div>
@@ -100,6 +102,12 @@ export function StartShiftModal({
           </div>
         </div>
       </dl>
+      {totals.cashAvailable < 0 && (
+        <p className="mt-4 text-sm text-amber-800">
+          Existe un faltante de efectivo respecto al dinero apartado. El turno
+          puede iniciar para que el responsable regularice los fondos.
+        </p>
+      )}
       <h3 className="mb-3 mt-6 text-sm font-semibold text-slate-900">Bancos</h3>
       <dl className="space-y-3 text-sm">
         {banks.map((bank) => (

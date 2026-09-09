@@ -8,6 +8,7 @@ export function CashPhysicalStatus({
   totals: FinancialTotals;
   status?: FinancialResourceStatus;
 }) {
+  const isNegative = totals.cashAvailable < 0;
   return (
     <div className="shrink-0 px-1.5 tabular-nums">
       <p className="text-[9px] font-medium uppercase leading-3 tracking-wide text-slate-500">
@@ -18,7 +19,7 @@ export function CashPhysicalStatus({
           <dt className="font-medium uppercase tracking-wide text-slate-500">
             Disponible
             <span className="sr-only">
-              {status === "critical"
+              {isNegative || status === "critical"
                 ? " · Crítico"
                 : status === "warning"
                   ? " · Atención"
@@ -26,8 +27,13 @@ export function CashPhysicalStatus({
             </span>
           </dt>
           <dd
+            title={
+              isNegative
+                ? "Existe un faltante de efectivo respecto al dinero apartado."
+                : undefined
+            }
             className={`text-sm font-semibold leading-4 ${
-              status === "critical"
+              isNegative || status === "critical"
                 ? "text-red-700"
                 : status === "warning"
                   ? "text-amber-700"

@@ -160,13 +160,30 @@ export function getNextShiftFolio(shifts: Pick<Shift, "folio">[]): string {
   return `TUR-${String(largest + BigInt(1)).padStart(6, "0")}`;
 }
 
-export function validateShiftOpening({
-  cash,
-  banks,
-}: {
+export function validateShiftOpening(input: {
   cash: CashBalance;
   banks: BankAccountBalance[];
 }): string | null {
+  if (!input) return "Los saldos iniciales tienen una estructura inválida.";
+  const { cash, banks } = input;
+  if (
+    !cash ||
+    !Array.isArray(cash.reservedOperations) ||
+    !Array.isArray(banks) ||
+    cash.reservedOperations.some(
+      (reserve) => !reserve || typeof reserve !== "object",
+    ) ||
+    banks.some(
+      (bank) =>
+        !bank ||
+        typeof bank !== "object" ||
+        !Array.isArray(bank.reservedOperations) ||
+        bank.reservedOperations.some(
+          (reserve) => !reserve || typeof reserve !== "object",
+        ),
+    )
+  )
+    return "Los saldos iniciales tienen una estructura inválida.";
   const amounts = [
     cash.physicalBalance,
     ...cash.reservedOperations.map((reserve) => reserve.amount),
@@ -185,12 +202,12 @@ export function validateShiftOpening({
     0,
   );
 
-  if (!Number.isFinite(reserved) || reserved > cash.physicalBalance)
-    return "El efectivo apartado no puede exceder la caja física inicial.";
+  if (!Number.isFinite(reserved))
+    return "El total de efectivo apartado debe ser un importe finito.";
 
   if (
     new Set(banks.map((bank) => bank.id)).size !== banks.length ||
-    banks.some((bank) => !bank.id)
+    banks.some((bank) => typeof bank.id !== "string" || !bank.id.trim())
   )
     return "Los bancos iniciales deben tener identificadores únicos válidos.";
 

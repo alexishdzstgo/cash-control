@@ -59,6 +59,17 @@ Module._load = function (request, parent, isMain) {
     "CashMovementBreakdown",
     "MovementDetailsModal",
     "ShiftClosingHeader",
+    "HistoryFilters",
+    "OperationCorrectionModal",
+    "OperationDetailsModal",
+    "OperationsTable",
+    "AdministrativeMovementDetailsModal",
+    "AmountField",
+    "ConfirmDialog",
+    "SuccessDialog",
+    "ActionMenu",
+    "OperationStatusBadge",
+    "OperationTypeBadge",
   ]) {
     if (request.endsWith(`/${component}`)) return { [component]: component };
   }
@@ -99,6 +110,7 @@ const {
 const {
   getShiftActivitySummary,
   getRecentShiftActivity,
+  getShiftActivity,
 } = require("../src/lib/shiftActivity.ts");
 const { canCloseShift, createInitialShift } = require("../src/lib/shifts.ts");
 const {
@@ -162,7 +174,7 @@ function summary() {
   );
 }
 function activity() {
-  return getRecentShiftActivity(
+  return getShiftActivity(
     shift.currentShift.id,
     funds.operations,
     funds.movements,
@@ -514,9 +526,9 @@ test("activity filters every event by its own shift, excludes legacy records, so
     createdAt: `2026-09-08T12:${String(i).padStart(2, "0")}:00Z`,
   }));
   const events = getRecentShiftActivity("current", many, []);
-  assert.equal(events.length, 10);
+  assert.equal(events.length, 5);
   assert.equal(events[0].id, "registration-14");
-  assert.equal(events[9].id, "registration-5");
+  assert.equal(events[4].id, "registration-10");
 });
 
 test("Day 1 reset clears derived activity without another reset system or a new shift", () => {
@@ -657,6 +669,326 @@ function findNode(node, predicate) {
   if (predicate(node)) return node;
   return findNode(node.props?.children, predicate);
 }
+
+function renderComponent(component, props = {}) {
+  if (!stores.has(component)) stores.set(component, []);
+  currentStore = stores.get(component);
+  cursor = 0;
+  return component(props);
+}
+
+function nodeText(node) {
+  if (node == null || typeof node === "boolean") return "";
+  if (Array.isArray(node)) return node.map(nodeText).join(" ");
+  if (typeof node !== "object") return String(node);
+  return nodeText(node.props?.children);
+}
+
+test("A-B: reopen with a cash shortage, display negative availability and fund the deficit", () => {
+  reset();
+  addFunds();
+  expectSuccess(
+    act(() =>
+      funds.registerClientOperation({
+        ...operation("shortage", "retiro", "pendiente"),
+        amount: 5000,
+        total: 5000,
+        customerCashReceived: 5000,
+        bankMovementAmount: 5000,
+      }),
+    ),
+  );
+  const counts = {
+    ...closingInput(),
+    countedCashPhysical: 4800,
+    countedReservedCash: 4800,
+    observations: "Faltante real",
+  };
+  expectSuccess(act(() => shift.closeCurrentShift(counts)));
+  expectSuccess(act(() => funds.reconcileAfterShiftClosing(counts)));
+  const {
+    computeFinancialTotalsFromBalances,
+  } = require("../src/lib/finance.ts");
+  const totals = computeFinancialTotalsFromBalances(funds);
+  assert.equal(totals.cashAvailable, -200);
+  assert.equal(totals.cashPhysical, 4800);
+  assert.equal(totals.cashReserved, 5000);
+  const {
+    StartShiftModal,
+  } = require("../src/components/shifts/StartShiftModal.tsx");
+  const modal = renderComponent(StartShiftModal, {
+    cash: funds.cash,
+    banks: funds.banks,
+    onClose: () => {},
+  });
+  assert.match(nodeText(modal), /4,800/);
+  assert.match(nodeText(modal), /-\$200/);
+  assert.match(nodeText(modal), /5,000/);
+  const start = findNode(
+    modal.props.footer,
+    (node) => node.type === "button" && nodeText(node).includes("Iniciar"),
+  );
+  assert.equal(start.props.disabled, false);
+  assert.match(nodeText(start), /TUR-000002/);
+  start.props.onClick();
+  render();
+  assert.equal(shift.currentShift.folio, "TUR-000002");
+  assert.equal(shift.currentShift.openingBalances.cashReserved, 5000);
+  const {
+    CashPhysicalStatus,
+  } = require("../src/components/layout/CashPhysicalStatus.tsx");
+  const bar = CashPhysicalStatus({ totals, status: "normal" });
+  const negative = findNode(
+    bar,
+    (node) => node.type === "dd" && nodeText(node).includes("-"),
+  );
+  assert.match(negative.props.className, /text-red-700/);
+  const reserved = findNode(
+    bar,
+    (node) => node.type === "dd" && nodeText(node).includes("5,000"),
+  );
+  assert.match(reserved.props.className, /text-slate-800/);
+  expectSuccess(
+    act(() =>
+      funds.registerMovement({
+        movementType: "income",
+        resourceId: "cash",
+        amountCents: 20000,
+        createdByUserId: "maria-lopez",
+        createdByUserName: "María López",
+      }),
+    ),
+  );
+  const after = computeFinancialTotalsFromBalances(funds);
+  assert.equal(after.cashPhysical, 5000);
+  assert.equal(after.cashReserved, 5000);
+  assert.equal(after.cashAvailable, 0);
+});
+
+test("opening still rejects invalid structures, amounts, bank IDs and overflowing reserves", () => {
+  const { validateShiftOpening } = require("../src/lib/shifts.ts");
+  const cash = buildInitialZeroCash();
+  const banks = buildInitialZeroBanks();
+  for (const input of [
+    null,
+    {},
+    { cash: null, banks },
+    { cash, banks: null },
+    { cash: { ...cash, reservedOperations: null }, banks },
+    { cash: { ...cash, reservedOperations: [null] }, banks },
+    { cash, banks: [null] },
+    { cash, banks: [{ ...banks[0], reservedOperations: null }] },
+    { cash, banks: [banks[0], banks[0]] },
+    { cash, banks: [{ ...banks[0], id: 42 }] },
+    ...[-1, NaN, Infinity].map((value) => ({
+      cash: { ...cash, physicalBalance: value },
+      banks,
+    })),
+    ...[-1, NaN, Infinity].map((value) => ({
+      cash: { ...cash, reservedOperations: [{ amount: value }] },
+      banks,
+    })),
+    {
+      cash: {
+        ...cash,
+        reservedOperations: [
+          { amount: Number.MAX_VALUE },
+          { amount: Number.MAX_VALUE },
+        ],
+      },
+      banks,
+    },
+  ])
+    assert.ok(validateShiftOpening(input));
+  assert.equal(
+    validateShiftOpening({
+      cash: {
+        ...cash,
+        physicalBalance: 4800,
+        reservedOperations: [{ amount: 5000 }],
+      },
+      banks,
+    }),
+    null,
+  );
+});
+
+test("C-F: history and funds UI hide closed corrections for every actor but retain pending delivery", () => {
+  reset();
+  addFunds();
+  const oldMovement = funds.movements[0];
+  const historical = expectSuccess(
+    act(() =>
+      funds.registerClientOperation(operation("old", "retiro", "pendiente")),
+    ),
+  ).operation;
+  expectSuccess(act(() => shift.closeCurrentShift(closingInput())));
+  const {
+    OperationsHistoryPage,
+  } = require("../src/components/history/OperationsHistoryPage.tsx");
+  const {
+    BusinessFundsPage,
+  } = require("../src/components/business-funds/BusinessFundsPage.tsx");
+  const {
+    OperationRow,
+  } = require("../src/components/history/OperationRow.tsx");
+  const table = () =>
+    findNode(
+      renderComponent(OperationsHistoryPage),
+      (node) => node.type === "OperationsTable",
+    );
+  assert.equal(table().props.canCorrectOperation(historical), false);
+  expectSuccess(
+    act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+  );
+  const currentMovement = addFunds();
+  const current = expectSuccess(
+    act(() =>
+      funds.registerClientOperation(operation("new", "retiro", "pendiente")),
+    ),
+  ).operation;
+  for (const [id, role, expected] of [
+    ["maria-lopez", "employee", true],
+    ["juan-perez", "employee", false],
+    ["carlos-martinez", "owner", true],
+  ]) {
+    login(id, id, role);
+    const props = table().props;
+    assert.equal(props.canCorrectOperation(historical), false);
+    assert.equal(props.canCorrectOperation(current), expected);
+    const row = OperationRow({
+      ...props,
+      operation: historical,
+      canCorrect: props.canCorrectOperation(historical),
+    });
+    assert.ok(
+      findNode(
+        row,
+        (node) => node.type === "button" && nodeText(node).includes("Entregar"),
+      ),
+    );
+    const menu = findNode(row, (node) => node.type === "ActionMenu");
+    assert.equal(
+      menu.props.items.some((item) => item.label === "Corregir operación"),
+      false,
+    );
+    assert.ok(
+      menu.props.items.some((item) => item.label.includes("aclaración")),
+    );
+    const fundsPage = renderComponent(BusinessFundsPage);
+    assert.equal(
+      findNode(
+        fundsPage,
+        (node) =>
+          node.type?.name === "MovementRow" &&
+          node.props.movement.id === oldMovement.id,
+      ).props.canEdit,
+      false,
+    );
+    assert.equal(
+      findNode(
+        fundsPage,
+        (node) =>
+          node.type?.name === "MovementRow" &&
+          node.props.movement.id === currentMovement.id,
+      ).props.canEdit,
+      expected,
+    );
+  }
+});
+
+test("G-I: full activity, five recent events, start event and scrollable modal", () => {
+  reset();
+  const target = {
+    ...shift.currentShift,
+    openedAt: "2026-09-08T08:01:00Z",
+    responsibleUserName: "Ana López",
+    folio: "TUR-000002",
+  };
+  const operations = Array.from({ length: 8 }, (_, index) => ({
+    ...operation(`event-${index}`),
+    shiftId: target.id,
+    createdAt: `2026-09-08T14:0${index}:00Z`,
+  }));
+  const events = getShiftActivity(target, operations, []);
+  assert.equal(events.length, 9);
+  assert.deepEqual(
+    getRecentShiftActivity(target, operations, []),
+    events.slice(0, 5),
+  );
+  assert.equal(events[0].id, "registration-event-7");
+  assert.equal(events[8].description, "Ana López inició TUR-000002");
+  assert.equal(events[8].occurredAt, target.openedAt);
+  const {
+    ShiftActivityTimeline,
+  } = require("../src/components/shifts/ShiftActivityTimeline.tsx");
+  const timeline = () =>
+    renderComponent(ShiftActivityTimeline, {
+      activities: events,
+      folio: target.folio,
+    });
+  assert.equal(
+    findNode(timeline(), (node) => node.type?.name === "ShiftActivityList")
+      .props.activities.length,
+    5,
+  );
+  findNode(
+    timeline(),
+    (node) =>
+      node.type === "button" && nodeText(node) === "Ver toda la actividad",
+  ).props.onClick();
+  const modalNode = findNode(
+    timeline(),
+    (node) => node.type?.name === "ShiftActivityModal",
+  );
+  assert.deepEqual(modalNode.props.activities, events);
+  const modal = modalNode.type(modalNode.props);
+  assert.equal(modal.props.title, "Actividad del turno");
+  assert.match(modal.props.bodyClassName, /max-h-\[70vh\] overflow-y-auto/);
+  assert.deepEqual(modal.props.children.props.activities, events);
+  modal.props.onClose();
+  assert.equal(
+    findNode(timeline(), (node) => node.type?.name === "ShiftActivityModal"),
+    null,
+  );
+  assert.equal(
+    findNode(
+      renderComponent(ShiftActivityTimeline, {
+        activities: [],
+        folio: target.folio,
+      }),
+      (node) => node.type === "button",
+    ),
+    null,
+  );
+  assert.equal(
+    events.some((event) =>
+      [
+        "participant_joined",
+        "participant_left",
+        "responsibility_transferred",
+      ].includes(event.type),
+    ),
+    false,
+  );
+  const recorded = {
+    id: "real-transfer",
+    shiftId: target.id,
+    type: "responsibility_transferred",
+    occurredAt: "2026-09-08T15:00:00Z",
+    performedBy: "Ana",
+    description: "Ana transfirió a Pedro",
+  };
+  assert.equal(
+    getShiftActivity(
+      target,
+      operations,
+      [],
+      [recorded, { ...recorded, shiftId: "other", id: "foreign" }],
+    ).length,
+    10,
+  );
+});
 function confirmation() {
   return findNode(
     renderPage(),
@@ -810,7 +1142,7 @@ test("opening and reconciliation reject invalid amounts and bank identities with
   for (const cash of [
     { ...funds.cash, physicalBalance: -1 },
     { ...funds.cash, physicalBalance: NaN },
-    { ...funds.cash, reservedOperations: [{ amount: 1 }] },
+    { ...funds.cash, reservedOperations: [{ amount: -1 }] },
   ])
     assert.equal(shift.startShift({ cash, banks: funds.banks }).success, false);
   assert.equal(
