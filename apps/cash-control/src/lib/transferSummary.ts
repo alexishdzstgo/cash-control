@@ -9,8 +9,7 @@ export type TransferSummary = {
   transferTime: string;
   cashOnHand: number;
   bankBalances: Array<{ bankId: string; bank: string; balance: number }>;
-  pendingWithdrawals: { count: number; total: number };
-  pendingDeposits: { count: number; total: number };
+  reservedCash: { count: number; total: number };
   editedOperations: number;
   operationsInShift: number;
 };
@@ -31,16 +30,6 @@ export function buildTransferSummary({
   now?: Date;
 }): TransferSummary | null {
   if (!currentShift) return null;
-  const pending = (type: Operation["type"]) => {
-    const records = operations.filter(
-      (operation) =>
-        operation.type === type && operation.status === "pendiente",
-    );
-    return {
-      count: records.length,
-      total: records.reduce((sum, operation) => sum + operation.amount, 0),
-    };
-  };
   return {
     shiftFolio: currentShift.folio,
     currentResponsibleName:
@@ -59,8 +48,13 @@ export function buildTransferSummary({
       bank: bank.bankName,
       balance: bank.realBalance,
     })),
-    pendingWithdrawals: pending("retiro"),
-    pendingDeposits: pending("deposito"),
+    reservedCash: {
+      count: cash.reservedOperations.length,
+      total: cash.reservedOperations.reduce(
+        (sum, operation) => sum + operation.amount,
+        0,
+      ),
+    },
     editedOperations: operations
       .flatMap((operation) => operation.corrections ?? [])
       .filter((correction) => correction.shiftId === currentShift.id).length,

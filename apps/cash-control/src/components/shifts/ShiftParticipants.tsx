@@ -47,7 +47,7 @@ export function ShiftParticipants({
 
         {canAddParticipants && (
           <Button variant="outline" onClick={onAddParticipant}>
-            Agregar participante
+            Agregar al turno
           </Button>
         )}
       </div>

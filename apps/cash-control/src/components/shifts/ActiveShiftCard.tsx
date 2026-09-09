@@ -10,16 +10,12 @@ interface ActiveShiftCardProps {
   shift: ShiftViewModel;
   onViewDetails: () => void;
   onManageParticipants: () => void;
-  onTransferResponsibility: () => void;
-  canTransferResponsibility: boolean;
 }
 
 export function ActiveShiftCard({
   shift,
   onViewDetails,
   onManageParticipants,
-  onTransferResponsibility,
-  canTransferResponsibility,
 }: ActiveShiftCardProps) {
   const responsible = shift.participants.find(
     (p) => p.userId === shift.responsibleUserId,
@@ -108,13 +104,6 @@ export function ActiveShiftCard({
         </Button>
         <Button variant="outline" onClick={onManageParticipants}>
           Administrar participantes
-        </Button>
-        <Button
-          variant="outline"
-          onClick={onTransferResponsibility}
-          disabled={!canTransferResponsibility}
-        >
-          Transferir responsabilidad
         </Button>
       </div>
 

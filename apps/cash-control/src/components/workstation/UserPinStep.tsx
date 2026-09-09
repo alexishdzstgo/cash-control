@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ModalSection } from "@/components/shared/ModalShell";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { useUsers } from "@/components/users/UsersContext";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
 
-const VALID_PIN = "1234";
-
 interface UserPinStepProps {
+  selectedUserId: string;
   selectedUserName: string;
   selectedUserAvatar?: UserAvatarModel;
   onBack: () => void;
@@ -15,11 +15,13 @@ interface UserPinStepProps {
 }
 
 export function UserPinStep({
+  selectedUserId,
   selectedUserName,
   selectedUserAvatar,
   onBack,
   onConfirm,
 }: UserPinStepProps) {
+  const { validatePin } = useUsers();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const pinInputRef = useRef<HTMLInputElement>(null);
@@ -29,14 +31,14 @@ export function UserPinStep({
   }, []);
 
   const handlePinChange = (value: string) => {
-    if (/^\d*$/.test(value) && value.length <= 4) {
+    if (/^\d*$/.test(value) && value.length <= 6) {
       setPin(value);
       if (error) setError(null);
     }
   };
 
   const handleConfirm = () => {
-    if (pin !== VALID_PIN) {
+    if (!validatePin(selectedUserId, pin)) {
       setError("PIN incorrecto. Intenta de nuevo.");
       return;
     }
@@ -44,7 +46,7 @@ export function UserPinStep({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && pin.length === 4) {
+    if (e.key === "Enter" && /^\d{4,6}$/.test(pin)) {
       handleConfirm();
     }
   };
@@ -70,13 +72,13 @@ export function UserPinStep({
           htmlFor="user-pin"
           className="cc-form-label mb-2 block text-sm font-semibold"
         >
-          Ingresa tu PIN de 4 digitos
+          Ingresa tu PIN de 4 a 6 dígitos
         </label>
         <input
           id="user-pin"
           type="password"
           inputMode="numeric"
-          maxLength={4}
+          maxLength={6}
           ref={pinInputRef}
           value={pin}
           onChange={(e) => handlePinChange(e.target.value)}
@@ -114,7 +116,7 @@ export function UserPinStep({
             type="button"
             className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
             onClick={handleConfirm}
-            disabled={pin.length !== 4}
+            disabled={!/^\d{4,6}$/.test(pin)}
           >
             Confirmar
           </button>

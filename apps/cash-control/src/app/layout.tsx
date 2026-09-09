@@ -9,6 +9,7 @@ import { MockSessionProvider } from "@/components/session/MockSessionContext";
 import { SettingsProvider } from "@/components/settings/SettingsContext";
 import { NotificationProvider } from "@/components/shared/NotificationProvider";
 import { ShiftProvider } from "@/components/shifts/ShiftContext";
+import { UsersProvider } from "@/components/users/UsersContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,19 +42,21 @@ export default function RootLayout({
     >
       <body className="h-full">
         <CommissionRulesProvider>
-          <MockSessionProvider>
-            <ShiftProvider>
-              <BusinessFundsProvider>
-                <FinancialAlertsProvider>
-                  <ReceiptPreferencesProvider>
-                    <SettingsProvider>
-                      <NotificationProvider>{children}</NotificationProvider>
-                    </SettingsProvider>
-                  </ReceiptPreferencesProvider>
-                </FinancialAlertsProvider>
-              </BusinessFundsProvider>
-            </ShiftProvider>
-          </MockSessionProvider>
+          <UsersProvider>
+            <MockSessionProvider>
+              <ShiftProvider>
+                <BusinessFundsProvider>
+                  <FinancialAlertsProvider>
+                    <ReceiptPreferencesProvider>
+                      <SettingsProvider>
+                        <NotificationProvider>{children}</NotificationProvider>
+                      </SettingsProvider>
+                    </ReceiptPreferencesProvider>
+                  </FinancialAlertsProvider>
+                </BusinessFundsProvider>
+              </ShiftProvider>
+            </MockSessionProvider>
+          </UsersProvider>
         </CommissionRulesProvider>
       </body>
     </html>

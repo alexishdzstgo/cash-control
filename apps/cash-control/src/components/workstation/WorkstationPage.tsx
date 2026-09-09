@@ -12,8 +12,8 @@ import { useCallback, useState } from "react";
 import { Footer } from "@/components/layout/Footer";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { useUsers } from "@/components/users/UsersContext";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
-import { mockRegisteredUsers } from "./mockData";
 import type { Participant } from "./types";
 import { WorkstationAccessModal } from "./WorkstationAccessModal";
 
@@ -129,6 +129,10 @@ function JoinAnotherUserCard({
 }
 
 export function WorkstationPage() {
+  const { registeredUsers, getUserById } = useUsers();
+  const activeUsers = registeredUsers.filter(
+    (user) => getUserById(user.userId)?.status === "active",
+  );
   const router = useRouter();
   const { getUserAvatar, participants, unlockSession } = useMockSession();
   const [modalOpen, setModalOpen] = useState(false);
@@ -138,7 +142,10 @@ export function WorkstationPage() {
   );
 
   const activeParticipants = participants
-    .filter((p) => p.status === "active")
+    .filter(
+      (p) =>
+        p.status === "active" && getUserById(p.userId)?.status === "active",
+    )
     .sort((a, b) => {
       if (a.participationType === "responsible") return -1;
       if (b.participationType === "responsible") return 1;
@@ -162,36 +169,36 @@ export function WorkstationPage() {
 
   const handleAccess = useCallback(
     (userId: string) => {
-      const user = mockRegisteredUsers.find((u) => u.userId === userId);
-      if (!user) return;
+      const user = getUserById(userId);
+      if (user?.status !== "active") return;
 
       unlockSession({
-        userId: user.userId,
-        userName: user.userName,
+        userId: user.id,
+        userName: user.displayName,
         systemRole: user.systemRole,
         hasActiveParticipation: false,
       });
       setModalOpen(false);
       router.push("/");
     },
-    [unlockSession, router],
+    [unlockSession, router, getUserById],
   );
 
   const handleJoin = useCallback(
     (userId: string) => {
-      const user = mockRegisteredUsers.find((u) => u.userId === userId);
-      if (!user) return;
+      const user = getUserById(userId);
+      if (user?.status !== "active") return;
 
       unlockSession({
-        userId: user.userId,
-        userName: user.userName,
+        userId: user.id,
+        userName: user.displayName,
         systemRole: user.systemRole,
         hasActiveParticipation: false,
       });
       setModalOpen(false);
       router.push("/");
     },
-    [unlockSession, router],
+    [unlockSession, router, getUserById],
   );
 
   const handleCancel = useCallback(() => {
@@ -295,7 +302,7 @@ export function WorkstationPage() {
       <WorkstationAccessModal
         open={modalOpen}
         mode={modalMode}
-        registeredUsers={mockRegisteredUsers}
+        registeredUsers={activeUsers}
         activeUserIds={activeParticipants.map((p) => p.userId)}
         preselectedUserId={preselectedUserId}
         onAccess={handleAccess}

@@ -35,7 +35,7 @@ import {
   wouldRemoveLastActiveOwner,
 } from "@/lib/users";
 import type { UserAccount, UserFilter } from "@/types/user";
-import { initialUserAccounts } from "./userMockData";
+import { useUsers } from "./UsersContext";
 
 type DetailTab = "info" | "access" | "activity" | "stats";
 type FormMode = "create" | "edit";
@@ -82,11 +82,12 @@ const filters: Array<{ value: UserFilter; label: string }> = [
 export function UsersPage() {
   const { getUserAvatar, participants } = useMockSession();
   const { operations } = useBusinessFunds();
-  const [users, setUsers] = useState<UserAccount[]>(initialUserAccounts);
+  const { users, createUser, updateUser, suspendUser, reactivateUser } =
+    useUsers();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(
-    initialUserAccounts[0]?.id ?? null,
+    users[0]?.id ?? null,
   );
   const [detailTab, setDetailTab] = useState<DetailTab>("info");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -177,15 +178,15 @@ export function UsersPage() {
         return;
       }
 
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === editingUserId ? { ...user, ...nextUser } : user,
-        ),
-      );
+      const result = updateUser(editingUserId, nextUser);
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
+      }
       setSelectedUserId(editingUserId);
     } else {
       const id = form.username.trim().toLowerCase().replaceAll(".", "-");
-      const newUser: UserAccount = {
+      const newUser: Omit<UserAccount, "pin"> = {
         id: `${id}-${Date.now()}`,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -203,7 +204,15 @@ export function UsersPage() {
         passwordRecoveryStatus: "not_configured",
         sessionsReady: false,
       };
-      setUsers((current) => [...current, newUser]);
+      const result = createUser(newUser);
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
+      }
+      setPasswordResult({
+        user: result.user,
+        password: result.user.temporaryPassword,
+      });
       setSelectedUserId(newUser.id);
     }
 
@@ -256,26 +265,23 @@ export function UsersPage() {
 
     if (confirmState.type === "reset-password") {
       const password = generateTemporaryPassword();
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === confirmState.user.id
-            ? { ...user, temporaryPassword: password }
-            : user,
-        ),
-      );
+      const result = updateUser(confirmState.user.id, {
+        temporaryPassword: password,
+      });
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
+      }
       setPasswordResult({ user: confirmState.user, password });
       setConfirmState(null);
       return;
     }
 
-    const nextStatus = confirmState.type === "suspend" ? "suspended" : "active";
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === confirmState.user.id
-          ? { ...user, status: nextStatus }
-          : user,
-      ),
-    );
+    const result =
+      confirmState.type === "suspend"
+        ? suspendUser(confirmState.user.id)
+        : reactivateUser(confirmState.user.id);
+    if (!result.success) setDomainMessage(result.error);
     setConfirmState(null);
   }
 
@@ -691,6 +697,7 @@ function UserDetails({
         {tab === "access" && (
           <div className="space-y-4">
             <InfoRow label="Contraseña" value="••••••••" />
+            <InfoRow label="PIN de acceso" value={user.pin} />
             <InfoRow label="Último cambio" value="Pendiente" />
             <InfoRow
               label="Último acceso"
@@ -705,7 +712,7 @@ function UserDetails({
               Restablecer contraseña
             </button>
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-              Preparado para PIN, 2FA, sesiones, recuperación de contraseña e
+              Preparado para 2FA, sesiones, recuperación de contraseña e
               historial de acceso cuando se conecte Supabase Auth.
             </div>
           </div>
@@ -1158,6 +1165,9 @@ function PasswordResultDialog({
         <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-lg font-bold text-slate-950">
           {password}
         </p>
+        <div className="mt-3">
+          <InfoRow label="PIN de acceso" value={user.pin} />
+        </div>
       </div>
     </ModalShell>
   );

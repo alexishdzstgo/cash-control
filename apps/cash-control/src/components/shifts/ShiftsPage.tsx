@@ -6,10 +6,11 @@ import { TransferResponsibilityModal } from "@/components/participation/Transfer
 import { useResponsibilityTransfer } from "@/components/participation/useResponsibilityTransfer";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { mockRegisteredUsers } from "@/components/workstation/mockData";
+import { useUsers } from "@/components/users/UsersContext";
 import type { Participant } from "@/components/workstation/types";
 import { getShiftActivity, getShiftActivitySummary } from "@/lib/shiftActivity";
 import type { ShiftParticipant, ShiftViewModel } from "@/types/shift";
+import type { UserAccount } from "@/types/user";
 import { ActiveShiftCard } from "./ActiveShiftCard";
 import { AddParticipantModal } from "./AddParticipantModal";
 import { RemoveParticipantDialog } from "./RemoveParticipantDialog";
@@ -38,6 +39,7 @@ const systemRoleToShiftRole = (role: string): "owner" | "employee" => {
  */
 function participantToShiftParticipant(
   p: Participant,
+  users: UserAccount[],
   getUserAvatar: (userId: string) => ShiftParticipant["avatar"],
 ): ShiftParticipant {
   return {
@@ -45,8 +47,7 @@ function participantToShiftParticipant(
     userId: p.userId,
     name: p.userName,
     systemRole: systemRoleToShiftRole(
-      mockRegisteredUsers.find((u) => u.userId === p.userId)?.systemRole ??
-        "employee",
+      users.find((u) => u.id === p.userId)?.systemRole ?? "employee",
     ),
     shiftRole:
       p.participationType === "responsible" ? "shift_responsible" : "operator",
@@ -65,23 +66,27 @@ function participantToShiftParticipant(
  * Determines which registered users are available to be added as participants.
  * A user is available if they do NOT have an active participation in the context.
  */
-function getAvailableUsers(contextParticipants: Participant[]) {
+function getAvailableUsers(
+  contextParticipants: Participant[],
+  users: UserAccount[],
+) {
   const activeUserIds = new Set(
     contextParticipants
       .filter((p) => p.status === "active")
       .map((p) => p.userId),
   );
-  return mockRegisteredUsers
-    .filter((u) => !activeUserIds.has(u.userId))
+  return users
+    .filter((u) => u.status === "active" && !activeUserIds.has(u.id))
     .map((u) => ({
-      userId: u.userId,
-      name: u.userName,
+      userId: u.id,
+      name: u.displayName,
       systemRole: systemRoleToShiftRole(u.systemRole),
       avatar: undefined,
     }));
 }
 
 export function ShiftsPage() {
+  const { users } = useUsers();
   const { currentShift, shifts, canStartShift } = useShift();
 
   const { cash, banks, operations, movements } = useBusinessFunds();
@@ -135,9 +140,9 @@ export function ShiftsPage() {
   const displayParticipants = useMemo(
     () =>
       activeContextParticipants.map((participant) =>
-        participantToShiftParticipant(participant, getUserAvatar),
+        participantToShiftParticipant(participant, users, getUserAvatar),
       ),
-    [activeContextParticipants, getUserAvatar],
+    [activeContextParticipants, users, getUserAvatar],
   );
 
   const contextResponsibleUserId = getContextResponsibleUserId() ?? "";
@@ -146,11 +151,11 @@ export function ShiftsPage() {
 
   const availableUsers = useMemo(
     () =>
-      getAvailableUsers(contextParticipants).map((user) => ({
+      getAvailableUsers(contextParticipants, users).map((user) => ({
         ...user,
         avatar: getUserAvatar(user.userId),
       })),
-    [contextParticipants, getUserAvatar],
+    [contextParticipants, users, getUserAvatar],
   );
 
   // ── Derived shift for child components ──
@@ -265,15 +270,6 @@ export function ShiftsPage() {
             );
             participantsSection?.scrollIntoView({ behavior: "smooth" });
           }}
-          onTransferResponsibility={() => {
-            if (isCurrentUserResponsible()) {
-              const responsibleUserId = getContextResponsibleUserId();
-              if (responsibleUserId) {
-                openTransfer(responsibleUserId);
-              }
-            }
-          }}
-          canTransferResponsibility={isCurrentUserResponsible()}
         />
 
         <ShiftActivitySummary summary={derivedShift.summary} />

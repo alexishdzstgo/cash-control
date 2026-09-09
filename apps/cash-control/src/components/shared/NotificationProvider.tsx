@@ -56,7 +56,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       >
         {notification && (
           <div
-            className={`flex items-start gap-3 rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm transition-all duration-300 motion-reduce:transition-none ${notification.visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
+            className={`flex items-start gap-3 rounded-xl border border-[#334155] bg-[#0F172A] px-4 py-3 text-sm text-white shadow-md transition-all duration-300 motion-reduce:transition-none ${notification.visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
           >
             <CheckCircle2
               aria-hidden="true"

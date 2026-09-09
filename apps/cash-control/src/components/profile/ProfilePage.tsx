@@ -8,7 +8,7 @@ import { ModalSection, ModalShell } from "@/components/shared/ModalShell";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { UserAvatar } from "@/components/shared/UserAvatar";
-import { initialUserAccounts } from "@/components/users/userMockData";
+import { useUsers } from "@/components/users/UsersContext";
 import { areSameAvatar, generateAvatarOptions } from "@/lib/avatar";
 import { getLastLoginLabel, getUserRoleLabel } from "@/lib/users";
 import type { ProfilePreferences } from "@/types/profile";
@@ -36,6 +36,7 @@ const pendingAuthItems = [
 ] as const;
 
 export function ProfilePage() {
+  const { users } = useUsers();
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
@@ -83,11 +84,9 @@ export function ProfilePage() {
   const account = useMemo(
     () =>
       authenticatedUser
-        ? initialUserAccounts.find(
-            (user) => user.id === authenticatedUser.userId,
-          )
+        ? users.find((user) => user.id === authenticatedUser.userId)
         : undefined,
-    [authenticatedUser],
+    [authenticatedUser, users],
   );
 
   if (!authenticatedUser) {

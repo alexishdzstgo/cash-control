@@ -58,6 +58,7 @@ const react = {
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === "react") return react;
+  if (request === "@base-ui/react/button") return { Button: "button" };
   if (request === "lucide-react")
     return new Proxy({}, { get: (_, name) => name });
   if (request === "next/link") return { default: "Link" };
@@ -144,6 +145,8 @@ const {
   NotificationProvider,
 } = require("../src/components/shared/NotificationProvider.tsx");
 
+const { UsersProvider } = require("../src/components/users/UsersContext.tsx");
+let directory;
 let session;
 let shift;
 let funds;
@@ -162,6 +165,7 @@ function render() {
     effects = [];
     renderProvider(CommissionRulesProvider);
     renderProvider(NotificationProvider);
+    directory = renderProvider(UsersProvider);
     session = renderProvider(MockSessionProvider);
     shift = renderProvider(ShiftProvider);
     funds = renderProvider(BusinessFundsProvider);
@@ -207,6 +211,8 @@ function activity() {
   );
 }
 function login(userId, userName, systemRole = "employee") {
+  // Permission scenarios change the registered role, never trust a supplied session role.
+  expectSuccess(act(() => directory.updateUser(userId, { systemRole })));
   act(() =>
     session.unlockSession({
       userId,
@@ -1000,8 +1006,9 @@ test("UX: transfer summary uses live balances, old pending obligations and curre
     data.bankBalances.map((bank) => bank.balance),
     funds.banks.map((bank) => bank.realBalance),
   );
-  assert.deepEqual(data.pendingWithdrawals, { count: 1, total: 5000 });
-  assert.deepEqual(data.pendingDeposits, { count: 0, total: 0 });
+  assert.deepEqual(data.reservedCash, { count: 1, total: 5000 });
+  assert.equal("pendingWithdrawals" in data, false);
+  assert.equal("pendingDeposits" in data, false);
   assert.equal(data.editedOperations, 1);
   assert.equal(data.operationsInShift, 1);
   assert.equal("operationsSinceLastTransfer" in data, false);
@@ -2110,4 +2117,404 @@ test("page marks completion only after successful close and preserves the saved 
   assert.equal(result.props.shift.closing.status, "balanced");
   assert.equal(shift.currentShift, null);
   delete global.window;
+});
+
+function componentNamed(tree, name) {
+  return findNode(
+    tree,
+    (node) => node.type?.name === name || node.type === name,
+  );
+}
+
+function createRobertoFromUsersPage() {
+  const { UsersPage } = require("../src/components/users/UsersPage.tsx");
+  const view = () => renderComponent(UsersPage);
+  componentNamed(view(), "PageHeader").props.action.props.onClick();
+  componentNamed(view(), "UserFormPanel").props.onChange({
+    firstName: "Roberto",
+    lastName: "Sánchez",
+    username: "roberto.sanchez",
+    systemRole: "employee",
+    status: "active",
+  });
+  componentNamed(view(), "UserFormPanel").props.onSubmit();
+  render();
+  const user = directory.users.find(
+    (entry) => entry.username === "roberto.sanchez",
+  );
+  assert.ok(user);
+  assert.match(user.pin, /^\d{4,6}$/);
+  assert.ok(
+    componentNamed(view(), "UsersList").props.users.some(
+      (entry) => entry.id === user.id,
+    ),
+  );
+  const credentials = componentNamed(view(), "PasswordResultDialog");
+  assert.equal(credentials.props.user.pin, user.pin);
+  return { user, view };
+}
+
+test("directory: create in Users without a shift, then select existing Roberto as support in Turnos and station", () => {
+  reset(false);
+  login("maria-lopez", "María López", "owner");
+  const { user } = createRobertoFromUsersPage();
+  const { ShiftsPage } = require("../src/components/shifts/ShiftsPage.tsx");
+  const view = () => renderComponent(ShiftsPage);
+  assert.equal(shift.currentShift, null);
+  assert.equal(componentNamed(view(), "ShiftParticipants"), null);
+  assert.equal(componentNamed(view(), "AddParticipantModal"), null);
+  assert.ok(componentNamed(view(), "ShiftHistory"));
+  assert.match(nodeText(view()), /Iniciar nuevo turno/);
+  expectSuccess(
+    act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+  );
+  let modal = componentNamed(view(), "AddParticipantModal");
+  const candidate = modal.props.availableUsers.find(
+    (entry) => entry.userId === user.id,
+  );
+  assert.equal(candidate.name, "Roberto Sánchez");
+  assert.equal(candidate.systemRole, "employee");
+  act(() => modal.props.onAdd(candidate));
+  assert.equal(
+    session.getActiveParticipation(user.id).participationType,
+    "support",
+  );
+  modal = componentNamed(view(), "AddParticipantModal");
+  assert.equal(
+    modal.props.availableUsers.some((entry) => entry.userId === user.id),
+    false,
+  );
+  const { StaffPage } = require("../src/components/staff/StaffPage.tsx");
+  const staff = componentNamed(renderComponent(StaffPage), "StaffList").props
+    .members;
+  assert.equal(
+    staff.find((entry) => entry.userId === user.id).participationType,
+    "support",
+  );
+  const {
+    WorkstationPage,
+  } = require("../src/components/workstation/WorkstationPage.tsx");
+  const access = componentNamed(
+    renderComponent(WorkstationPage),
+    "WorkstationAccessModal",
+  );
+  assert.ok(
+    access.props.registeredUsers.some((entry) => entry.userId === user.id),
+  );
+  const {
+    UserPinStep,
+  } = require("../src/components/workstation/UserPinStep.tsx");
+  let entered = false;
+  const pinView = () =>
+    renderComponent(UserPinStep, {
+      selectedUserId: user.id,
+      selectedUserName: user.displayName,
+      onBack() {},
+      onConfirm() {
+        entered = true;
+        access.props.onAccess(user.id);
+      },
+    });
+  findNode(pinView(), (node) => node.type === "input").props.onChange({
+    target: { value: "0000" },
+  });
+  findNode(
+    pinView(),
+    (node) => node.type === "button" && nodeText(node) === "Confirmar",
+  ).props.onClick();
+  assert.equal(entered, false);
+  findNode(pinView(), (node) => node.type === "input").props.onChange({
+    target: { value: user.pin },
+  });
+  findNode(
+    pinView(),
+    (node) => node.type === "button" && nodeText(node) === "Confirmar",
+  ).props.onClick();
+  render();
+  assert.equal(entered, true);
+  assert.equal(session.authenticatedUser.userId, user.id);
+  assert.equal(session.authenticatedUser.systemRole, "employee");
+});
+
+test("directory: editing and suspending in Users propagate; reactivation retains ended participation", () => {
+  reset();
+  const { user, view } = createRobertoFromUsersPage();
+  act(() => session.addParticipant(user.id));
+  componentNamed(view(), "UsersList").props.onEdit(user);
+  componentNamed(view(), "UserFormPanel").props.onChange({
+    firstName: "Roberto José",
+    systemRole: "owner",
+  });
+  componentNamed(view(), "UserFormPanel").props.onSubmit();
+  render();
+  assert.equal(
+    directory.getUserById(user.id).displayName,
+    "Roberto José Sánchez",
+  );
+  assert.equal(
+    session.getActiveParticipation(user.id).userName,
+    "Roberto José Sánchez",
+  );
+  expectSuccess(act(() => session.endParticipation(user.id)));
+  const history = structuredClone(
+    session.participants.filter((entry) => entry.userId === user.id),
+  );
+  componentNamed(view(), "UsersList").props.onStatusChange(
+    directory.getUserById(user.id),
+  );
+  componentNamed(view(), "ConfirmDialog").props.onConfirm();
+  render();
+  const { ShiftsPage } = require("../src/components/shifts/ShiftsPage.tsx");
+  assert.equal(
+    componentNamed(
+      renderComponent(ShiftsPage),
+      "AddParticipantModal",
+    ).props.availableUsers.some((entry) => entry.userId === user.id),
+    false,
+  );
+  assert.equal(
+    directory.getActiveUsers().some((entry) => entry.id === user.id),
+    false,
+  );
+  act(() => session.addParticipant(user.id));
+  act(() => session.startParticipation(user.id));
+  assert.equal(session.hasActiveParticipation(user.id), false);
+  assert.deepEqual(
+    session.participants.filter((entry) => entry.userId === user.id),
+    history,
+  );
+  assert.equal(directory.validatePin(user.id, user.pin), false);
+  act(() =>
+    session.unlockSession({
+      userId: user.id,
+      userName: user.displayName,
+      systemRole: "owner",
+      hasActiveParticipation: true,
+    }),
+  );
+  assert.equal(session.authenticatedUser, null);
+  expectSuccess(act(() => directory.reactivateUser(user.id)));
+  assert.equal(directory.validatePin(user.id, user.pin), true);
+  assert.deepEqual(
+    session.participants.filter((entry) => entry.userId === user.id),
+    history,
+  );
+  act(() => session.startParticipation(user.id));
+  assert.equal(
+    session.getActiveParticipation(user.id).participationType,
+    "support",
+  );
+});
+
+test("directory: session uses registered names/roles, updates live, rejects unknown accounts and duplicate usernames", () => {
+  reset();
+  act(() =>
+    session.unlockSession({
+      userId: "juan-perez",
+      userName: "Nombre falso",
+      systemRole: "owner",
+      hasActiveParticipation: true,
+    }),
+  );
+  assert.equal(session.authenticatedUser.userName, "Juan Pérez");
+  assert.equal(session.authenticatedUser.systemRole, "employee");
+  assert.equal(session.canAddParticipant(), false);
+  expectSuccess(
+    act(() =>
+      directory.updateUser("juan-perez", {
+        firstName: "Juan José",
+        systemRole: "owner",
+      }),
+    ),
+  );
+  assert.equal(session.authenticatedUser.userName, "Juan José Pérez");
+  assert.equal(session.canAddParticipant(), true);
+  const before = directory.users.length;
+  const duplicate = act(() =>
+    directory.createUser({
+      ...directory.getUserById("juan-perez"),
+      id: "duplicate",
+      username: " JUAN.PEREZ ",
+    }),
+  );
+  assert.equal(duplicate.success, false);
+  assert.equal(directory.users.length, before);
+  act(() => directory.suspendUser("juan-perez"));
+  assert.equal(session.authenticatedUser, null);
+  act(() =>
+    session.unlockSession({
+      userId: "missing",
+      userName: "Falso",
+      systemRole: "owner",
+      hasActiveParticipation: true,
+    }),
+  );
+  assert.equal(session.authenticatedUser, null);
+});
+
+test("transfer UI: participant card selects Pedro, preserves receiver PIN, one Apartado and no redundant root button", () => {
+  reset();
+  expectSuccess(act(() => directory.reactivateUser("ana-lopez")));
+  act(() => session.addParticipant("ana-lopez"));
+  act(() => session.addParticipant("pedro-ramirez"));
+  expectSuccess(
+    act(() =>
+      session.transferResponsibility(
+        "maria-lopez",
+        "ana-lopez",
+        directory.getUserById("ana-lopez").pin,
+      ),
+    ),
+  );
+  login("ana-lopez", "Ana López");
+  const shiftId = shift.currentShift.id;
+  const { ShiftsPage } = require("../src/components/shifts/ShiftsPage.tsx");
+  const view = () => renderComponent(ShiftsPage);
+  const rootCard = componentNamed(view(), "ActiveShiftCard");
+  assert.equal("onTransferResponsibility" in rootCard.props, false);
+  assert.equal("canTransferResponsibility" in rootCard.props, false);
+  const card = renderComponent(rootCard.type, rootCard.props);
+  assert.doesNotMatch(nodeText(card), /Transferir responsabilidad/);
+  assert.match(nodeText(card), /Ver detalles/);
+  assert.match(nodeText(card), /Administrar participantes/);
+  const participants = componentNamed(view(), "ShiftParticipants");
+  participants.props.onTransferResponsibility(
+    participants.props.shift.participants.find(
+      (entry) => entry.userId === "pedro-ramirez",
+    ),
+  );
+  let modal = componentNamed(view(), "TransferResponsibilityModal");
+  assert.equal(modal.props.selectedParticipant.userName, "Pedro Ramírez");
+  assert.equal(modal.props.transferSummary.currentResponsibleName, "Ana López");
+  assert.equal(
+    modal.props.transferSummary.shiftFolio,
+    shift.currentShift.folio,
+  );
+  assert.equal(
+    modal.props.transferSummary.cashOnHand,
+    funds.cash.physicalBalance,
+  );
+  modal.props.onPinChange(directory.getUserById("ana-lopez").pin);
+  componentNamed(view(), "TransferResponsibilityModal").props.onConfirm();
+  render();
+  assert.equal(session.getContextResponsibleUserId(), "ana-lopez");
+  modal = componentNamed(view(), "TransferResponsibilityModal");
+  assert.equal(modal.props.transferError, "PIN incorrecto");
+  const renderedModal = renderComponent(modal.type, {
+    ...modal.props,
+    transferSummary: {
+      ...modal.props.transferSummary,
+      reservedCash: { count: 1, total: 5000 },
+    },
+  });
+  assert.match(nodeText(renderedModal), /Apartado\s+1\s+operación/);
+  assert.doesNotMatch(
+    nodeText(renderedModal),
+    /Retiros pendientes|Depósitos pendientes/,
+  );
+  modal.props.onPinChange("1234");
+  componentNamed(view(), "TransferResponsibilityModal").props.onConfirm();
+  render();
+  assert.equal(session.getContextResponsibleUserId(), "pedro-ramirez");
+  assert.equal(shift.currentShift.id, shiftId);
+  assert.equal(componentNamed(view(), "TransferResponsibilityModal"), null);
+});
+
+test("directory: six-digit receiver PIN works, suspended receiver cannot accept", () => {
+  reset();
+  act(() => session.addParticipant("carlos-martinez"));
+  assert.equal(
+    session.transferResponsibility("maria-lopez", "carlos-martinez", "1234")
+      .success,
+    false,
+  );
+  const {
+    TransferResponsibilityModal,
+  } = require("../src/components/participation/TransferResponsibilityModal.tsx");
+  const modal = renderComponent(TransferResponsibilityModal, {
+    isEnding: false,
+    selectedParticipant: {
+      userId: "carlos-martinez",
+      userName: "Carlos Martínez",
+    },
+    transferSummary: null,
+    transferPin: "123456",
+    transferError: "",
+  });
+  assert.equal(
+    findNode(
+      modal.props.footer,
+      (node) =>
+        node.props?.disabled === false &&
+        nodeText(node) === "Aceptar responsabilidad",
+    ).props.disabled,
+    false,
+  );
+  expectSuccess(act(() => directory.suspendUser("carlos-martinez")));
+  assert.equal(
+    session.transferResponsibility("maria-lopez", "carlos-martinez", "123456")
+      .success,
+    false,
+  );
+  expectSuccess(act(() => directory.reactivateUser("carlos-martinez")));
+  expectSuccess(
+    act(() =>
+      session.transferResponsibility(
+        "maria-lopez",
+        "carlos-martinez",
+        "123456",
+      ),
+    ),
+  );
+});
+
+test("Apartado reads reservations even without pending operation records; notification uses sidebar navy", () => {
+  reset();
+  const { buildTransferSummary } = require("../src/lib/transferSummary.ts");
+  const input = {
+    currentShift: shift.currentShift,
+    cash: {
+      ...funds.cash,
+      reservedOperations: [{ amount: 3000 }, { amount: 2000 }],
+    },
+    banks: funds.banks,
+    participants: session.participants,
+    operations: [],
+  };
+  assert.deepEqual(buildTransferSummary(input).reservedCash, {
+    count: 2,
+    total: 5000,
+  });
+  assert.deepEqual(
+    buildTransferSummary({
+      ...input,
+      cash: { ...funds.cash, reservedOperations: [] },
+      operations: [operation("unreserved", "retiro", "pendiente")],
+    }).reservedCash,
+    { count: 0, total: 0 },
+  );
+  renderProvider(NotificationProvider).showSuccess("Depósito registrado");
+  render();
+  const view = renderComponent(NotificationProvider);
+  const toast = findNode(view, (node) =>
+    node.props?.className?.includes("bg-[#0F172A]"),
+  );
+  assert.ok(toast);
+  assert.match(
+    toast.props.className,
+    /border-\[#334155\].*text-white.*shadow-md/,
+  );
+  assert.ok(
+    findNode(toast, (node) =>
+      node.props?.className?.includes("text-emerald-600"),
+    ),
+  );
+  assert.ok(
+    findNode(
+      view,
+      (node) =>
+        node.props?.["aria-live"] === "polite" &&
+        node.props.className.includes("pointer-events-none"),
+    ),
+  );
 });

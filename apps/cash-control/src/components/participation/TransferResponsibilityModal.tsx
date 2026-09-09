@@ -47,7 +47,7 @@ export function TransferResponsibilityModal({
           </button>
           <Button
             onClick={onConfirm}
-            disabled={isEnding || transferPin.length !== 4}
+            disabled={isEnding || !/^\d{4,6}$/.test(transferPin)}
             className="gap-2"
           >
             {isEnding ? "Transfiriendo..." : "Aceptar responsabilidad"}
@@ -120,29 +120,17 @@ export function TransferResponsibilityModal({
                 </div>
               </div>
 
-              <div className="mb-4 grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-amber-50 p-3">
-                  <p className="text-xs text-amber-700 mb-1">
-                    Retiros pendientes
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {transferSummary.pendingWithdrawals.count} operaciones
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {formatCurrency(transferSummary.pendingWithdrawals.total)}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-emerald-50 p-3">
-                  <p className="text-xs text-emerald-700 mb-1">
-                    Depósitos pendientes
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {transferSummary.pendingDeposits.count} operaciones
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {formatCurrency(transferSummary.pendingDeposits.total)}
-                  </p>
-                </div>
+              <div className="mb-4 rounded-lg bg-amber-50 p-3">
+                <p className="text-xs text-amber-700 mb-1">Apartado</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {transferSummary.reservedCash.count}{" "}
+                  {transferSummary.reservedCash.count === 1
+                    ? "operación"
+                    : "operaciones"}
+                </p>
+                <p className="text-xs text-slate-600">
+                  {formatCurrency(transferSummary.reservedCash.total)}
+                </p>
               </div>
 
               <div className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
@@ -194,7 +182,8 @@ export function TransferResponsibilityModal({
           <div className="mb-4">
             <input
               type="password"
-              maxLength={4}
+              maxLength={6}
+              inputMode="numeric"
               value={transferPin}
               onChange={(e) => onPinChange(e.target.value)}
               placeholder="PIN del receptor"

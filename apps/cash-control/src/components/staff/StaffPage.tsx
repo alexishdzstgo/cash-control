@@ -4,17 +4,18 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { mockRegisteredUsers } from "@/components/workstation/mockData";
+import { useUsers } from "@/components/users/UsersContext";
 import { getStaffMembers, getStaffSummary } from "@/lib/staff";
 import { ActiveParticipantsPanel } from "./ActiveParticipantsPanel";
 import { StaffList } from "./StaffList";
 import { StaffSummary } from "./StaffSummary";
 
 export function StaffPage() {
+  const { registeredUsers } = useUsers();
   const { getUserAvatar, participants, getContextResponsibleUserId } =
     useMockSession();
   const members = getStaffMembers(
-    mockRegisteredUsers,
+    registeredUsers,
     participants,
     getContextResponsibleUserId(),
   ).map((member) => ({
@@ -47,8 +48,7 @@ export function StaffPage() {
         <StaffList members={members} />
 
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-          La administración completa de usuarios se habilitará al conectar la
-          base de datos.
+          Las cuentas se administran en Administración, en Usuarios.
         </div>
       </div>
     </div>

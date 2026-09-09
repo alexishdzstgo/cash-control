@@ -1,41 +1,44 @@
+"use client";
+
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { bankAccounts } from "@/components/balances/balanceMockData";
 import { initialAdministrativeMovements } from "@/components/business-funds/businessFundsMockData";
 import { createInitialCommissionRules } from "@/components/commissions/commissionMockData";
 import { initialReceiptPreferences } from "@/components/receipts/receiptMockData";
-import { initialUserAccounts } from "@/components/users/userMockData";
+import { useUsers } from "@/components/users/UsersContext";
 import { SettingsCard } from "./SettingsCard";
 
-const moduleSummaries = [
-  {
-    label: "Comisiones",
-    detail: `${createInitialCommissionRules().length} reglas activas`,
-    href: "/commissions",
-  },
-  {
-    label: "Usuarios",
-    detail: `${initialUserAccounts.length} cuentas mock`,
-    href: "/users",
-  },
-  {
-    label: "Alertas",
-    detail: `${bankAccounts.length} bancos configurados`,
-    href: "/bank-alerts",
-  },
-  {
-    label: "Comprobantes",
-    detail: `${initialReceiptPreferences.copies} copia predeterminada`,
-    href: "/receipts",
-  },
-  {
-    label: "Fondos del negocio",
-    detail: `${initialAdministrativeMovements.length} movimientos mock`,
-    href: "/business-funds",
-  },
-];
-
 export function ModulesSummaryCard() {
+  const { users } = useUsers();
+  const moduleSummaries = [
+    {
+      label: "Comisiones",
+      detail: `${createInitialCommissionRules().length} reglas activas`,
+      href: "/commissions",
+    },
+    {
+      label: "Usuarios",
+      detail: `${users.length} cuentas mock`,
+      href: "/users",
+    },
+    {
+      label: "Alertas",
+      detail: `${bankAccounts.length} bancos configurados`,
+      href: "/bank-alerts",
+    },
+    {
+      label: "Comprobantes",
+      detail: `${initialReceiptPreferences.copies} copia predeterminada`,
+      href: "/receipts",
+    },
+    {
+      label: "Fondos del negocio",
+      detail: `${initialAdministrativeMovements.length} movimientos mock`,
+      href: "/business-funds",
+    },
+  ];
+
   return (
     <SettingsCard
       title="Resumen de módulos"

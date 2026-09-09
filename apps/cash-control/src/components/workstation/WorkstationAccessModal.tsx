@@ -130,6 +130,8 @@ export function WorkstationAccessModal({
       ) : (
         selectedUser && (
           <UserPinStep
+            key={selectedUser.userId}
+            selectedUserId={selectedUser.userId}
             selectedUserName={selectedUser.userName}
             selectedUserAvatar={getUserAvatar(selectedUser.userId)}
             onBack={handleBack}

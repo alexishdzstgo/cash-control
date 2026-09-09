@@ -5,13 +5,11 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useMemo,
   useState,
 } from "react";
-import { initialUserAccounts } from "@/components/users/userMockData";
-import {
-  mockParticipants,
-  mockRegisteredUsers,
-} from "@/components/workstation/mockData";
+import { useUsers } from "@/components/users/UsersContext";
+import { mockParticipants } from "@/components/workstation/mockData";
 import type { Participant, SystemRole } from "@/components/workstation/types";
 import type { UserAvatar } from "@/types/user";
 
@@ -68,21 +66,53 @@ function getCurrentTime(): string {
 }
 
 export function MockSessionProvider({ children }: { children: ReactNode }) {
-  const [authenticatedUser, setAuthenticatedUser] =
-    useState<SessionUser | null>(null);
-  const [participants, setParticipants] =
-    useState<Participant[]>(mockParticipants);
-  const [userAvatars, setUserAvatars] = useState<
-    Record<string, UserAvatar | undefined>
-  >(() =>
-    Object.fromEntries(
-      initialUserAccounts.map((user) => [user.id, user.avatar]),
-    ),
+  const { users, getUserById, updateUser, validatePin } = useUsers();
+  const [sessionUser, setAuthenticatedUser] = useState<SessionUser | null>(
+    null,
   );
+  const [participantRecords, setParticipants] =
+    useState<Participant[]>(mockParticipants);
+  const participants = useMemo(
+    () =>
+      participantRecords.map((participant) => {
+        const user = users.find((entry) => entry.id === participant.userId);
+        return participant.status === "active" && user
+          ? { ...participant, userName: user.displayName }
+          : participant;
+      }),
+    [participantRecords, users],
+  );
+  const authenticatedUser = useMemo(() => {
+    const user = users.find(
+      (entry) => entry.id === sessionUser?.userId && entry.status === "active",
+    );
+    return user && sessionUser
+      ? {
+          userId: user.id,
+          userName: user.displayName,
+          systemRole: user.systemRole,
+          hasActiveParticipation: participants.some(
+            (p) => p.userId === user.id && p.status === "active",
+          ),
+        }
+      : null;
+  }, [sessionUser, users, participants]);
 
-  const unlockSession = useCallback((user: SessionUser) => {
-    setAuthenticatedUser(user);
-  }, []);
+  const unlockSession = useCallback(
+    (user: SessionUser) => {
+      const account = getUserById(user.userId);
+      setAuthenticatedUser(
+        account?.status === "active"
+          ? {
+              ...user,
+              userName: account.displayName,
+              systemRole: account.systemRole,
+            }
+          : null,
+      );
+    },
+    [getUserById],
+  );
 
   const lockSession = useCallback(() => {
     setAuthenticatedUser(null);
@@ -100,38 +130,45 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const getUserAvatar = useCallback(
-    (userId: string): UserAvatar | undefined => userAvatars[userId],
-    [userAvatars],
+    (userId: string): UserAvatar | undefined =>
+      users.find((user) => user.id === userId)?.avatar,
+    [users],
   );
 
-  const updateUserAvatar = useCallback((userId: string, avatar: UserAvatar) => {
-    setUserAvatars((current) => ({ ...current, [userId]: avatar }));
-  }, []);
+  const updateUserAvatar = useCallback(
+    (userId: string, avatar: UserAvatar) => {
+      updateUser(userId, { avatar });
+    },
+    [updateUser],
+  );
 
-  const startParticipation = useCallback((userId: string): void => {
-    const registeredUser = mockRegisteredUsers.find((u) => u.userId === userId);
-    if (!registeredUser) return;
+  const startParticipation = useCallback(
+    (userId: string): void => {
+      const registeredUser = getUserById(userId);
+      if (registeredUser?.status !== "active") return;
 
-    // Functional updater guarantees the latest state for duplicate detection.
-    // No external variables are mutated — the updater is pure.
-    setParticipants((prev) => {
-      const alreadyActive = prev.some(
-        (p) => p.userId === userId && p.status === "active",
-      );
-      if (alreadyActive) return prev;
+      // Functional updater guarantees the latest state for duplicate detection.
+      // No external variables are mutated — the updater is pure.
+      setParticipants((prev) => {
+        const alreadyActive = prev.some(
+          (p) => p.userId === userId && p.status === "active",
+        );
+        if (alreadyActive) return prev;
 
-      const newParticipant: Participant = {
-        id: `part-${Date.now()}`,
-        userId,
-        userName: registeredUser.userName,
-        participationType: "support",
-        status: "active",
-        startedAt: getCurrentTime(),
-      };
+        const newParticipant: Participant = {
+          id: `part-${Date.now()}`,
+          userId,
+          userName: registeredUser.displayName,
+          participationType: "support",
+          status: "active",
+          startedAt: getCurrentTime(),
+        };
 
-      return [...prev, newParticipant];
-    });
-  }, []);
+        return [...prev, newParticipant];
+      });
+    },
+    [getUserById],
+  );
 
   const endParticipation = useCallback(
     (
@@ -163,7 +200,12 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       setParticipants((prev) =>
         prev.map((p) =>
           p.userId === userId && p.status === "active"
-            ? { ...p, status: "ended" as const, endedAt }
+            ? {
+                ...p,
+                userName: participation.userName,
+                status: "ended" as const,
+                endedAt,
+              }
             : p,
         ),
       );
@@ -214,10 +256,8 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const registeredUser = mockRegisteredUsers.find(
-        (u) => u.userId === userId,
-      );
-      if (!registeredUser) return;
+      const registeredUser = getUserById(userId);
+      if (registeredUser?.status !== "active") return;
 
       // Functional updater guarantees the latest state for duplicate detection.
       // No external variables are mutated — the updater is pure.
@@ -230,7 +270,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         const newParticipant: Participant = {
           id: `part-${Date.now()}`,
           userId,
-          userName: registeredUser.userName,
+          userName: registeredUser.displayName,
           participationType: "support",
           status: "active",
           startedAt: getCurrentTime(),
@@ -240,10 +280,10 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       });
 
       addActivityEvent(
-        `${registeredUser.userName} se incorporó como participante`,
+        `${registeredUser.displayName} se incorporó como participante`,
       );
     },
-    [authenticatedUser, addActivityEvent],
+    [authenticatedUser, addActivityEvent, getUserById],
   );
 
   const removeParticipant = useCallback(
@@ -286,7 +326,12 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       setParticipants((prev) =>
         prev.map((p) =>
           p.userId === userId && p.status === "active"
-            ? { ...p, status: "ended" as const, endedAt }
+            ? {
+                ...p,
+                userName: participation.userName,
+                status: "ended" as const,
+                endedAt,
+              }
             : p,
         ),
       );
@@ -310,13 +355,16 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       pin: string,
     ): { success: boolean; error?: string } => {
       // Verify target user is registered
-      const toUser = mockRegisteredUsers.find((u) => u.userId === toUserId);
-      if (!toUser) {
-        return { success: false, error: "Usuario destino no encontrado" };
+      const toUser = getUserById(toUserId);
+      if (toUser?.status !== "active") {
+        return {
+          success: false,
+          error: "Usuario destino no encontrado o suspendido",
+        };
       }
 
       // Verify PIN belongs to the RECEIVER (toUserId), not the sender
-      if (toUser.pin !== pin) {
+      if (!validatePin(toUserId, pin)) {
         return { success: false, error: "PIN incorrecto" };
       }
 
@@ -332,7 +380,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       }
 
       // Get sender info for audit
-      const fromUser = mockRegisteredUsers.find((u) => u.userId === fromUserId);
+      const fromUser = getUserById(fromUserId);
 
       // Transfer responsibility
       setParticipants((prev) =>
@@ -347,14 +395,14 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         }),
       );
 
-      const fromUserName = fromUser?.userName || fromUserId;
-      const toUserName = toUser.userName;
+      const fromUserName = fromUser?.displayName || fromUserId;
+      const toUserName = toUser.displayName;
       addActivityEvent(
         `Responsabilidad transferida de ${fromUserName} a ${toUserName}`,
       );
       return { success: true };
     },
-    [participants, addActivityEvent],
+    [participants, addActivityEvent, getUserById, validatePin],
   );
 
   // ── Domain capabilities ──
