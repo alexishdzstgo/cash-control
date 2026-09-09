@@ -30,7 +30,6 @@ export function UserParticipationMenu() {
     updateAuthenticatedUser,
     getActiveParticipants,
     addActivityEvent,
-    getTransferSummary,
     canEndOwnParticipation,
     isCurrentUserResponsible,
   } = useMockSession();
@@ -40,6 +39,7 @@ export function UserParticipationMenu() {
   const [isEnding, setIsEnding] = useState(false);
 
   const {
+    transferSummary,
     showTransferModal,
     selectedTransferUser,
     transferPin,
@@ -91,7 +91,6 @@ export function UserParticipationMenu() {
     (p) => p.userId !== authenticatedUser?.userId,
   );
 
-  const transferSummary = getTransferSummary();
   const selectedParticipant = selectedTransferUser
     ? participants.find((p) => p.userId === selectedTransferUser.userId)
     : null;

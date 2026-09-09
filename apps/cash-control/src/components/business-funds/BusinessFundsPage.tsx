@@ -6,8 +6,8 @@ import { useMockSession } from "@/components/session/MockSessionContext";
 import { AmountField } from "@/components/shared/AmountField";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ModalShell } from "@/components/shared/ModalShell";
+import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
 import { useShift } from "@/components/shifts/ShiftContext";
 import {
   ADMINISTRATIVE_CORRECTION_FUNDS_ERROR,
@@ -81,7 +81,7 @@ export function BusinessFundsPage() {
   const [confirming, setConfirming] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { showSuccess } = useNotification();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isOwner = authenticatedUser?.systemRole === "owner";
@@ -89,14 +89,16 @@ export function BusinessFundsPage() {
   const activeParticipation = authenticatedUser
     ? getActiveParticipation(authenticatedUser.userId)
     : undefined;
-  const canCreateMovement = isOwner || Boolean(activeParticipation);
+  const { currentShift } = useShift();
+  const canCreateMovement =
+    currentShift?.status === "open" &&
+    (isOwner || Boolean(activeParticipation));
   const correctionActor: CorrectionActor = {
     actorUserId: authenticatedUser?.userId ?? "",
     actorUserName: authenticatedUser?.userName ?? "Usuario no disponible",
     actorSystemRole: authenticatedUser?.systemRole,
     actorHasActiveParticipation: Boolean(activeParticipation),
   };
-  const { currentShift } = useShift();
   const canCorrectMovement = (movement: AdministrativeMovement) =>
     Boolean(
       currentShift?.status === "open" &&
@@ -177,7 +179,7 @@ export function BusinessFundsPage() {
   function openCreateForm() {
     if (!canCreateMovement) {
       setFormError(
-        "Activa tu participacion para registrar movimientos de fondos.",
+        "Inicia un turno y activa tu participación para registrar movimientos de fondos.",
       );
       return;
     }
@@ -267,6 +269,7 @@ export function BusinessFundsPage() {
 
   function submitMovement() {
     if (
+      currentShift?.status !== "open" ||
       isSubmitting ||
       !form ||
       !selectedResource ||
@@ -338,7 +341,7 @@ export function BusinessFundsPage() {
     setFormError(null);
     setFormErrors({});
     setIsSubmitting(false);
-    setSuccessMessage(
+    showSuccess(
       form.mode === "create"
         ? "Movimiento registrado correctamente."
         : "Movimiento corregido correctamente.",
@@ -367,7 +370,9 @@ export function BusinessFundsPage() {
             </button>
             {!canCreateMovement && (
               <p className="max-w-xs text-sm font-medium text-amber-700">
-                Activa tu participacion para registrar movimientos de fondos.
+                {!currentShift
+                  ? "Inicia un turno para registrar movimientos de fondos."
+                  : "Activa tu participación para registrar movimientos de fondos."}
               </p>
             )}
           </div>
@@ -583,20 +588,12 @@ export function BusinessFundsPage() {
           setConfirming(false);
           setIsSubmitting(false);
         }}
-        isConfirmDisabled={isSubmitting}
+        isConfirmDisabled={isSubmitting || currentShift?.status !== "open"}
       />
 
       <AdministrativeMovementDetailsModal
         movement={detail}
         onClose={() => setDetail(null)}
-      />
-
-      <SuccessDialog
-        isOpen={successMessage !== null}
-        title="Fondos del negocio"
-        description={successMessage ?? ""}
-        buttonLabel="Continuar"
-        onClose={() => setSuccessMessage(null)}
       />
     </div>
   );
@@ -617,7 +614,8 @@ function validateForm({
   let formError: string | null = null;
 
   if (form.mode === "create" && !canCreateMovement) {
-    formError = "Activa tu participacion para registrar movimientos de fondos.";
+    formError =
+      "Inicia un turno y activa tu participación para registrar movimientos de fondos.";
   }
   if (!isAdministrativeMovementType(form.movementType)) {
     errors.movementType = "Selecciona el tipo de movimiento.";

@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
-import { useReceiptPreferences } from "@/components/receipts/ReceiptPreferencesContext";
-import { ReceiptPreviewDialog } from "@/components/receipts/ReceiptPreviewDialog";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import {
@@ -14,8 +12,9 @@ import {
   ModalSection,
   ModalShell,
 } from "@/components/shared/ModalShell";
+import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { getBankLabel } from "@/config/banks";
 import {
   calculateCommission,
@@ -26,7 +25,6 @@ import { normalizeWithdrawalBankReference } from "@/lib/finance";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
 import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
-import { buildReceiptData } from "@/lib/receipt";
 import type { Operation } from "@/types/operation";
 import {
   initialWithdrawalFormData,
@@ -55,17 +53,13 @@ export function WithdrawalPage() {
   const { operations, registerClientOperation, resetVersion } =
     useBusinessFunds();
   const { authenticatedUser } = useMockSession();
-  const { businessIdentity, preferences } = useReceiptPreferences();
   const [mode, setMode] = useState<WithdrawalMode>("delivered");
-  const [successType, setSuccessType] = useState<WithdrawalMode>("delivered");
   const [formData, setFormData] = useState<WithdrawalFormData>(
     () => initialWithdrawalFormData,
   );
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
-  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
-  const [receiptOperation, setReceiptOperation] = useState<Operation | null>(
-    null,
-  );
+  const { currentShift, isShiftOpen } = useShift();
+  const canOperate = currentShift?.status === "open";
+  const { showSuccess } = useNotification();
   const [operationError, setOperationError] = useState<string | null>(null);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,7 +106,6 @@ export function WithdrawalPage() {
     setFormData(initialWithdrawalFormData);
     setOperationError(null);
     setShowValidationErrors(false);
-    setReceiptOperation(null);
     setIsPendingConfirmationOpen(false);
     setExactDuplicate(null);
     setSimilarWithdrawal(null);
@@ -135,7 +128,7 @@ export function WithdrawalPage() {
   }
 
   function handleRegister({ skipSimilarityCheck = false } = {}) {
-    if (submitLockRef.current) return;
+    if (!isShiftOpen() || submitLockRef.current) return;
 
     const errors = getWithdrawalValidationErrors({
       formData,
@@ -208,7 +201,7 @@ export function WithdrawalPage() {
   }
 
   function registerWithdrawal(status: "entregado" | "pendiente") {
-    if (submitLockRef.current) return;
+    if (!isShiftOpen() || submitLockRef.current) return;
     const isPendingRegistration = status === "pendiente";
     if (
       (!isPendingRegistration && commissionCalculation === null) ||
@@ -305,12 +298,12 @@ export function WithdrawalPage() {
       return;
     }
 
-    setSuccessType(status === "pendiente" ? "pending" : "delivered");
     setIsPendingConfirmationOpen(false);
-    if (status === "entregado") {
-      setReceiptOperation(operation);
-    }
-    setIsSuccessOpen(true);
+    showSuccess(
+      status === "pendiente"
+        ? "Retiro pendiente registrado correctamente."
+        : "Retiro registrado correctamente.",
+    );
     resetForm();
     submitLockRef.current = false;
     setIsSubmitting(false);
@@ -369,6 +362,7 @@ export function WithdrawalPage() {
             commission={commission}
             cashDeliveredToCustomer={cashDeliveredToCustomer}
             hasCommissionRule={commissionCalculation !== null}
+            canOperate={canOperate}
             isSubmitting={isSubmitting}
             errorMessage={operationError}
             onRegister={handleRegister}
@@ -376,35 +370,12 @@ export function WithdrawalPage() {
         </div>
       </div>
 
-      <SuccessDialog
-        isOpen={isSuccessOpen}
-        title={
-          successType === "pending"
-            ? "Retiro pendiente registrado"
-            : "Retiro registrado correctamente"
-        }
-        description={
-          successType === "pending"
-            ? "El retiro quedó pendiente de entrega y ya aparece en Retiros pendientes."
-            : "El banco de recepcion, la caja y la comision se actualizaron con las reglas actuales."
-        }
-        buttonLabel={
-          successType === "pending" ? "Registrar otro retiro" : "Ver ticket"
-        }
-        onClose={() => {
-          setIsSuccessOpen(false);
-          if (successType === "delivered") {
-            setIsReceiptOpen(true);
-          }
-        }}
-      />
-
       <ConfirmDialog
         isOpen={isPendingConfirmationOpen}
         title="Registrar retiro pendiente de entrega"
         description={`Se registrará ${formatCurrency(amount)} con referencia ${formData.bankFolio.trim()}. Todavía no se entregará efectivo y quedará visible en Retiros pendientes.`}
         confirmLabel="Registrar como pendiente"
-        isConfirmDisabled={isSubmitting}
+        isConfirmDisabled={isSubmitting || !canOperate}
         onCancel={() => setIsPendingConfirmationOpen(false)}
         onConfirm={() => registerWithdrawal("pendiente")}
       />
@@ -426,21 +397,6 @@ export function WithdrawalPage() {
           handleRegister({ skipSimilarityCheck: true });
         }}
         isSubmitting={isSubmitting}
-      />
-
-      <ReceiptPreviewDialog
-        isOpen={isReceiptOpen}
-        receiptData={
-          receiptOperation
-            ? buildReceiptData({
-                operation: receiptOperation,
-                deliveredBy,
-              })
-            : null
-        }
-        businessIdentity={businessIdentity}
-        preferences={preferences}
-        onClose={() => setIsReceiptOpen(false)}
       />
     </>
   );

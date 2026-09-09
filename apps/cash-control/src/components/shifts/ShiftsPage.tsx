@@ -113,6 +113,7 @@ export function ShiftsPage() {
     getContextResponsibleUserId,
   } = useMockSession();
   const {
+    transferSummary,
     showTransferModal,
     selectedTransferUser,
     transferPin,
@@ -311,7 +312,7 @@ export function ShiftsPage() {
         <TransferResponsibilityModal
           isEnding={isEnding}
           selectedParticipant={selectedTransferUser}
-          transferSummary={null}
+          transferSummary={transferSummary}
           transferPin={transferPin}
           transferError={transferError}
           onClose={closeTransfer}

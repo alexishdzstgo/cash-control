@@ -10,6 +10,7 @@ let stores = new Map();
 let currentStore;
 let cursor = 0;
 let effects = [];
+let effectCleanups = new Map();
 let dirty = false;
 const react = {
   createContext: (value) => {
@@ -41,9 +42,16 @@ const react = {
   },
   useEffect: (fn, deps) => {
     const index = cursor++;
+    const store = currentStore;
     const previous = currentStore[index];
-    if (!previous || deps.some((dep, i) => !Object.is(dep, previous[i])))
-      effects.push(fn);
+    if (!previous || deps.some((dep, i) => !Object.is(dep, previous[i]))) {
+      effects.push(() => {
+        if (!effectCleanups.has(store)) effectCleanups.set(store, new Map());
+        const cleanups = effectCleanups.get(store);
+        cleanups.get(index)?.();
+        cleanups.set(index, fn());
+      });
+    }
     currentStore[index] = deps;
   },
 };
@@ -52,7 +60,9 @@ Module._load = function (request, parent, isMain) {
   if (request === "react") return react;
   if (request === "lucide-react")
     return new Proxy({}, { get: (_, name) => name });
-  if (request === "next/link") return "Link";
+  if (request === "next/link") return { default: "Link" };
+  if (request === "next/navigation")
+    return { useRouter: () => ({ push: () => {} }) };
   if (request.endsWith("/CashClosingResult"))
     return {
       CashClosingResult: "CashClosingResult",
@@ -130,6 +140,9 @@ const { getOperationCorrectionSnapshot } = require("../src/lib/finance.ts");
 const {
   CashClosingPage,
 } = require("../src/components/cash-closing/CashClosingPage.tsx");
+const {
+  NotificationProvider,
+} = require("../src/components/shared/NotificationProvider.tsx");
 
 let session;
 let shift;
@@ -148,6 +161,7 @@ function render() {
     dirty = false;
     effects = [];
     renderProvider(CommissionRulesProvider);
+    renderProvider(NotificationProvider);
     session = renderProvider(MockSessionProvider);
     shift = renderProvider(ShiftProvider);
     funds = renderProvider(BusinessFundsProvider);
@@ -156,6 +170,9 @@ function render() {
   } while (dirty);
 }
 function reset(open = true) {
+  for (const cleanups of effectCleanups.values())
+    for (const cleanup of cleanups.values()) cleanup?.();
+  effectCleanups = new Map();
   stores = new Map();
   render();
   if (open) {
@@ -698,6 +715,372 @@ function allNodes(node) {
   return [node, ...allNodes(node.props?.children)];
 }
 
+test("UX: no shift disables financial actions while history and forms remain available", () => {
+  reset(false);
+  login("maria-lopez", "María López", "owner");
+  const {
+    QuickActions,
+  } = require("../src/components/dashboard/QuickActions.tsx");
+  const quick = renderComponent(QuickActions);
+  assert.deepEqual(
+    allNodes(quick)
+      .filter((node) => node.type === "Link")
+      .map((node) => node.props.href),
+    ["/history"],
+  );
+  assert.equal(
+    allNodes(quick).filter((node) => node.props?.["aria-disabled"] === "true")
+      .length,
+    3,
+  );
+  const { DepositPage } = require("../src/components/deposits/DepositPage.tsx");
+  const {
+    WithdrawalPage,
+  } = require("../src/components/withdrawals/WithdrawalPage.tsx");
+  for (const [Page, summaryName, formName] of [
+    [DepositPage, "DepositSummary", "DepositForm"],
+    [WithdrawalPage, "WithdrawalSummary", "WithdrawalForm"],
+  ]) {
+    assert.ok(
+      findNode(renderComponent(Page), (node) => node.type?.name === formName),
+    );
+    const summary = findNode(
+      renderComponent(Page),
+      (node) => node.type?.name === summaryName,
+    );
+    const button = findNode(
+      summary.type(summary.props),
+      (node) => node.type === "button",
+    );
+    assert.equal(button.props.disabled, true);
+    summary.props.onRegister();
+    assert.equal(funds.operations.length, 0);
+  }
+  findNode(
+    renderComponent(WithdrawalPage),
+    (node) => node.type === "button" && nodeText(node).includes("sin entregar"),
+  ).props.onClick();
+  const pending = findNode(
+    renderComponent(WithdrawalPage),
+    (node) => node.type?.name === "WithdrawalSummary",
+  );
+  assert.equal(pending.props.mode, "pending");
+  assert.equal(
+    findNode(pending.type(pending.props), (node) => node.type === "button")
+      .props.disabled,
+    true,
+  );
+  const {
+    BusinessFundsPage,
+  } = require("../src/components/business-funds/BusinessFundsPage.tsx");
+  const page = renderComponent(BusinessFundsPage);
+  const header = findNode(page, (node) => node.type?.name === "PageHeader");
+  const newMovement = findNode(
+    header.props.action ?? header.props.actions,
+    (node) => node.type === "button",
+  );
+  assert.equal(newMovement.props.disabled, true);
+  assert.equal(
+    funds.registerClientOperation(operation("blocked")).success,
+    false,
+  );
+});
+
+test("UX: deposit remains clickable for validation and resets with a success notification", () => {
+  reset();
+  addFunds("bank-azteca");
+  const { DepositPage } = require("../src/components/deposits/DepositPage.tsx");
+  const summary = () =>
+    findNode(
+      renderComponent(DepositPage),
+      (node) => node.type?.name === "DepositSummary",
+    );
+  const form = () =>
+    findNode(
+      renderComponent(DepositPage),
+      (node) => node.type?.name === "DepositForm",
+    );
+  const button = findNode(
+    summary().type(summary().props),
+    (node) => node.type === "button",
+  );
+  assert.equal(button.props.disabled, false);
+  assert.match(button.props.className, /btn-primary/);
+  summary().props.onRegister();
+  assert.ok(form().props.errors.amount);
+  form().props.onFormDataChange({
+    ...form().props.formData,
+    amount: "1000",
+    emissionBank: "bank-azteca",
+    destinationAccountLast4: "1234",
+  });
+  summary().props.onRegister();
+  render();
+  assert.equal(funds.operations[0].type, "deposito");
+  assert.equal(form().props.formData.amount, "");
+  assert.equal(
+    stores.get(NotificationProvider)[0].message,
+    "Depósito registrado correctamente.",
+  );
+  assert.equal(
+    findNode(
+      renderComponent(DepositPage),
+      (node) => node.type === "SuccessDialog",
+    ),
+    null,
+  );
+  assert.ok(
+    findNode(
+      renderComponent(DepositPage),
+      (node) => node.type?.name === "PossibleDuplicateDepositDialog",
+    ),
+  );
+});
+
+for (const pending of [false, true])
+  test(`UX: ${pending ? "pending" : "normal"} withdrawal ends in notification without receipt`, () => {
+    reset();
+    addFunds();
+    const {
+      WithdrawalPage,
+    } = require("../src/components/withdrawals/WithdrawalPage.tsx");
+    if (pending)
+      findNode(
+        renderComponent(WithdrawalPage),
+        (node) =>
+          node.type === "button" && nodeText(node).includes("sin entregar"),
+      ).props.onClick();
+    const form = () =>
+      findNode(
+        renderComponent(WithdrawalPage),
+        (node) => node.type?.name === "WithdrawalForm",
+      );
+    const summary = () =>
+      findNode(
+        renderComponent(WithdrawalPage),
+        (node) => node.type?.name === "WithdrawalSummary",
+      );
+    summary().props.onRegister();
+    assert.ok(form().props.errors.amount);
+    form().props.onFormDataChange({
+      ...form().props.formData,
+      bankFolio: "UX-001",
+      amount: "1000",
+      bank: "bank-azteca",
+      receiverName: "Cliente",
+      commissionMode: "cash",
+      pendingReason: "visible_movement_limit",
+    });
+    const button = findNode(
+      summary().type(summary().props),
+      (node) => node.type === "button",
+    );
+    assert.equal(
+      nodeText(button).trim(),
+      pending ? "Registrar como pendiente" : "Registrar retiro",
+    );
+    summary().props.onRegister();
+    if (pending) {
+      assert.equal(funds.operations.length, 0);
+      const confirmation = findNode(
+        renderComponent(WithdrawalPage),
+        (node) => node.type === "ConfirmDialog",
+      );
+      assert.equal(confirmation.props.isOpen, true);
+      confirmation.props.onConfirm();
+    }
+    render();
+    assert.equal(
+      funds.operations[0].status,
+      pending ? "pendiente" : "entregado",
+    );
+    assert.equal(
+      stores.get(NotificationProvider)[0].message,
+      pending
+        ? "Retiro pendiente registrado correctamente."
+        : "Retiro registrado correctamente.",
+    );
+    assert.equal(form().props.formData.amount, "");
+    assert.equal(
+      findNode(
+        renderComponent(WithdrawalPage),
+        (node) =>
+          node.type === "SuccessDialog" ||
+          node.type?.name === "ReceiptPreviewDialog",
+      ),
+      null,
+    );
+    for (const file of [
+      "src/components/receipts/ReceiptPreviewDialog.tsx",
+      "src/components/receipts/ReceiptPreferencesContext.tsx",
+      "src/lib/receipt.ts",
+    ])
+      assert.ok(fs.existsSync(path.resolve(__dirname, "..", file)));
+  });
+
+test("UX: funds retains confirmation then dismisses the form and notifies", () => {
+  reset();
+  const {
+    BusinessFundsPage,
+  } = require("../src/components/business-funds/BusinessFundsPage.tsx");
+  const page = () => renderComponent(BusinessFundsPage);
+  const header = findNode(page(), (node) => node.type?.name === "PageHeader");
+  findNode(
+    header.props.action ?? header.props.actions,
+    (node) => node.type === "button",
+  ).props.onClick();
+  const form = () =>
+    findNode(page(), (node) => node.type?.name === "MovementForm");
+  form().props.onChange({
+    movementType: "income",
+    resourceId: "cash",
+    amount: "200",
+    reasonMode: "custom",
+    explanation: "Fondeo de prueba",
+  });
+  form().props.onSubmit();
+  const confirmation = findNode(
+    page(),
+    (node) => node.type === "ConfirmDialog",
+  );
+  assert.equal(confirmation.props.isOpen, true);
+  assert.equal(funds.movements.length, 0);
+  confirmation.props.onConfirm();
+  render();
+  assert.equal(funds.cash.physicalBalance, 200);
+  assert.equal(
+    stores.get(NotificationProvider)[0].message,
+    "Movimiento registrado correctamente.",
+  );
+  assert.equal(form(), null);
+  assert.equal(
+    findNode(page(), (node) => node.type === "SuccessDialog"),
+    null,
+  );
+});
+
+test("UX: transfer summary uses live balances, old pending obligations and current-shift corrections", () => {
+  reset();
+  addFunds();
+  addFunds("bank-azteca");
+  const firstId = shift.currentShift.id;
+  expectSuccess(
+    act(() =>
+      funds.registerClientOperation({
+        ...operation("carry", "retiro", "pendiente"),
+        amount: 5000,
+        total: 5000,
+        customerCashReceived: 5000,
+        bankMovementAmount: 5000,
+      }),
+    ),
+  );
+  expectSuccess(act(() => shift.closeCurrentShift(closingInput())));
+  expectSuccess(
+    act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+  );
+  const current = {
+    ...operation("today", "deposito"),
+    shiftId: shift.currentShift.id,
+    corrections: [{ shiftId: firstId }, { shiftId: shift.currentShift.id }],
+  };
+  const { buildTransferSummary } = require("../src/lib/transferSummary.ts");
+  const data = buildTransferSummary({
+    currentShift: shift.currentShift,
+    cash: funds.cash,
+    banks: funds.banks,
+    operations: [...funds.operations, current],
+    participants: session.participants,
+    now: new Date("2026-09-08T14:32:00"),
+  });
+  assert.equal(data.shiftFolio, "TUR-000002");
+  assert.equal(data.currentResponsibleName, "María López");
+  assert.equal(data.cashOnHand, funds.cash.physicalBalance);
+  assert.deepEqual(
+    data.bankBalances.map((bank) => bank.balance),
+    funds.banks.map((bank) => bank.realBalance),
+  );
+  assert.deepEqual(data.pendingWithdrawals, { count: 1, total: 5000 });
+  assert.deepEqual(data.pendingDeposits, { count: 0, total: 0 });
+  assert.equal(data.editedOperations, 1);
+  assert.equal(data.operationsInShift, 1);
+  assert.equal("operationsSinceLastTransfer" in data, false);
+  const {
+    useResponsibilityTransfer,
+  } = require("../src/components/participation/useResponsibilityTransfer.ts");
+  const hook = () => renderComponent(useResponsibilityTransfer);
+  hook().openTransfer("juan-perez");
+  assert.equal(hook().transferSummary.cashOnHand, funds.cash.physicalBalance);
+  hook().handlePinChange("0000");
+  hook().handleTransferConfirm();
+  assert.equal(
+    session.getActiveParticipation("maria-lopez").participationType,
+    "responsible",
+  );
+  hook().handlePinChange("1234");
+  hook().handleTransferConfirm();
+  render();
+  assert.equal(
+    session.getActiveParticipation("juan-perez").participationType,
+    "responsible",
+  );
+  assert.equal(
+    session.getActiveParticipation("maria-lopez").participationType,
+    "support",
+  );
+});
+
+test("UX: success notification fades at 2700ms, dismisses at 3000ms and cleans replaced timers", () => {
+  reset(false);
+  const originalSet = global.setTimeout,
+    originalClear = global.clearTimeout;
+  const timers = new Map();
+  let next = 0;
+  global.setTimeout = (fn, ms) => {
+    timers.set(++next, { fn, ms });
+    return next;
+  };
+  global.clearTimeout = (id) => timers.delete(id);
+  try {
+    let provider = renderProvider(NotificationProvider);
+    provider.showSuccess("Primero");
+    render();
+    assert.deepEqual(
+      [...timers.values()].map((timer) => timer.ms),
+      [2700, 3000],
+    );
+    provider = renderProvider(NotificationProvider);
+    provider.showSuccess("Segundo");
+    render();
+    assert.equal(timers.size, 2);
+    const fade = [...timers.values()].find((timer) => timer.ms === 2700);
+    fade.fn();
+    render();
+    assert.equal(stores.get(NotificationProvider)[0].visible, false);
+    [...timers.values()].find((timer) => timer.ms === 3000).fn();
+    render();
+    assert.equal(stores.get(NotificationProvider)[0], null);
+    assert.equal(timers.size, 0);
+    provider.showSuccess("Desmontar");
+    render();
+    for (const cleanup of effectCleanups
+      .get(stores.get(NotificationProvider))
+      .values())
+      cleanup?.();
+    assert.equal(timers.size, 0);
+    assert.ok(
+      findNode(
+        renderComponent(NotificationProvider),
+        (node) => node.props?.["aria-live"] === "polite",
+      ),
+    );
+  } finally {
+    global.setTimeout = originalSet;
+    global.clearTimeout = originalClear;
+    reset(false);
+  }
+});
+
 function openSharedDelivery(source, operation) {
   const {
     PendingWithdrawalsPage,
@@ -1158,7 +1541,8 @@ test("C-F: history and funds UI hide closed corrections for every actor but reta
         fundsPage,
         (node) =>
           node.type?.name === "MovementRow" &&
-          node.props.movement.id === oldMovement.id,
+          node.props.movement.id === oldMovement.id &&
+          node.props.movement.shiftId === oldMovement.shiftId,
       ).props.canEdit,
       false,
     );
@@ -1167,7 +1551,8 @@ test("C-F: history and funds UI hide closed corrections for every actor but reta
         fundsPage,
         (node) =>
           node.type?.name === "MovementRow" &&
-          node.props.movement.id === currentMovement.id,
+          node.props.movement.id === currentMovement.id &&
+          node.props.movement.shiftId === currentMovement.shiftId,
       ).props.canEdit,
       expected,
     );

@@ -4,21 +4,7 @@ import { ModalShell } from "@/components/shared/ModalShell";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 
-interface BankBalance {
-  bank: string;
-  account: string;
-  balance: number;
-}
-
-interface TransferSummary {
-  transferTime: string;
-  cashOnHand: number;
-  bankBalances: BankBalance[];
-  pendingWithdrawals: { count: number; total: number };
-  pendingDeposits: { count: number; total: number };
-  editedOperations: number;
-  operationsSinceLastTransfer: number;
-}
+import type { TransferSummary } from "@/lib/transferSummary";
 
 interface TransferResponsibilityModalProps {
   isEnding: boolean;
@@ -80,9 +66,15 @@ export function TransferResponsibilityModal({
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-slate-600">Turno:</span>
+                    <span className="font-medium text-slate-900">
+                      {transferSummary.shiftFolio}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-slate-600">Responsable actual:</span>
                     <span className="font-medium text-slate-900">
-                      {transferSummary.transferTime}
+                      {transferSummary.currentResponsibleName}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -116,12 +108,10 @@ export function TransferResponsibilityModal({
                 <div className="space-y-2">
                   {transferSummary.bankBalances.map((bank) => (
                     <div
-                      key={`${bank.bank}-${bank.account}`}
+                      key={bank.bankId}
                       className="flex justify-between text-sm"
                     >
-                      <span className="text-slate-600">
-                        {bank.bank} {bank.account}
-                      </span>
+                      <span className="text-slate-600">{bank.bank}</span>
                       <span className="font-medium text-slate-900">
                         {formatCurrency(bank.balance)}
                       </span>
@@ -162,7 +152,7 @@ export function TransferResponsibilityModal({
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-slate-600">
-                      Operaciones editadas:
+                      Operaciones corregidas:
                     </span>
                     <span className="font-medium text-slate-900">
                       {transferSummary.editedOperations}
@@ -170,10 +160,10 @@ export function TransferResponsibilityModal({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600">
-                      Operaciones desde última transferencia:
+                      Operaciones registradas en el turno:
                     </span>
                     <span className="font-medium text-slate-900">
-                      {transferSummary.operationsSinceLastTransfer}
+                      {transferSummary.operationsInShift}
                     </span>
                   </div>
                 </div>

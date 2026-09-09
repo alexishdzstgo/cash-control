@@ -22,16 +22,6 @@ export interface SessionUser {
   hasActiveParticipation: boolean;
 }
 
-export interface TransferSummary {
-  cashOnHand: number;
-  bankBalances: Array<{ bank: string; account: string; balance: number }>;
-  pendingWithdrawals: { count: number; total: number };
-  pendingDeposits: { count: number; total: number };
-  editedOperations: number;
-  operationsSinceLastTransfer: number;
-  transferTime: string;
-}
-
 interface MockSessionContextValue {
   authenticatedUser: SessionUser | null;
   participants: Participant[];
@@ -61,15 +51,6 @@ interface MockSessionContextValue {
     error?: string;
   };
   addActivityEvent: (description: string) => void;
-  getTransferSummary: () => {
-    cashOnHand: number;
-    bankBalances: Array<{ bank: string; account: string; balance: number }>;
-    pendingWithdrawals: { count: number; total: number };
-    pendingDeposits: { count: number; total: number };
-    editedOperations: number;
-    operationsSinceLastTransfer: number;
-    transferTime: string;
-  };
   // ── Domain capabilities ──
   canAddParticipant: () => boolean;
   canRemoveParticipant: (targetUserId: string) => boolean;
@@ -223,24 +204,6 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   const addActivityEvent = useCallback((description: string) => {
     // Activity events are tracked in a real implementation
     console.log(`Activity: ${description}`);
-  }, []);
-
-  const getTransferSummary = useCallback(() => {
-    return {
-      cashOnHand: 0,
-      bankBalances: [],
-      pendingWithdrawals: {
-        count: 0,
-        total: 0,
-      },
-      pendingDeposits: {
-        count: 0,
-        total: 0,
-      },
-      editedOperations: 0,
-      operationsSinceLastTransfer: 0,
-      transferTime: getCurrentTime(),
-    };
   }, []);
 
   const addParticipant = useCallback(
@@ -469,7 +432,6 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         addParticipant,
         removeParticipant,
         addActivityEvent,
-        getTransferSummary,
         // ── Domain capabilities ──
         canAddParticipant,
         canRemoveParticipant,

@@ -19,6 +19,7 @@ type WithdrawalSummaryProps = {
   commission: number | null;
   cashDeliveredToCustomer: number;
   hasCommissionRule: boolean;
+  canOperate: boolean;
   isSubmitting?: boolean;
   errorMessage?: string | null;
   onRegister: () => void;
@@ -44,6 +45,7 @@ export function WithdrawalSummary({
   commission,
   cashDeliveredToCustomer,
   hasCommissionRule,
+  canOperate,
   isSubmitting = false,
   errorMessage,
   onRegister,
@@ -155,10 +157,15 @@ export function WithdrawalSummary({
           </div>
         )}
 
+        {!canOperate && (
+          <p className="mt-5 text-sm text-slate-500">
+            No hay un turno abierto. Inicia un turno para registrar retiros.
+          </p>
+        )}
         <button
           type="button"
-          aria-disabled={isSubmitting}
-          disabled={isSubmitting}
+          aria-disabled={!canOperate || isSubmitting}
+          disabled={!canOperate || isSubmitting}
           onClick={onRegister}
           className="btn-primary mt-8 w-full px-4 py-3"
         >
@@ -167,13 +174,13 @@ export function WithdrawalSummary({
             ? "Registrando..."
             : isPendingMode
               ? "Registrar como pendiente"
-              : "Registrar retiro y generar ticket"}
+              : "Registrar retiro"}
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
           {isPendingMode
             ? "Quedará visible en Retiros pendientes."
-            : "Despues de registrar, podras revisar e imprimir el comprobante."}
+            : "El retiro quedará registrado en el Historial."}
         </p>
       </div>
     </aside>

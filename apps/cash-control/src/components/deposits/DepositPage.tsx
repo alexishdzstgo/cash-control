@@ -9,8 +9,9 @@ import {
   ModalSection,
   ModalShell,
 } from "@/components/shared/ModalShell";
+import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { SuccessDialog } from "@/components/shared/SuccessDialog";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { getBankLabel } from "@/config/banks";
 import {
   calculateCommission,
@@ -70,7 +71,9 @@ export function DepositPage() {
   const [formData, setFormData] = useState<DepositFormData>(() =>
     buildInitialForm(operations),
   );
-  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const { currentShift, isShiftOpen } = useShift();
+  const canOperate = currentShift?.status === "open";
+  const { showSuccess } = useNotification();
   const [operationError, setOperationError] = useState<string | null>(null);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,7 +134,7 @@ export function DepositPage() {
   }
 
   function registerDeposit({ skipDuplicateCheck = false } = {}) {
-    if (submitLockRef.current) return;
+    if (!isShiftOpen() || submitLockRef.current) return;
 
     if (!isReadyToRegister || commissionCalculation === null) {
       const errors = getDepositValidationErrors({
@@ -215,7 +218,7 @@ export function DepositPage() {
       return;
     }
 
-    setIsSuccessOpen(true);
+    showSuccess("Depósito registrado correctamente.");
     resetForm([operation, ...operations]);
     submitLockRef.current = false;
     setIsSubmitting(false);
@@ -245,21 +248,13 @@ export function DepositPage() {
             amount={amount}
             commission={commission}
             hasCommissionRule={commissionCalculation !== null}
-            isReadyToRegister={isReadyToRegister}
+            canOperate={canOperate}
             isSubmitting={isSubmitting}
             errorMessage={operationError}
             onRegister={handleRegister}
           />
         </div>
       </div>
-
-      <SuccessDialog
-        isOpen={isSuccessOpen}
-        title="Deposito registrado correctamente"
-        description="La caja y el banco de emision se actualizaron con las reglas actuales de comision."
-        buttonLabel="Registrar otro deposito"
-        onClose={() => setIsSuccessOpen(false)}
-      />
 
       <PossibleDuplicateDepositDialog
         operation={possibleDuplicate}

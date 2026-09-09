@@ -12,7 +12,7 @@ type DepositSummaryProps = {
   amount: number;
   commission: number | null;
   hasCommissionRule: boolean;
-  isReadyToRegister: boolean;
+  canOperate: boolean;
   isSubmitting?: boolean;
   errorMessage?: string | null;
   onRegister: () => void;
@@ -24,7 +24,7 @@ export function DepositSummary({
   amount,
   commission,
   hasCommissionRule,
-  isReadyToRegister,
+  canOperate,
   isSubmitting = false,
   errorMessage,
   onRegister,
@@ -110,19 +110,20 @@ export function DepositSummary({
           </div>
         )}
 
+        {!canOperate && (
+          <p className="mt-5 text-sm text-slate-500">
+            No hay un turno abierto. Inicia un turno para registrar depósitos.
+          </p>
+        )}
         <button
           type="button"
-          aria-disabled={!isReadyToRegister || isSubmitting}
-          disabled={isSubmitting}
+          aria-disabled={!canOperate || isSubmitting}
+          disabled={!canOperate || isSubmitting}
           onClick={onRegister}
-          className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition ${
-            isReadyToRegister && !isSubmitting
-              ? "bg-brand-primary text-white hover:bg-brand-primary-hover"
-              : "cursor-not-allowed bg-slate-300 text-slate-600 hover:bg-slate-300"
-          }`}
+          className="btn-primary mt-8 w-full px-4 py-3"
         >
           <CheckCircle2 className="h-5 w-5" />
-          {isSubmitting ? "Registrando..." : "Registrar deposito"}
+          {isSubmitting ? "Registrando..." : "Registrar depósito"}
         </button>
 
         <p className="mt-4 text-center text-sm leading-5 text-slate-500">
