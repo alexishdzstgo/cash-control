@@ -24,7 +24,7 @@ Factories preparados:
 
 - `src/lib/supabase/client.ts`: navegador, clave pública.
 - `src/lib/supabase/server.ts`: cookies de Next.js, cliente por petición.
-- `src/lib/supabase/admin.ts`: `server-only`, service role, sin persistir sesión,
+- `src/lib/supabase/admin.ts`: `server-only`, Secret Key, sin persistir sesión,
   sin cookies de usuarios ni reexportaciones compartidas.
 - `src/proxy.ts` y `src/lib/supabase/proxy.ts`: convención Next.js 16,
   `getClaims()` y propagación de cookies a request/response, conservando las
@@ -35,20 +35,27 @@ Copiar `.env.example` a `.env.local`, ignorado por Git, y completar solo localme
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 No hay clientes creados al importar módulos. Las llamadas explícitas a factories
 sin configuración lanzan errores claros. Solo el proxy hace no-op temporal cuando
 falta URL o clave pública. En Fase 2 exigir configuración y autorización real;
-este no-op NO debe usarse como mecanismo de autenticación. La service role nunca
+este no-op NO debe usarse como mecanismo de autenticación. La Secret Key nunca
 lleva prefijo NEXT_PUBLIC ni se usa desde Client Components.
+
+La Secret Key (`sb_secret_...`) es la clave backend actual de Supabase. Se guarda
+en `SUPABASE_SECRET_KEY` y se usa exclusivamente en código `server-only`.
+Sigue utilizando el rol PostgreSQL `service_role`; por eso los GRANT SQL conservan
+ese nombre. Cambiar la API key de la aplicación no cambia el rol de la base.
 
 ## Esquema y acceso
 
 `0001_identity_and_business.sql` crea `public.businesses`, `public.profiles`,
 `public.business_members` y `private.member_pins`. Los perfiles requieren un
-`auth.users.id` real. Username es único por negocio sin distinguir mayúsculas;
+`auth.users.id` real. `first_name`, `last_name` y `display_name` son NOT NULL y
+exigen `btrim(valor) <> ''`, sin imponer formatos; avatar no cambia.
+Username es único por negocio sin distinguir mayúsculas;
 no se admiten espacios al inicio/final. No existe un negocio global hardcodeado.
 
 RLS y GRANT/REVOKE conceden a authenticated solo SELECT: negocios/membresías
@@ -57,6 +64,21 @@ propietario o a miembros activos de un negocio activo compartido. Se incluyen
 perfiles de compañeros suspendidos para permitir la futura administración de
 Usuarios; un suspendido no gana acceso a compañeros por esa membresía.
 Anon no tiene permisos sobre las tablas. No hay policies de escritura.
+
+`authenticated` tiene SELECT completo sobre negocios y perfiles. En membresías
+solo puede seleccionar `id`, `business_id`, `user_id`, `username`, `role`, `status`,
+`created_at`, `updated_at` y `last_login_at`. Las consultas futuras desde el
+navegador deben enumerar esas columnas: `select('*')` incluye una columna sin
+permiso y será rechazado.
+
+`business_members.internal_notes` es un dato administrativo **Owner-only** y no
+es visible mediante `authenticated`, incluso cuando la membresía tiene rol owner.
+No debe obtenerse directamente desde Client Components. `service_role` conserva
+lectura y escritura sobre todas las columnas de las tablas públicas de identidad.
+En Fase 2, una Server Action / Route Handler autorizado validará la sesión Supabase,
+verificará que `auth.uid()` pertenece al negocio con membresía y negocio activos,
+comprobará `role = owner` y solo entonces usará el cliente administrativo SERVER-ONLY
+para leer/modificar las notas. Ese endpoint no se implementa en esta fase.
 
 Los helpers SECURITY DEFINER viven en `private`, usan `search_path = ''`, tablas
 calificadas y el propietario de migraciones confiable (postgres). Solo los tres
@@ -114,6 +136,9 @@ supabase gen types typescript --local --schema public > src/types/database/datab
 `db reset --local` borra solo la base de desarrollo local: usar una instancia
 local desechable. No ejecutar reset remoto. El test SQL usa una transacción y
 rollback, crea Auth users reales de prueba y no deja registros.
+Incluye verificaciones de permisos por columna (notas denegadas a authenticated,
+columnas permitidas legibles y acceso administrativo de service_role), lectura
+directa de notas rechazada y nombres de perfil vacíos, con espacios o NULL rechazados.
 Los tipos se generarán después de aplicar SQL (ver `src/types/database/README.md`);
 no se fabricó un database.ts ni tipos públicos para secretos.
 
@@ -121,8 +146,8 @@ no se fabricó un database.ts ni tipos públicos para secretos.
 
 - Elegir proyecto, Auth (incluido login por username/email), redirects y primer Owner.
 - Revisar Exposed schemas remoto, propietario de funciones y matriz RLS con SQL real.
-- Confirmar que lectura de internal_notes por miembros activos es aceptable: esta
-  fase sigue el SELECT de membresías solicitado; separar notas si serán solo Owner.
+- Implementar el acceso Owner-only a internal_notes desde servidor con sesión,
+  pertenencia al negocio y rol verificados antes de usar el cliente administrativo.
 - Membresías usan FK sin cascada: eliminar un Auth user con membresía se bloquea;
   privilegiar suspensión y definir después retención/borrado de identidad.
 - No hay trigger automático de perfiles ni API para provisionar PIN todavía.
@@ -131,5 +156,6 @@ no se fabricó un database.ts ni tipos públicos para secretos.
 - Ejecutar migración y tests en Supabase local antes de aplicarlos a un proyecto.
 
 Referencias: [Supabase SSR para Next.js](https://supabase.com/docs/guides/auth/server-side/creating-a-client),
+[API keys](https://supabase.com/docs/guides/getting-started/api-keys),
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [pgcrypto](https://www.postgresql.org/docs/current/pgcrypto.html).

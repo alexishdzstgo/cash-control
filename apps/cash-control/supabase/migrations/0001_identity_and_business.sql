@@ -38,9 +38,9 @@ create table public.businesses (
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  first_name text not null,
-  last_name text not null,
-  display_name text not null,
+  first_name text not null check (btrim(first_name) <> ''),
+  last_name text not null check (btrim(last_name) <> ''),
+  display_name text not null check (btrim(display_name) <> ''),
   avatar jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -199,7 +199,10 @@ alter table public.business_members enable row level security;
 alter table private.member_pins enable row level security;
 
 revoke all on public.businesses, public.profiles, public.business_members from public, anon, authenticated;
-grant select on public.businesses, public.profiles, public.business_members to authenticated;
+grant select on public.businesses, public.profiles to authenticated;
+-- Administrative notes are server-only; RLS still restricts the readable rows.
+grant select (id, business_id, user_id, username, role, status, created_at, updated_at, last_login_at)
+  on public.business_members to authenticated;
 grant select, insert, update, delete on public.businesses, public.profiles, public.business_members to service_role;
 revoke all on private.member_pins from public, anon, authenticated, service_role;
 
