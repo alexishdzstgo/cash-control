@@ -9,6 +9,7 @@ import {
   ModalShell,
 } from "@/components/shared/ModalShell";
 import { useShift } from "@/components/shifts/ShiftContext";
+import { PendingWithdrawalDeliveryDialog } from "@/components/withdrawals/PendingWithdrawalDeliveryDialog";
 import { useOperationsHistory } from "@/hooks/useOperationsHistory";
 import {
   type CorrectionActor,
@@ -41,9 +42,6 @@ export function OperationsHistoryPage() {
     useState<Operation | null>(null);
   const [operationToCorrect, setOperationToCorrect] =
     useState<Operation | null>(null);
-  const [receiverName, setReceiverName] = useState("");
-  const [deliveryError, setDeliveryError] = useState<string | null>(null);
-  const [isDelivering, setIsDelivering] = useState(false);
   const [clarificationReason, setClarificationReason] = useState("");
   const [clarificationNote, setClarificationNote] = useState("");
   const [clarificationReference, setClarificationReference] = useState("");
@@ -57,7 +55,7 @@ export function OperationsHistoryPage() {
   const [isSavingCorrection, setIsSavingCorrection] = useState(false);
   const {
     operations,
-    deliverPendingWithdrawal,
+    canDeliverPendingWithdrawal,
     addOperationClarification,
     correctClientOperation,
   } = useBusinessFunds();
@@ -109,47 +107,6 @@ export function OperationsHistoryPage() {
         : null,
     [operations, selectedOperationId],
   );
-
-  function closeDeliveryDialog() {
-    if (isDelivering) return;
-    setOperationToDeliver(null);
-    setReceiverName("");
-    setDeliveryError(null);
-  }
-
-  function confirmDelivery() {
-    if (!operationToDeliver || isDelivering) return;
-
-    if (receiverName.trim() === "") {
-      setDeliveryError("Captura el nombre de quien recibe.");
-      focusFirstInvalidField({
-        errors: { receiverName: "Captura el nombre de quien recibe." },
-        fieldOrder: ["receiverName"],
-        fieldSelector: {
-          receiverName: "#history-delivery-receiver",
-        },
-      });
-      return;
-    }
-
-    setIsDelivering(true);
-    const result = deliverPendingWithdrawal({
-      operationId: operationToDeliver.id,
-      receiverName,
-      deliveredBy: authenticatedUser?.userName ?? "Usuario no disponible",
-    });
-
-    if (!result.success) {
-      setDeliveryError(result.error ?? "No se pudo confirmar la entrega.");
-      setIsDelivering(false);
-      return;
-    }
-
-    setOperationToDeliver(null);
-    setReceiverName("");
-    setDeliveryError(null);
-    setIsDelivering(false);
-  }
 
   function openClarificationDialog(operation: Operation) {
     setOperationToClarify(operation);
@@ -295,10 +252,9 @@ export function OperationsHistoryPage() {
         canCorrectOperation={canCorrectOperation}
         onCorrectOperation={openCorrectionDialog}
         onAddClarification={openClarificationDialog}
+        canDeliver={canDeliverPendingWithdrawal()}
         onMarkAsDelivered={(operation) => {
-          setOperationToDeliver(operation);
-          setReceiverName("");
-          setDeliveryError(null);
+          if (canDeliverPendingWithdrawal()) setOperationToDeliver(operation);
         }}
       />
 
@@ -344,18 +300,9 @@ export function OperationsHistoryPage() {
         onConfirm={saveClarification}
       />
 
-      <DeliveryDialog
+      <PendingWithdrawalDeliveryDialog
         operation={operationToDeliver}
-        receiverName={receiverName}
-        error={deliveryError}
-        isDelivering={isDelivering}
-        inputId="history-delivery-receiver"
-        onReceiverNameChange={(value) => {
-          setReceiverName(value);
-          setDeliveryError(null);
-        }}
-        onClose={closeDeliveryDialog}
-        onConfirm={confirmDelivery}
+        onClose={() => setOperationToDeliver(null)}
       />
     </div>
   );
@@ -520,105 +467,6 @@ function ClarificationDialog({
             {formError}
           </p>
         )}
-      </div>
-    </ModalShell>
-  );
-}
-
-function DeliveryDialog({
-  operation,
-  receiverName,
-  error,
-  isDelivering,
-  inputId,
-  onReceiverNameChange,
-  onClose,
-  onConfirm,
-}: {
-  operation: Operation | null;
-  receiverName: string;
-  error: string | null;
-  isDelivering: boolean;
-  inputId: string;
-  onReceiverNameChange: (value: string) => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  if (!operation) return null;
-
-  return (
-    <ModalShell
-      title="Confirmar entrega de efectivo"
-      description="Registra la entrega física del efectivo apartado para este retiro."
-      onClose={onClose}
-      maxWidth="lg"
-      zIndex="high"
-      footer={
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onClose}
-            disabled={isDelivering}
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={onConfirm}
-            disabled={isDelivering}
-          >
-            {isDelivering ? "Confirmando..." : "Confirmar entrega"}
-          </button>
-        </div>
-      }
-    >
-      <div className="space-y-4">
-        <ModalSection>
-          <div className="grid gap-3 md:grid-cols-2">
-            <ModalInfoItem
-              label="Folio/referencia"
-              value={operation.bankFolio}
-            />
-            <ModalInfoItem
-              label="Banco"
-              value={operation.bankFrom ?? "Banco no disponible"}
-            />
-            <ModalInfoItem
-              label="Monto"
-              value={formatCurrency(operation.amount)}
-            />
-          </div>
-        </ModalSection>
-
-        <div>
-          <label
-            htmlFor={inputId}
-            className="mb-2 block text-sm font-semibold text-slate-700"
-          >
-            Nombre de quien recibe
-            <span className="ml-1 text-red-500">*</span>
-          </label>
-          <input
-            id={inputId}
-            type="text"
-            value={receiverName}
-            onChange={(event) => onReceiverNameChange(event.target.value)}
-            className="field-input px-4 py-3"
-            placeholder="Nombre completo"
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${inputId}-error` : undefined}
-          />
-          {error && (
-            <p
-              id={`${inputId}-error`}
-              className="mt-2 text-sm font-medium text-red-600"
-            >
-              {error}
-            </p>
-          )}
-        </div>
       </div>
     </ModalShell>
   );

@@ -13,6 +13,7 @@ type OperationsTableProps = {
   canCorrectOperation: (operation: Operation) => boolean;
   onCorrectOperation: (operation: Operation) => void;
   onAddClarification: (operation: Operation) => void;
+  canDeliver: boolean;
   onMarkAsDelivered: (operation: Operation) => void;
 };
 
@@ -27,6 +28,7 @@ export function OperationsTable({
   canCorrectOperation,
   onCorrectOperation,
   onAddClarification,
+  canDeliver,
   onMarkAsDelivered,
 }: OperationsTableProps) {
   return (
@@ -55,6 +57,7 @@ export function OperationsTable({
                 canCorrect={canCorrectOperation(operation)}
                 onCorrectOperation={onCorrectOperation}
                 onAddClarification={onAddClarification}
+                canDeliver={canDeliver}
                 onMarkAsDelivered={onMarkAsDelivered}
               />
             ))}

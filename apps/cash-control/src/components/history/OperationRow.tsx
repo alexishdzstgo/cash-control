@@ -17,6 +17,7 @@ type OperationRowProps = {
   canCorrect: boolean;
   onCorrectOperation: (operation: Operation) => void;
   onAddClarification: (operation: Operation) => void;
+  canDeliver: boolean;
   onMarkAsDelivered: (operation: Operation) => void;
 };
 
@@ -26,6 +27,7 @@ export function OperationRow({
   canCorrect,
   onCorrectOperation,
   onAddClarification,
+  canDeliver,
   onMarkAsDelivered,
 }: OperationRowProps) {
   const clarificationCount = operation.clarifications?.length ?? 0;
@@ -99,7 +101,7 @@ export function OperationRow({
             <Eye aria-hidden="true" className="h-4 w-4" />
           </button>
 
-          {operation.status === "pendiente" && (
+          {canDeliver && operation.status === "pendiente" && (
             <button
               type="button"
               onClick={() => onMarkAsDelivered(operation)}

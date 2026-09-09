@@ -13,6 +13,7 @@ import {
   buildInitialZeroCash,
 } from "@/components/balances/balanceMockData";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
+import { useMockSession } from "@/components/session/MockSessionContext";
 import { useShift } from "@/components/shifts/ShiftContext";
 import { getBankLabel } from "@/config/banks";
 import {
@@ -103,10 +104,10 @@ type BusinessFundsContextValue = {
     operation?: Operation;
     error?: string;
   };
+  canDeliverPendingWithdrawal: () => boolean;
   deliverPendingWithdrawal: (input: {
     operationId: string;
     receiverName: string;
-    deliveredBy: string;
     commissionMode?: WithdrawalCommissionMode;
     commissionAmount?: number;
     customerCashReceived?: number;
@@ -153,6 +154,7 @@ const BusinessFundsContext = createContext<BusinessFundsContextValue | null>(
 
 export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   const { getCurrentShift, resetShifts } = useShift();
+  const { authenticatedUser, participants } = useMockSession();
 
   const { rules: commissionRules } = useCommissionRules();
   const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
@@ -168,6 +170,8 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   const latestBanks = useRef(banks);
 
   latestBanks.current = banks;
+  const deliverySession = useRef({ authenticatedUser, participants });
+  deliverySession.current = { authenticatedUser, participants };
 
   const resources = useMemo(
     () => getAdministrativeResources(cash, banks),
@@ -252,10 +256,22 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     return { success: true, operation };
   }
 
+  function canDeliverPendingWithdrawal() {
+    const { authenticatedUser: actor, participants } = deliverySession.current;
+    return Boolean(
+      getCurrentShift()?.status === "open" &&
+        actor &&
+        participants.some(
+          (participant) =>
+            participant.userId === actor.userId &&
+            participant.status === "active",
+        ),
+    );
+  }
+
   function deliverPendingWithdrawal(input: {
     operationId: string;
     receiverName: string;
-    deliveredBy: string;
     commissionMode?: WithdrawalCommissionMode;
     commissionAmount?: number;
     customerCashReceived?: number;
@@ -265,6 +281,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     const currentShift = getCurrentShift();
     if (!currentShift)
       return { success: false, error: "No hay un turno abierto." };
+    const actor = deliverySession.current.authenticatedUser;
+    if (!canDeliverPendingWithdrawal() || !actor)
+      return {
+        success: false,
+        error: "No tienes una participación activa para entregar este retiro.",
+      };
     const receiverName = input.receiverName.trim();
     if (!receiverName) {
       return {
@@ -330,10 +352,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       customerCashReceived: amountToDeliver,
       bankMovementAmount: input.bankMovementAmount,
       editedAt: new Date().toISOString(),
-      editedBy: input.deliveredBy,
+      editedBy: actor.userName,
       pendingDelivery: {
         deliveredAt: new Date().toISOString(),
-        deliveredBy: input.deliveredBy,
+        deliveredBy: actor.userName,
+        deliveredByUserId: actor.userId,
         shiftId: currentShift.id,
       },
     };
@@ -845,6 +868,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         resetVersion,
         resources,
         registerClientOperation,
+        canDeliverPendingWithdrawal,
         deliverPendingWithdrawal,
         addOperationClarification,
         correctClientOperation,

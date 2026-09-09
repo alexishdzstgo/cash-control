@@ -53,6 +53,15 @@ Module._load = function (request, parent, isMain) {
   if (request === "lucide-react")
     return new Proxy({}, { get: (_, name) => name });
   if (request === "next/link") return "Link";
+  if (request.endsWith("/CashClosingResult"))
+    return {
+      CashClosingResult: "CashClosingResult",
+      closingResultLabels: {
+        balanced: "Cuadrado",
+        surplus: "Sobrante",
+        shortage: "Faltante",
+      },
+    };
   for (const component of [
     "CashClosingConfirmation",
     "CashClosingResult",
@@ -393,7 +402,6 @@ test("delivery by another participant preserves registration and its own event a
       funds.deliverPendingWithdrawal({
         operationId: "RET-P",
         receiverName: "Cliente",
-        deliveredBy: "Juan Pérez",
         commissionMode: "cash",
         commissionAmount: 12,
         customerCashReceived: 1000,
@@ -684,6 +692,274 @@ function nodeText(node) {
   return nodeText(node.props?.children);
 }
 
+function allNodes(node) {
+  if (!node || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap(allNodes);
+  return [node, ...allNodes(node.props?.children)];
+}
+
+function openSharedDelivery(source, operation) {
+  const {
+    PendingWithdrawalsPage,
+  } = require("../src/components/withdrawals/PendingWithdrawalsPage.tsx");
+  const {
+    OperationsHistoryPage,
+  } = require("../src/components/history/OperationsHistoryPage.tsx");
+  const {
+    PendingWithdrawalDeliveryDialog,
+  } = require("../src/components/withdrawals/PendingWithdrawalDeliveryDialog.tsx");
+  const page =
+    source === "history" ? OperationsHistoryPage : PendingWithdrawalsPage;
+  if (source === "history") {
+    findNode(
+      renderComponent(page),
+      (node) => node.type === "OperationsTable",
+    ).props.onMarkAsDelivered(operation);
+  } else {
+    findNode(
+      renderComponent(page),
+      (node) =>
+        node.type === "button" && nodeText(node).includes("Confirmar entrega"),
+    ).props.onClick();
+  }
+  const dialogNode = findNode(
+    renderComponent(page),
+    (node) => node.type === PendingWithdrawalDeliveryDialog,
+  );
+  assert.equal(dialogNode.props.operation.id, operation.id);
+  const flow = dialogNode.type(dialogNode.props);
+  return { page, flow, view: () => renderComponent(flow.type, flow.props) };
+}
+
+for (const source of ["pending", "history"]) {
+  for (const mode of ["cash", "deposited", "deducted"]) {
+    test(`shared delivery from ${source}: ${mode}, unchanged commission and financial effects`, () => {
+      reset();
+      addFunds();
+      const pending = expectSuccess(
+        act(() =>
+          funds.registerClientOperation(
+            operation("shared", "retiro", "pendiente"),
+          ),
+        ),
+      ).operation;
+      const { page, view } = openSharedDelivery(source, pending);
+      let modal = view();
+      const presentation = modal.type(modal.props);
+      assert.equal(presentation.props.title, "Confirmar entrega de efectivo");
+      assert.match(nodeText(presentation), /Persona que recibe/);
+      assert.match(nodeText(presentation), /Forma de cobrar la comisión/);
+      assert.deepEqual(
+        allNodes(presentation)
+          .filter(
+            (node) => node.type === "input" && node.props.type === "radio",
+          )
+          .map((node) => node.props.value),
+        ["deposited", "cash", "deducted"],
+      );
+      modal.props.onConfirm();
+      assert.ok(view().props.errors.receiverName);
+      assert.ok(view().props.errors.commissionMode);
+      assert.equal(funds.operations[0].status, "pendiente");
+      view().props.onReceiverNameChange("Cliente que recibe");
+      view().props.onCommissionModeChange(mode);
+      modal = view();
+      const confirm = modal.props.onConfirm;
+      confirm();
+      confirm();
+      render();
+      const delivered = funds.operations[0];
+      assert.equal(delivered.status, "entregado");
+      assert.equal(delivered.commission, 12);
+      assert.equal(
+        delivered.customerCashReceived,
+        mode === "deducted" ? 988 : 1000,
+      );
+      assert.equal(
+        delivered.bankMovementAmount,
+        mode === "deposited" ? 1012 : 1000,
+      );
+      assert.equal(
+        funds.cash.physicalBalance,
+        mode === "deposited" ? 9000 : 9012,
+      );
+      assert.equal(funds.cash.reservedOperations.length, 0);
+      assert.equal(
+        funds.banks.find((bank) => bank.id === "bank-azteca").realBalance,
+        mode === "deposited" ? 1012 : 1000,
+      );
+      assert.equal(delivered.commissionStatus, "realized");
+      assert.equal(delivered.pendingDelivery.deliveredByUserId, "maria-lopez");
+      assert.equal(delivered.pendingDelivery.deliveredBy, "María López");
+      assert.equal(delivered.pendingDelivery.shiftId, shift.currentShift.id);
+      assert.equal(
+        delivered.appliedCommissionSnapshot.finalCommissionCents,
+        1200,
+      );
+      assert.equal(
+        delivered.appliedCommissionSnapshot.location,
+        mode === "deposited" ? "bank" : "cash",
+      );
+      assert.ok(delivered.appliedCommissionSnapshot.ruleId);
+      assert.ok(delivered.appliedCommissionSnapshot.ruleVersion);
+      assert.ok(
+        Number.isFinite(
+          Date.parse(delivered.appliedCommissionSnapshot.appliedAt),
+        ),
+      );
+      const {
+        PendingWithdrawalDeliveryDialog,
+      } = require("../src/components/withdrawals/PendingWithdrawalDeliveryDialog.tsx");
+      assert.equal(
+        findNode(
+          renderComponent(page),
+          (node) => node.type === PendingWithdrawalDeliveryDialog,
+        ).props.operation,
+        null,
+      );
+    });
+  }
+}
+
+test("F-I: historical pending delivery is hidden without a shift and allowed for another active participant", () => {
+  reset();
+  addFunds();
+  const pending = expectSuccess(
+    act(() =>
+      funds.registerClientOperation({
+        ...operation("cross", "retiro", "pendiente"),
+        amount: 5000,
+        total: 5000,
+        customerCashReceived: 5000,
+        bankMovementAmount: 5000,
+      }),
+    ),
+  ).operation;
+  const originalShiftId = pending.shiftId;
+  expectSuccess(act(() => shift.closeCurrentShift(closingInput())));
+  const {
+    OperationsHistoryPage,
+  } = require("../src/components/history/OperationsHistoryPage.tsx");
+  const {
+    OperationRow,
+  } = require("../src/components/history/OperationRow.tsx");
+  let table = findNode(
+    renderComponent(OperationsHistoryPage),
+    (node) => node.type === "OperationsTable",
+  );
+  assert.equal(table.props.canDeliver, false);
+  assert.equal(
+    findNode(
+      OperationRow({ ...table.props, operation: pending, canCorrect: false }),
+      (node) => node.type === "button" && nodeText(node).includes("Entregar"),
+    ),
+    null,
+  );
+  assert.equal(
+    funds.deliverPendingWithdrawal({
+      operationId: pending.id,
+      receiverName: "Cliente",
+    }).success,
+    false,
+  );
+  expectSuccess(
+    act(() => shift.startShift({ cash: funds.cash, banks: funds.banks })),
+  );
+  login("juan-perez", "Juan Pérez");
+  table = findNode(
+    renderComponent(OperationsHistoryPage),
+    (node) => node.type === "OperationsTable",
+  );
+  assert.equal(table.props.canDeliver, true);
+  assert.equal(table.props.canCorrectOperation(pending), false);
+  const { view } = openSharedDelivery("history", pending);
+  view().props.onReceiverNameChange("Cliente");
+  view().props.onCommissionModeChange("cash");
+  view().props.onConfirm();
+  render();
+  assert.equal(funds.operations[0].shiftId, originalShiftId);
+  assert.equal(
+    funds.operations[0].pendingDelivery.shiftId,
+    shift.currentShift.id,
+  );
+  assert.notEqual(originalShiftId, shift.currentShift.id);
+  assert.equal(
+    funds.operations[0].pendingDelivery.deliveredByUserId,
+    "juan-perez",
+  );
+  assert.equal(funds.operations[0].pendingDelivery.deliveredBy, "Juan Pérez");
+});
+
+test("delivery domain rejects unauthenticated/inactive actors, names and stale authorization", () => {
+  reset();
+  addFunds();
+  expectSuccess(
+    act(() =>
+      funds.registerClientOperation(
+        operation("protected", "retiro", "pendiente"),
+      ),
+    ),
+  );
+  const deliver = funds.deliverPendingWithdrawal;
+  const before = structuredClone({
+    cash: funds.cash,
+    banks: funds.banks,
+    operations: funds.operations,
+  });
+  const input = {
+    operationId: "protected",
+    receiverName: "Cliente",
+    deliveredBy: "María López",
+    deliveredByUserId: "maria-lopez",
+    actorHasActiveParticipation: true,
+  };
+  act(() => session.lockSession());
+  assert.match(deliver(input).error, /No tienes una participación activa/);
+  login("carlos-martinez", "María López", "owner");
+  assert.match(deliver(input).error, /No tienes una participación activa/);
+  login("juan-perez", "Juan Pérez");
+  const { view } = openSharedDelivery("history", funds.operations[0]);
+  view().props.onReceiverNameChange("Cliente");
+  view().props.onCommissionModeChange("cash");
+  const confirm = view().props.onConfirm;
+  act(() => session.endParticipation("juan-perez"));
+  confirm();
+  render();
+  assert.match(
+    view().props.errors.operation,
+    /No tienes una participación activa/,
+  );
+  assert.deepEqual(
+    { cash: funds.cash, banks: funds.banks, operations: funds.operations },
+    before,
+  );
+});
+
+test("J: closing result badges match on desktop and mobile; Closed remains neutral", () => {
+  reset();
+  const { ShiftHistory } = require("../src/components/shifts/ShiftHistory.tsx");
+  const closed = ["balanced", "surplus", "shortage"].map((status, index) => ({
+    ...shift.currentShift,
+    id: String(index),
+    status: "closed",
+    closedAt: new Date().toISOString(),
+    closing: { status },
+  }));
+  const nodes = allNodes(renderComponent(ShiftHistory, { shifts: closed }));
+  for (const [label, variant] of [
+    ["Cuadrado", "success"],
+    ["Sobrante", "info"],
+    ["Faltante", "error"],
+    ["Cerrado", "neutral"],
+  ]) {
+    const badges = nodes.filter(
+      (node) => node.type?.name === "Badge" && nodeText(node) === label,
+    );
+    assert.equal(badges.length, label === "Cerrado" ? 6 : 2);
+    assert.ok(badges.every((node) => node.props.variant === variant));
+  }
+});
+
 test("A-B: reopen with a cash shortage, display negative availability and fund the deficit", () => {
   reset();
   addFunds();
@@ -860,6 +1136,7 @@ test("C-F: history and funds UI hide closed corrections for every actor but reta
       ...props,
       operation: historical,
       canCorrect: props.canCorrectOperation(historical),
+      canDeliver: true,
     });
     assert.ok(
       findNode(
@@ -1267,7 +1544,6 @@ for (const shortage of [false, true]) {
         funds.deliverPendingWithdrawal({
           operationId: "pending",
           receiverName: "Cliente",
-          deliveredBy: "María López",
           commissionMode: "cash",
           commissionAmount: 15,
           customerCashReceived: 5000,

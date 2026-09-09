@@ -38,6 +38,10 @@ Module._load = function (request, parent, isMain) {
       jsxs: (type, props) => ({ type, props }),
     };
   if (request === "react") return react;
+  if (request.includes("session/MockSessionContext"))
+    return {
+      useMockSession: () => ({ authenticatedUser: null, participants: [] }),
+    };
   if (request.includes("CommissionRulesContext"))
     return { useCommissionRules: () => ({ rules: [] }) };
   if (request.includes("shifts/ShiftContext"))
@@ -314,7 +318,11 @@ test("history row exposes correction only to authorized actors and preserves oth
     actor("A", "employee", false),
   ]) {
     const nodes = descendants(
-      OperationRow({ operation, canCorrect: canCorrectRecord(operation, a) }),
+      OperationRow({
+        operation,
+        canDeliver: true,
+        canCorrect: canCorrectRecord(operation, a),
+      }),
     );
     const menu = nodes.find((node) => node.type === "ActionMenu");
     assert.equal(

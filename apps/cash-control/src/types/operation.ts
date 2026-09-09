@@ -89,6 +89,7 @@ export type Operation = {
   pendingDelivery?: {
     deliveredAt: string;
     deliveredBy: string;
+    deliveredByUserId?: string;
     shiftId: string;
   };
 

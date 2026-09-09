@@ -11,6 +11,12 @@ import { formatDateTime } from "@/lib/formatters";
 import { formatShiftDuration } from "@/lib/shifts";
 import type { Shift } from "@/types/shift";
 
+const closingResultVariants = {
+  balanced: "success",
+  surplus: "info",
+  shortage: "error",
+} as const;
+
 export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   return (
@@ -66,9 +72,15 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
                       <Badge variant="neutral">Cerrado</Badge>
                     </td>
                     <td className="py-3">
-                      {shift.closing
-                        ? closingResultLabels[shift.closing.status]
-                        : "Sin corte registrado"}
+                      {shift.closing ? (
+                        <Badge
+                          variant={closingResultVariants[shift.closing.status]}
+                        >
+                          {closingResultLabels[shift.closing.status]}
+                        </Badge>
+                      ) : (
+                        "Sin corte registrado"
+                      )}
                     </td>
                     <td className="py-3">
                       {shift.closing && (
@@ -98,7 +110,11 @@ export function ShiftHistory({ shifts }: { shifts: Shift[] }) {
                 </div>
                 {shift.closing && (
                   <div className="mt-3 flex items-center justify-between gap-2 text-sm">
-                    <span>{closingResultLabels[shift.closing.status]}</span>
+                    <Badge
+                      variant={closingResultVariants[shift.closing.status]}
+                    >
+                      {closingResultLabels[shift.closing.status]}
+                    </Badge>
                     <button
                       type="button"
                       className="btn-secondary"
