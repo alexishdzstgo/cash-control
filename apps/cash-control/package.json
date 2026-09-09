@@ -6,6 +6,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "bootstrap:first-owner": "node --conditions=react-server scripts/bootstrap-first-owner.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

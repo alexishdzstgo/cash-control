@@ -48,7 +48,7 @@ const { updateSession } = require("../src/lib/supabase/proxy.ts");
 const envNames = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SECRET_KEY",
 ];
 async function withEnv(configured, run) {
   const before = envNames.map((name) => process.env[name]);
@@ -57,7 +57,7 @@ async function withEnv(configured, run) {
   if (configured) {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test-public";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "test-server-only";
+    process.env.SUPABASE_SECRET_KEY = "test-server-only";
   }
   try {
     await run();
@@ -79,7 +79,7 @@ test("missing config: proxy passes through; explicit factories fail clearly with
     assert.equal(response.headers.get("location"), null);
     assert.throws(() => browser.createClient(), /NEXT_PUBLIC_SUPABASE/);
     await assert.rejects(server.createClient(), /NEXT_PUBLIC_SUPABASE/);
-    assert.throws(() => admin.createAdminClient(), /SUPABASE_SERVICE_ROLE_KEY/);
+    assert.throws(() => admin.createAdminClient(), /SUPABASE_SECRET_KEY/);
     assert.equal(calls.length, 0);
   });
 });
