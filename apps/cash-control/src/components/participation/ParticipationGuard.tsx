@@ -1,9 +1,10 @@
 "use client";
 
+import { ArrowLeft, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { UserCheck, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { Button } from "@/components/ui/button";
 
 interface ParticipationGuardProps {
   children: React.ReactNode;
@@ -11,14 +12,25 @@ interface ParticipationGuardProps {
 
 export function ParticipationGuard({ children }: ParticipationGuardProps) {
   const router = useRouter();
-  const { authenticatedUser, participants, startParticipation, updateAuthenticatedUser } = useMockSession();
+  const {
+    authenticatedUser,
+    participants,
+    startParticipation,
+    updateAuthenticatedUser,
+  } = useMockSession();
+
+  useEffect(() => {
+    if (!authenticatedUser) {
+      router.replace("/workstation");
+    }
+  }, [authenticatedUser, router]);
 
   if (!authenticatedUser) {
     return null;
   }
 
   const activeParticipation = participants.find(
-    (p) => p.userId === authenticatedUser.userId && p.status === "active"
+    (p) => p.userId === authenticatedUser.userId && p.status === "active",
   );
 
   // If user has active participation, show the protected content
@@ -47,14 +59,12 @@ export function ParticipationGuard({ children }: ParticipationGuardProps) {
           </h2>
 
           <p className="mt-2 text-sm text-slate-600">
-            Para registrar o gestionar operaciones debes iniciar tu participación.
+            Para registrar o gestionar operaciones debes iniciar tu
+            participación.
           </p>
 
           <div className="mt-6 flex w-full flex-col gap-3">
-            <Button
-              onClick={handleStartParticipation}
-              className="w-full gap-2"
-            >
+            <Button onClick={handleStartParticipation} className="w-full gap-2">
               <UserCheck className="h-4 w-4" />
               Iniciar participación
             </Button>

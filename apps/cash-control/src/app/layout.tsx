@@ -22,6 +22,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  robots: { index: false, follow: false },
   title: {
     default: "Control de caja",
     template: "%s | Control de caja",

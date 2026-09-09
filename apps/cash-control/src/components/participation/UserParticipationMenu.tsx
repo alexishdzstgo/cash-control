@@ -3,7 +3,7 @@
 import {
   ChevronDown,
   Circle,
-  LogOut,
+  Lock,
   ShieldCheck,
   UserCheck,
   UserPlus,
@@ -403,8 +403,8 @@ export function UserParticipationMenu() {
               className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
               role="menuitem"
             >
-              <LogOut className="h-4 w-4" />
-              Cerrar sesión
+              <Lock className="h-4 w-4" />
+              Bloquear sesión
             </button>
           </div>
         </div>

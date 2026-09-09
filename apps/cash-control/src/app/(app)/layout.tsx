@@ -1,3 +1,4 @@
+import { SessionGuard } from "@/components/guards/SessionGuard";
 import { AppShell } from "@/components/layout/AppShell";
 
 export default function ApplicationLayout({
@@ -5,5 +6,9 @@ export default function ApplicationLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <SessionGuard>
+      <AppShell>{children}</AppShell>
+    </SessionGuard>
+  );
 }
