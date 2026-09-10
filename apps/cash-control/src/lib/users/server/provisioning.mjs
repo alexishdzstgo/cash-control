@@ -83,8 +83,9 @@ export function validateMemberInput(input) {
 }
 
 /**
- * No default authorization and no public endpoint. Future callers must verify
- * Supabase session/auth.uid(), active membership, business and owner role here.
+ * No default authorization and no public endpoint. Future callers must use
+ * resolveCurrentOperator server-side and authorize its membership/business/owner
+ * role, never a selectedUserId or stale Supabase identity from the browser.
  * The CLI's authority comes from its operator-held backend Secret Key.
  * @param {MemberInput} rawInput @param {ServerAccess} access
  */

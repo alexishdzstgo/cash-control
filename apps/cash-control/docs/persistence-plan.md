@@ -5,9 +5,10 @@
 1. **Infraestructura + identidad:** clientes Supabase, proxy, negocios, perfiles,
    membresías, permisos de lectura y PIN privados. Completada y aplicada al cloud.
 2. **Fase 2A — identidades Auth y aprovisionamiento backend:** creación de Auth users,
-   perfiles/membresías/PIN y bootstrap del primer Owner. Preparada, pendiente de aplicar 0002.
-   **Fase 2B — integración Auth con UX/sesión:** login, autorización del actor real
-   y diseño explícito del cambio de operador/estación.
+   perfiles/membresías/PIN y bootstrap del primer Owner. 0002 aplicada al cloud.
+   **Fase 2B.1 — sesiones de estación y operador:** foundation server-only preparada
+   en 0003, pendiente de aplicación separada. **Fase 2B.2:** integración con cookies
+   y UX, sin sustituir todavía el piloto en esta entrega.
 3. **Turnos + participantes:** persistir el ciclo operativo y participantes.
 4. **Caja + bancos + reservas:** recursos y obligaciones por negocio.
 5. **Operaciones financieras:** registro transaccional de depósitos/retiros.
@@ -22,8 +23,9 @@ UsersContext, MockSessionContext, ShiftContext y BusinessFundsContext siguen
 in-memory. Sus datos, PIN, pantallas y cálculos no cambian. Ninguna tabla financiera
 se crea. Según el estado remoto comunicado, `0001_identity_and_business.sql`
 ya se aplicó al cloud con nombre registrado `identity_and_business`. No se modifica,
-renombra ni reaplica desde Codex. Los cambios nuevos van en `0002_auth_provisioning.sql`.
-En este parche no se ejecutaron mutaciones Admin ni migraciones remotas.
+renombra ni reaplica desde Codex. También se reporta aplicada `0002_auth_provisioning.sql`.
+Ambas son inmutables; los cambios nuevos van en `0003_workstation_sessions.sql`.
+En este parche no se ejecutaron mutaciones Admin, bootstrap ni migraciones remotas.
 
 Factories preparados:
 
@@ -80,9 +82,9 @@ permiso y será rechazado.
 es visible mediante `authenticated`, incluso cuando la membresía tiene rol owner.
 No debe obtenerse directamente desde Client Components. `service_role` conserva
 lectura y escritura sobre todas las columnas de las tablas públicas de identidad.
-En Fase 2, una Server Action / Route Handler autorizado validará la sesión Supabase,
-verificará que `auth.uid()` pertenece al negocio con membresía y negocio activos,
-comprobará `role = owner` y solo entonces usará el cliente administrativo SERVER-ONLY
+En la integración futura, una Server Action / Route Handler autorizado resolverá
+la operator session, verificará la pertenencia de su userId al negocio con membresía
+y negocio activos, comprobará `role = owner` y solo entonces usará el cliente administrativo SERVER-ONLY
 para leer/modificar las notas. Ese endpoint no se implementa en esta fase.
 
 Los helpers SECURITY DEFINER viven en `private`, usan `search_path = ''`, tablas
@@ -112,8 +114,8 @@ suspendidos se rechazan. Los helpers PIN solo se conceden a service_role; no hay
 acceso directo de esa role a member_pins. Fase 2A añade RPC administrativos públicos
 solo para service_role, sin exponer private ni la verificación de PIN al navegador.
 
-Antes de Fase 2B diseñar un endpoint de verificación que valide auth.uid(), negocio,
-actor y destinatario antes de llamar al helper privado. La verificación debe
+En Fase 2B.1 el servicio valida workstation, negocio y activación del destinatario
+antes de llamar al wrapper administrativo de PIN. La verificación debe
 confirmar su transacción incluso ante PIN incorrecto: un rollback posterior
 anularía el contador. No registrar PIN en logs. La creación/rotación del hash
 usa las primitivas administrativas de 0002; su futura exposición a la UI requiere
@@ -140,7 +142,7 @@ RLS, grants por columna de internal_notes, tablas financieras y esquema expuesto
 `server-only`, validación y callback `authorize` obligatorio antes de consultar o
 crear identidades. El callback debe proceder de código confiable del servidor;
 no es un booleano ni identidad aportados por el navegador. La integración futura
-deberá validar sesión Supabase, auth.uid(), pertenencia activa, negocio activo y
+deberá usar resolveCurrentOperator, validar pertenencia activa, negocio activo y
 rol owner. No hay Route Handler ni Server Action expuesta en esta fase.
 
 Se genera UUID v4 y `member-<uuid>@example.com`; Auth Admin recibe ese mismo id,
@@ -169,8 +171,9 @@ de identidades preexistentes. Las compensaciones no equivalen a atomicidad entre
 
 ## Bootstrap del primer Owner (ejecución manual posterior)
 
-Aplicar y revisar 0002 separadamente antes de ejecutar el bootstrap. Codex solo
-prepara archivos: no ejecutó este script con credenciales ni creó usuarios cloud.
+0002 ya fue aplicada, según el estado cloud comunicado. El bootstrap se conserva
+como herramienta manual; no se ejecuta como parte de Fase 2B.1. Codex no lo ejecutó
+con credenciales ni creó usuarios cloud.
 Configurar en el entorno de una terminal confiable, sin secretos en Git, argumentos
 de línea de comandos, logs o historial de comandos:
 
@@ -211,21 +214,112 @@ que se compensa. Un fallo de compensación requiere resolver el UUID reportado a
 de reintentar. Un negocio existente nunca se elimina. stdout solo muestra IDs y
 username; los errores controlados no imprimen contraseña, PIN, email interno o notas.
 
-## Separación de sesión: Fase 2B/3
+## Sesiones de estación y operador: Fase 2B.1
 
 **PIN-only visual switch ≠ Supabase Auth identity switch.** Seleccionar Pedro
 en Workstation mientras Auth sigue autenticado como María no cambia auth.uid().
-Por eso selectedUserId no puede considerarse actor confiable. Workstation,
-MockSessionContext, SessionGuard y los participantes/turnos siguen siendo mock.
-La sesión real de operador/estación, logout, login y autorización desde la UI se
-diseñarán explícitamente en Fase 2B/3 antes de integrar estas identidades.
+Por eso selectedUserId no puede considerarse actor confiable. La arquitectura es:
+**Supabase Auth identity → workstation activation → operator session**.
+Auth comprueba la contraseña; una activación recuerda ese hecho durante la vida
+de una estación. La operator session validada SERVER-SIDE identifica al operador
+actual. No representa participación en turno. Workstation, MockSessionContext,
+SessionGuard, UsersContext, turnos y datos financieros siguen siendo mock.
+
+`0003_workstation_sessions.sql` crea exclusivamente:
+
+- `private.workstation_sessions`: negocio, miembro creador, SHA-256 del token,
+  creación, expiración, last_seen_at y revoked_at.
+- `private.workstation_member_activations`: PK estación/miembro y authenticated_at.
+- `private.operator_sessions`: estación, miembro, SHA-256, creación, expiración y
+  revoked_at. Su FK compuesta exige una activación de ese miembro en esa estación.
+
+RLS habilitada sin policies públicas; se revocan permisos directos incluso de
+service_role. `private` sigue fuera del Data API (`schemas = ["public"]`).
+Las nueve RPC de 0003 son SECURITY DEFINER, `search_path = ''`, EXECUTE exclusivo
+para service_role (revocado a PUBLIC, anon y authenticated):
+
+- `admin_create_workstation_session`: verifica negocio/miembro activos y pertenencia,
+  crea estación y activa automáticamente al creador, después de la prueba de contraseña.
+- `admin_activate_workstation_member`: activa otro miembro del mismo negocio
+  idempotentemente tras prueba de contraseña en backend.
+- `admin_issue_operator_session`: exige estación válida y activación/membresía
+  activas. Revoca el operador anterior e inserta el nuevo en la misma transacción.
+- `admin_resolve_workstation_session`: solo devuelve estación/negocio/slug/expiración;
+  actualiza last_seen_at sin extender TTL ni implementar inactividad.
+- `admin_resolve_workstation_member`: comprueba activación y pertenencia antes del PIN,
+  devolviendo únicamente la identidad segura; no consulta private desde PostgREST.
+- `admin_resolve_operator_session`: resuelve actor y expiraciones únicamente si
+  operador, estación, negocio y miembro siguen válidos. No devuelve secretos/notas.
+- `admin_verify_member_pin`: wrapper de private.verify_member_pin que devuelve boolean.
+- `admin_revoke_operator_session`: solo revoca ese operador mediante revoked_at.
+- `admin_revoke_workstation_session`: revoca estación y todos sus operadores.
+
+Emisión, activación y cierre se serializan con un lock de la fila workstation.
+Un índice único parcial permite un solo operador no revocado por estación.
+Un cambio de operador invalida el token anterior, incluso si otra pestaña lo conserva.
+No se borran físicamente las sesiones ni se modifican turnos/participaciones.
+
+Los módulos `src/lib/workstation/server/*.mjs` usan server-only y @ts-check:
+
+- `authenticateMemberPassword`: resuelve businessSlug/username con las tablas reales
+  y admin_find_member_by_username, exige membresía activa, obtiene el email interno
+  mediante Auth Admin y verifica contraseña en un cliente NUEVO con publishable key.
+  Comprueba que user.id devuelto coincide con el user_id de la membresía. Ese cliente
+  no persiste sesión, no refresca tokens, no usa cookies/localStorage y no detecta
+  sesiones en URLs. Ejecuta signOut(scope: local) para descartar la sesión transitoria
+  sin cerrar otras sesiones del usuario. No copia ni devuelve access/refresh tokens.
+- `startWorkstationWithPassword`: autentica, genera tokens separados de estación y
+  operador, envía solo sus hashes y entrega identidad, tokens originales y expiraciones
+  exclusivamente al caller de servidor para las futuras cookies.
+- `activateMemberWithPassword`: resuelve primero la estación; el slug/negocio procede
+  de ella, nunca de un businessId del navegador. Autentica, activa y emite operador.
+- `unlockOperatorWithPin`: resuelve estación y miembro activado antes del PIN. La
+  verificación es una RPC separada: `false` confirma intentos/bloqueo y no emite token.
+  El memberId seleccionado se convierte en actor solo tras verificar todos los pasos.
+- `resolveCurrentOperator`: requiere tokens de estación y operador coincidentes;
+  devuelve identidad/IDs de sesión/expiraciones o null si no son válidos. Las fallas
+  de infraestructura se distinguen mediante errores controlados, sin detalles SDK.
+- `lockCurrentOperator` y `closeWorkstation`: revocaciones idempotentes por hash.
+
+Los tokens son `randomBytes(32).toString('base64url')`, canónicos, independientes
+y generados en servidor. Solo `SHA-256(token)` hexadecimal se envía a las RPC/DB.
+No se añade APP_SESSION_SECRET. No hay almacenamiento multiusuario de tokens Auth,
+cookies conectadas, Server Actions públicas ni cambios en la UI.
+
+TTL absoluto centralizado en tokens.mjs: estación **24 h máximo**, operador **12 h
+máximo**, limitado además por la expiración de la estación. SQL valida futuro y
+límites máximos, incluidas constraints de tabla. Se requieren relojes del backend
+y DB sincronizados. **No hay inactivity timeout**, renovación deslizante ni auto-lock
+en el piloto. Estos TTL pertenecen solo a la nueva foundation, aún desconectada.
+
+Cookies futuras: `cc_workstation` y `cc_operator`, HttpOnly=true,
+Secure=production, SameSite=Lax, Path=/. Solo se centralizan constantes, sin escribirlas.
+Los resultados con tokens crudos son handoffs internos de servidor: no serializarlos
+en responses, Client Components o logs. En 2B.2 el caller deberá colocar las cookies,
+limpiarlas al revocar y proteger los endpoints de mutación frente a CSRF.
+
+Si se pierde la respuesta de emisión, se intenta revocar el token no entregado;
+si falla un inicio, también se revoca la estación nueva. No hay reintentos ciegos
+de emisión. Un error de revocación no se reporta como éxito; se informa un código
+controlado sin token/hash/password/PIN/email. La activación puede conservarse cuando
+su contraseña fue válida pero falló la emisión posterior. Las RPC con service_role
+son primitivas confiables: nunca concederlas al navegador ni invocarlas desde un
+endpoint sin estas comprobaciones.
+
+Las futuras mutaciones financieras obtendrán **actor_user_id de
+resolveCurrentOperator().userId**, nunca de un payload o selectedUserId. Deben
+autorizar rol/negocio y revalidar vigencia dentro de su transacción para evitar
+una carrera entre resolución y revocación. La RLS anterior basada en auth.uid()
+permanece como protección de las lecturas authenticated; no representa el operador
+de estas escrituras backend con service_role.
 
 ## Reglas para las fases financieras
 
 - Dinero como `bigint` en **CENTAVOS**, sin float para fórmulas críticas en DB.
 - Mutaciones financieras futuras mediante transacciones PostgreSQL.
 - Todas las entidades operativas tendrán `business_id` y aislamiento por negocio.
-- `auth.uid()` será la identidad de seguridad; no confiar en IDs/roles del cliente.
+- El actor operativo será userId de resolveCurrentOperator; no confiar en IDs/roles
+  del cliente ni asumir que un cambio visual cambia auth.uid().
 - Mantener las fórmulas existentes; validar equivalencia antes de migrar módulos.
 
 ## Validación local y tipos
@@ -239,6 +333,7 @@ supabase db reset --local
 supabase db lint --local --level warning
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/identity_and_business.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/auth_provisioning.sql
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/workstation_sessions.sql
 supabase gen types typescript --local --schema public > src/types/database/database.types.ts
 ```
 
@@ -255,15 +350,16 @@ El test auth_provisioning usa transaction + rollback y fixtures auth.users cread
 solo por postgres en una base de test. Cubre permisos, aprovisionamiento, PIN,
 duplicados, rollback de inserciones parciales y rotación con reinicio de bloqueo.
 No autoriza insertar auth.users manualmente desde la aplicación.
-Sin Supabase local disponible, ambas suites SQL se revisan estáticamente; no se
+Sin Supabase local disponible, las suites SQL se revisan estáticamente; no se
 presentan como pruebas ejecutadas en PostgreSQL. Las pruebas Node con clientes
 simulados se ejecutan por separado:
 
 ```sh
 node --conditions=react-server --test tests/auth-provisioning.mjs
+node --conditions=react-server --test tests/workstation-sessions.mjs
 ```
 
-Validación de este parche (2026-09-09): Node v22.20.0, `npx tsc --noEmit`, Biome
+Validación histórica de Fase 2A (2026-09-09): Node v22.20.0, `npx tsc --noEmit`, Biome
 sobre los siete archivos JS/config soportados modificados y `npm run build`
 correctos. Pasaron 72 pruebas existentes (3 infraestructura, 46 turnos, 12
 correcciones, 11 corte) y 10 pruebas nuevas del backend con cliente simulado.
@@ -272,15 +368,27 @@ existente en un proceso separado por sus mocks de módulos. Biome no analiza SQL
 Markdown ni dotenv. El bootstrap se comprobó únicamente con entrada obligatoria
 vacía: abortó antes de la red. No se ejecutó con credenciales completas.
 
-**No se ejecutaron 0002 ni las suites SQL contra PostgreSQL/Supabase real.**
+**Codex no ejecutó 0002 ni las suites SQL contra PostgreSQL/Supabase real.**
 No se detectaron CLI/psql ni una instancia escuchando en el puerto local 54322.
 La revisión SQL fue estática. Tampoco se creó un Auth user remoto ni se aplicó
 migración cloud. El build conserva las rutas del piloto y su proxy.
 
-## Revisión antes de Fase 2B
+Validación de Fase 2B.1 (2026-09-09): `npx tsc --noEmit`, Biome sobre archivos
+soportados modificados y `npm run build` correctos con Node v22.20.0. Pasaron
+**82 pruebas Node existentes y 17 nuevas (99 en total)**. Los clientes nuevos se
+probaron con simulaciones, sin llamadas a Supabase cloud. Se cubren contraseña,
+identidad Auth coincidente, activación, PIN, hashes, TTL, revocación, separación de
+clientes y ausencia de secretos en resultados/errores. La suite SQL de workstation
+usa transaction + rollback para permisos, activaciones, actor, expiraciones,
+revocaciones y lockout de PIN. **0003 y las pruebas SQL solo tuvieron revisión
+estática: no se ejecutaron en PostgreSQL/Supabase.** No había CLI/psql ni instancia
+local disponible en el puerto configurado. No se ejecutó bootstrap ni se crearon
+usuarios o datos cloud. 0001/0002 y el prototipo operativo permanecen intactos.
 
-- Revisar/aplicar 0002 separadamente y ejecutar el bootstrap con credenciales propias.
-- Definir login por username/email, redirects y sesión real de operador.
+## Revisión antes de Fase 2B.2
+
+- Revisar/aplicar 0003 separadamente; ejecutar la suite SQL en una base de prueba.
+- Integrar cookies y UX de acceso/bloqueo con estos servicios sin confiar en actor del cliente.
 - Revisar Exposed schemas remoto, propietario de funciones y matriz RLS con SQL real.
 - Implementar el acceso Owner-only a internal_notes desde servidor con sesión,
   pertenencia al negocio y rol verificados antes de usar el cliente administrativo.
@@ -294,5 +402,7 @@ migración cloud. El build conserva las rutas del piloto y su proxy.
 Referencias: [Supabase SSR para Next.js](https://supabase.com/docs/guides/auth/server-side/creating-a-client),
 [API keys](https://supabase.com/docs/guides/getting-started/api-keys),
 [Auth Admin createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser),
+[signInWithPassword](https://supabase.com/docs/reference/javascript/auth-signinwithpassword),
+[signOut](https://supabase.com/docs/reference/javascript/auth-signout),
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [pgcrypto](https://www.postgresql.org/docs/current/pgcrypto.html).
