@@ -7,9 +7,8 @@
 2. **Fase 2A — identidades Auth y aprovisionamiento backend:** creación de Auth users,
    perfiles/membresías/PIN y bootstrap del primer Owner. 0002 aplicada al cloud.
    **Fase 2B.1 — sesiones de estación y operador:** foundation server-only preparada
-   en 0003 y 0003 aplicada al cloud. 0004 queda preparada localmente para cubrir
-   las FK, pendiente de aplicación cloud. **Fase 2B.2:** integración con cookies y
-   UX, sin sustituir todavía el piloto en esta entrega.
+   en 0003 y 0003/0004 aplicadas al cloud. **Fase 2B.2:** integración con cookies
+   y UX, sin sustituir todavía el piloto en esta entrega.
 3. **Turnos + participantes:** persistir el ciclo operativo y participantes.
 4. **Caja + bancos + reservas:** recursos y obligaciones por negocio.
 5. **Operaciones financieras:** registro transaccional de depósitos/retiros.
@@ -26,8 +25,8 @@ se crea. Según el estado remoto comunicado, `0001_identity_and_business.sql`
 ya se aplicó al cloud con nombre registrado `identity_and_business`. No se modifica,
 renombra ni reaplica desde Codex. También se reporta aplicada `0002_auth_provisioning.sql`
 y `0003_workstation_sessions.sql`. Las tres son inmutables; este parche solo prepara
-`0004_workstation_fk_indexes.sql` y no la aplica al cloud. No se ejecutaron mutaciones
-Admin, bootstrap ni cambios remotos.
+`0004_workstation_fk_indexes.sql` ya está aplicada al cloud. No se ejecutaron
+mutaciones Admin, bootstrap ni cambios remotos durante esta fase.
 
 Factories preparados:
 
@@ -292,13 +291,24 @@ TTL absoluto centralizado en tokens.mjs: estación **24 h máximo**, operador **
 máximo**, limitado además por la expiración de la estación. SQL valida futuro y
 límites máximos, incluidas constraints de tabla. Se requieren relojes del backend
 y DB sincronizados. **No hay inactivity timeout**, renovación deslizante ni auto-lock
-en el piloto. Estos TTL pertenecen solo a la nueva foundation, aún desconectada.
+en el piloto. Estos TTL pertenecen solo a la nueva foundation.
 
-Cookies futuras: `cc_workstation` y `cc_operator`, HttpOnly=true,
-Secure=production, SameSite=Lax, Path=/. Solo se centralizan constantes, sin escribirlas.
-Los resultados con tokens crudos son handoffs internos de servidor: no serializarlos
-en responses, Client Components o logs. En 2B.2 el caller deberá colocar las cookies,
-limpiarlas al revocar y proteger los endpoints de mutación frente a CSRF.
+### Fase 2B.2-A: sesión real aislada en Workstation
+
+La integración inicial usa Route Handlers server-only bajo `/api/workstation` y
+las cookies opacas `cc_workstation` y `cc_operator`: HttpOnly=true,
+Secure=true en producción, Secure=false en desarrollo, SameSite=Lax y Path=/,
+sin Domain manual. Los tokens nunca se serializan en respuestas, Client Components,
+logs, localStorage, sessionStorage o URLs. `resolveCurrentOperator` recibe ambos
+tokens únicamente desde las cookies del servidor y solo expone una identidad segura.
+
+Las mutaciones validan `Origin` explícitamente. En producción se compara con
+`APP_ORIGIN`; en desarrollo, sin esa variable, solo se aceptan localhost/127.0.0.1
+en los puertos locales de Next.js. Origin ausente o externo se rechaza. La UI real
+vive únicamente en `/workstation` mediante `RealWorkstationSessionProvider`; el
+`MockSessionContext`, los guards globales y todo el piloto financiero siguen intactos
+e in-memory. Lock conserva la estación y elimina solo el operador; Close revoca la
+estación y elimina ambas cookies.
 
 Si se pierde la respuesta de emisión, se intenta revocar el token no entregado;
 si falla un inicio, también se revoca la estación nueva. No hay reintentos ciegos

@@ -7,7 +7,7 @@ export const OPERATOR_TTL_MS = 12 * 60 * 60 * 1000;
 export const WORKSTATION_COOKIE_NAME = "cc_workstation";
 export const OPERATOR_COOKIE_NAME = "cc_operator";
 
-// Constants only. No cookies are read/written until Phase 2B.2.
+// Cookie defaults are kept for compatibility; cookies.mjs owns actual reads/writes.
 export const SESSION_COOKIE_OPTIONS = Object.freeze({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",

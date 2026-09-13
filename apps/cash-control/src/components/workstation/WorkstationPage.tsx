@@ -14,6 +14,8 @@ import { useMockSession } from "@/components/session/MockSessionContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { useUsers } from "@/components/users/UsersContext";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
+import { RealWorkstationPanel } from "./RealWorkstationPanel";
+import { RealWorkstationSessionProvider } from "./RealWorkstationSessionProvider";
 import type { Participant } from "./types";
 import { WorkstationAccessModal } from "./WorkstationAccessModal";
 
@@ -236,6 +238,10 @@ export function WorkstationPage() {
       {/* Main content */}
       <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl space-y-6">
+          <RealWorkstationSessionProvider>
+            <RealWorkstationPanel />
+          </RealWorkstationSessionProvider>
+
           {/* Active participants container */}
           <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
             <section>
