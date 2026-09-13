@@ -7,8 +7,9 @@
 2. **Fase 2A — identidades Auth y aprovisionamiento backend:** creación de Auth users,
    perfiles/membresías/PIN y bootstrap del primer Owner. 0002 aplicada al cloud.
    **Fase 2B.1 — sesiones de estación y operador:** foundation server-only preparada
-   en 0003, pendiente de aplicación separada. **Fase 2B.2:** integración con cookies
-   y UX, sin sustituir todavía el piloto en esta entrega.
+   en 0003 y 0003 aplicada al cloud. 0004 queda preparada localmente para cubrir
+   las FK, pendiente de aplicación cloud. **Fase 2B.2:** integración con cookies y
+   UX, sin sustituir todavía el piloto en esta entrega.
 3. **Turnos + participantes:** persistir el ciclo operativo y participantes.
 4. **Caja + bancos + reservas:** recursos y obligaciones por negocio.
 5. **Operaciones financieras:** registro transaccional de depósitos/retiros.
@@ -23,9 +24,10 @@ UsersContext, MockSessionContext, ShiftContext y BusinessFundsContext siguen
 in-memory. Sus datos, PIN, pantallas y cálculos no cambian. Ninguna tabla financiera
 se crea. Según el estado remoto comunicado, `0001_identity_and_business.sql`
 ya se aplicó al cloud con nombre registrado `identity_and_business`. No se modifica,
-renombra ni reaplica desde Codex. También se reporta aplicada `0002_auth_provisioning.sql`.
-Ambas son inmutables; los cambios nuevos van en `0003_workstation_sessions.sql`.
-En este parche no se ejecutaron mutaciones Admin, bootstrap ni migraciones remotas.
+renombra ni reaplica desde Codex. También se reporta aplicada `0002_auth_provisioning.sql`
+y `0003_workstation_sessions.sql`. Las tres son inmutables; este parche solo prepara
+`0004_workstation_fk_indexes.sql` y no la aplica al cloud. No se ejecutaron mutaciones
+Admin, bootstrap ni cambios remotos.
 
 Factories preparados:
 
@@ -381,13 +383,16 @@ identidad Auth coincidente, activación, PIN, hashes, TTL, revocación, separaci
 clientes y ausencia de secretos en resultados/errores. La suite SQL de workstation
 usa transaction + rollback para permisos, activaciones, actor, expiraciones,
 revocaciones y lockout de PIN. **0003 y las pruebas SQL solo tuvieron revisión
-estática: no se ejecutaron en PostgreSQL/Supabase.** No había CLI/psql ni instancia
-local disponible en el puerto configurado. No se ejecutó bootstrap ni se crearon
-usuarios o datos cloud. 0001/0002 y el prototipo operativo permanecen intactos.
+estática en esa validación: no se ejecutaron en PostgreSQL/Supabase.** No había
+CLI/psql ni instancia local disponible en el puerto configurado. No se ejecutó
+bootstrap ni se crearon usuarios o datos cloud durante esa validación.
+0001/0002/0003 y el prototipo operativo
+permanecen intactos.
 
 ## Revisión antes de Fase 2B.2
 
-- Revisar/aplicar 0003 separadamente; ejecutar la suite SQL en una base de prueba.
+- Mantener 0001/0002/0003 inmutables; aplicar 0004 solo tras revisar los índices en
+  una base de prueba y ejecutar la suite SQL correspondiente.
 - Integrar cookies y UX de acceso/bloqueo con estos servicios sin confiar en actor del cliente.
 - Revisar Exposed schemas remoto, propietario de funciones y matriz RLS con SQL real.
 - Implementar el acceso Owner-only a internal_notes desde servidor con sesión,

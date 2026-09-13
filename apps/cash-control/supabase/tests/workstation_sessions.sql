@@ -1,4 +1,4 @@
--- Disposable local/test Supabase, as postgres, after 0001/0002/0003 only.
+-- Disposable local/test Supabase, as postgres, after 0001/0002/0003/0004 only.
 -- psql -v ON_ERROR_STOP=1 -f supabase/tests/workstation_sessions.sql
 begin;
 do $$
@@ -20,6 +20,20 @@ declare
   v_station_hash text := repeat('a', 64);
   v_operator_hash text := repeat('b', 64);
 begin
+  foreach v_signature in array array[
+    'private.operator_sessions_member_idx',
+    'private.operator_sessions_workstation_member_idx',
+    'private.workstation_member_activations_member_idx',
+    'private.workstation_sessions_business_idx',
+    'private.workstation_sessions_created_by_member_idx'
+  ] loop
+    if to_regclass(v_signature) is null then
+      raise exception 'missing performance index: %', v_signature;
+    end if;
+  end loop;
+  if to_regclass('private.operator_sessions_workstation_idx') is not null then
+    raise exception 'redundant workstation index still exists';
+  end if;
   foreach v_signature in array array[
     'public.admin_create_workstation_session(uuid,uuid,text,timestamptz)',
     'public.admin_activate_workstation_member(text,uuid)',
