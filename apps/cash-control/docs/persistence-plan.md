@@ -28,6 +28,9 @@ y `0003_workstation_sessions.sql`. Las tres son inmutables; este parche solo pre
 `0004_workstation_fk_indexes.sql` ya está aplicada al cloud. No se ejecutaron
 mutaciones Admin, bootstrap ni cambios remotos durante esta fase.
 
+`0005_list_workstation_members.sql` queda preparada localmente para la siguiente
+capacidad de lectura de miembros activados; no se aplica al cloud desde Codex.
+
 Factories preparados:
 
 - `src/lib/supabase/client.ts`: navegador, clave pública.
@@ -317,6 +320,18 @@ controlado sin token/hash/password/PIN/email. La activación puede conservarse c
 su contraseña fue válida pero falló la emisión posterior. Las RPC con service_role
 son primitivas confiables: nunca concederlas al navegador ni invocarlas desde un
 endpoint sin estas comprobaciones.
+
+### Fase 2B.2-A.1: enumeración segura de miembros activados
+
+`0005_list_workstation_members.sql` agrega únicamente el RPC de lectura
+`admin_list_workstation_members(text)`, ejecutable solo por `service_role`. Recibe
+el SHA-256 del token de workstation, valida la estación activa mediante sus joins,
+y devuelve solo `member_id`, `username`, `display_name` y `role` de miembros activos
+activados en esa estación. El endpoint server-only `GET /api/workstation/members`
+lee `cc_workstation` desde la cookie HttpOnly; no acepta negocio, estación ni token
+desde query/body. La lista se carga al montar/refrescar la sesión y después de
+activar; permanece tras lock y se limpia tras close. La migración sigue local y no
+ha sido aplicada al cloud.
 
 Las futuras mutaciones financieras obtendrán **actor_user_id de
 resolveCurrentOperator().userId**, nunca de un payload o selectedUserId. Deben

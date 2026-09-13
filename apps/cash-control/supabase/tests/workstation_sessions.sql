@@ -12,14 +12,19 @@ declare
   v_second uuid;
   v_other uuid;
   v_station uuid;
+  v_other_station uuid;
   v_operator uuid;
   v_actor record;
   v_signature text;
   v_table text;
   v_i integer;
   v_station_hash text := repeat('a', 64);
+  v_other_station_hash text := repeat('2', 64);
   v_operator_hash text := repeat('b', 64);
 begin
+  if to_regprocedure('public.admin_list_workstation_members(text)') is null then
+    raise exception 'missing workstation members RPC';
+  end if;
   foreach v_signature in array array[
     'private.operator_sessions_member_idx',
     'private.operator_sessions_workstation_member_idx',
@@ -40,6 +45,7 @@ begin
     'public.admin_issue_operator_session(text,uuid,text,timestamptz)',
     'public.admin_resolve_workstation_session(text)',
     'public.admin_resolve_workstation_member(text,uuid)',
+    'public.admin_list_workstation_members(text)',
     'public.admin_resolve_operator_session(text)',
     'public.admin_verify_member_pin(uuid,text)',
     'public.admin_revoke_operator_session(text)',
@@ -74,11 +80,19 @@ begin
     perform public.admin_create_workstation_session(v_business, v_member, v_station_hash, clock_timestamp() + interval '23 hours');
     raise exception 'anon created station';
   exception when insufficient_privilege then null; end;
+  begin
+    perform public.admin_list_workstation_members(v_station_hash);
+    raise exception 'anon listed workstation members';
+  exception when insufficient_privilege then null; end;
   reset role;
   set local role authenticated;
   begin
     perform public.admin_resolve_operator_session(v_operator_hash);
     raise exception 'authenticated resolved operator';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.admin_list_workstation_members(v_station_hash);
+    raise exception 'authenticated listed workstation members';
   exception when insufficient_privilege then null; end;
   reset role;
 
@@ -113,6 +127,29 @@ begin
   if not exists (select 1 from private.workstation_member_activations a where a.workstation_session_id = v_station and a.member_id = v_member) then
     raise exception 'creator not activated';
   end if;
+  set local role service_role;
+  select count(*) into v_i
+    from public.admin_list_workstation_members(v_station_hash);
+  select * into v_actor
+    from public.admin_list_workstation_members(v_station_hash);
+  reset role;
+  if v_i <> 1 or v_actor.member_id is distinct from v_member
+    or v_actor.username is distinct from 'owner'
+    or v_actor.display_name is distinct from 'Owner Test'
+    or v_actor.role is distinct from 'owner'::public.member_role then
+    raise exception 'wrong initial workstation member list';
+  end if;
+  if to_jsonb(v_actor) ?| array[
+    'user_id', 'pin_hash', 'password', 'email', 'token', 'token_hash',
+    'internal_notes'
+  ] then
+    raise exception 'workstation member list leaked sensitive columns';
+  end if;
+  set local role service_role;
+  if exists (select 1 from public.admin_list_workstation_members(v_station_hash) where member_id = v_second) then
+    raise exception 'unactivated member listed';
+  end if;
+  reset role;
   begin
     perform public.admin_issue_operator_session(v_station_hash, v_second, v_operator_hash, clock_timestamp() + interval '11 hours');
     raise exception 'unactivated member accepted';
@@ -131,6 +168,44 @@ begin
   if (select count(*) from private.workstation_member_activations a where a.workstation_session_id = v_station and a.member_id = v_second) <> 1 then
     raise exception 'activation not idempotent';
   end if;
+  set local role service_role;
+  select count(*) into v_i
+    from public.admin_list_workstation_members(v_station_hash);
+  if v_i <> 2
+    or not exists (
+      select 1 from public.admin_list_workstation_members(v_station_hash)
+      where member_id = v_member
+    )
+    or not exists (
+      select 1 from public.admin_list_workstation_members(v_station_hash)
+      where member_id = v_second
+    ) then
+    reset role;
+    raise exception 'activated workstation members missing';
+  end if;
+  v_other_station := public.admin_create_workstation_session(
+    v_business, v_member, v_other_station_hash, clock_timestamp() + interval '23 hours'
+  );
+  select count(*) into v_i
+    from public.admin_list_workstation_members(v_other_station_hash);
+  if v_i <> 1
+    or exists (
+      select 1 from public.admin_list_workstation_members(v_other_station_hash)
+      where member_id = v_second
+    ) then
+    reset role;
+    raise exception 'workstation member list crossed station boundary';
+  end if;
+  reset role;
+  update public.business_members set status = 'suspended' where id = v_second;
+  set local role service_role;
+  select count(*) into v_i
+    from public.admin_list_workstation_members(v_station_hash);
+  reset role;
+  if v_i <> 1 then
+    raise exception 'inactive member listed';
+  end if;
+  update public.business_members set status = 'active' where id = v_second;
   begin
     perform public.admin_issue_operator_session(v_station_hash, v_second, v_operator_hash, clock_timestamp() + interval '13 hours');
     raise exception 'excessive operator TTL accepted';
@@ -179,6 +254,12 @@ begin
   if not exists (select 1 from private.member_pins p where p.member_id = v_member and p.failed_attempts = 5 and p.locked_until > clock_timestamp()) then raise exception 'PIN attempts rolled back'; end if;
 
   update private.workstation_sessions set created_at = clock_timestamp() - interval '2 hours', expires_at = clock_timestamp() - interval '1 hour' where id = v_station;
+  set local role service_role;
+  if exists (select 1 from public.admin_list_workstation_members(v_station_hash)) then
+    reset role;
+    raise exception 'expired workstation listed members';
+  end if;
+  reset role;
   begin
     perform public.admin_activate_workstation_member(v_station_hash, v_second);
     raise exception 'expired workstation activated';
@@ -199,6 +280,12 @@ begin
   perform public.admin_issue_operator_session(v_station_hash, v_member, v_operator_hash, clock_timestamp() + interval '30 minutes');
   perform public.admin_revoke_workstation_session(v_station_hash);
   perform public.admin_revoke_workstation_session(v_station_hash);
+  set local role service_role;
+  if exists (select 1 from public.admin_list_workstation_members(v_station_hash)) then
+    reset role;
+    raise exception 'revoked workstation listed members';
+  end if;
+  reset role;
   if exists (select 1 from public.admin_resolve_operator_session(v_operator_hash))
     or exists (select 1 from public.admin_resolve_workstation_session(v_station_hash)) then raise exception 'close did not invalidate sessions'; end if;
   if exists (select 1 from private.operator_sessions o where o.workstation_session_id = v_station and o.revoked_at is null) then raise exception 'close left unrevoked operator rows'; end if;

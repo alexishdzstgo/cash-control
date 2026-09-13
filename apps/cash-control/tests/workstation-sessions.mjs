@@ -6,6 +6,7 @@ import { createWorkstationClients } from "../src/lib/workstation/server/clients.
 import {
   activateMemberWithPassword,
   closeWorkstation,
+  listActivatedMembers,
   lockCurrentOperator,
   resolveCurrentOperator,
   startWorkstationWithPassword,
@@ -188,6 +189,26 @@ function fixture() {
         return good(
           w && m && activations.has(`${w.workstation_session_id}:${m.id}`)
             ? [identity(m)]
+            : [],
+        );
+      }
+      if (name === "admin_list_workstation_members") {
+        const w = station(args.p_workstation_token_hash);
+        return good(
+          w
+            ? members
+                .filter(
+                  (m) =>
+                    m.business_id === w.business_id &&
+                    m.status === "active" &&
+                    activations.has(`${w.workstation_session_id}:${m.id}`),
+                )
+                .map((m) => ({
+                  member_id: m.id,
+                  username: m.username,
+                  display_name: `${m.username} Test`,
+                  role: m.role,
+                }))
             : [],
         );
       }
@@ -475,6 +496,59 @@ test("password activation derives business from workstation, ignoring extra brow
       )
     ).userId,
     secondUserId,
+  );
+});
+
+test("activated member listing hashes the station token and returns only safe active members", async () => {
+  const f = fixture();
+  const start = await startWorkstationWithPassword(credentials, f.clients);
+  const initial = await listActivatedMembers(
+    { workstationToken: start.workstationToken },
+    f.clients,
+  );
+  assert.deepEqual(initial, [
+    {
+      memberId,
+      username: "Alice",
+      displayName: "Alice Test",
+      role: "owner",
+    },
+  ]);
+  const listCall = f.calls.find(
+    ([name]) => name === "admin_list_workstation_members",
+  );
+  assert.equal(
+    listCall[1].p_workstation_token_hash,
+    hashSessionToken(start.workstationToken),
+  );
+  assertSafe(initial);
+
+  await activateMemberWithPassword(
+    { workstationToken: start.workstationToken, username: "Bob", password },
+    f.clients,
+  );
+  const allActive = await listActivatedMembers(
+    { workstationToken: start.workstationToken },
+    f.clients,
+  );
+  assert.deepEqual(
+    allActive.map(({ memberId: listedMemberId }) => listedMemberId),
+    [memberId, secondMemberId],
+  );
+
+  f.members[1].status = "suspended";
+  assert.deepEqual(
+    (
+      await listActivatedMembers(
+        { workstationToken: start.workstationToken },
+        f.clients,
+      )
+    ).map(({ memberId: listedMemberId }) => listedMemberId),
+    [memberId],
+  );
+  await assert.rejects(
+    listActivatedMembers({ workstationToken: "invalid" }, f.clients),
+    { code: "INVALID_SESSION" },
   );
 });
 

@@ -5,6 +5,7 @@ import { createWorkstationClients } from "./clients.mjs";
 import {
   isUuid,
   rpc,
+  safeActivatedMember,
   safeIdentity,
   safeString,
   sessionOperation,
@@ -43,6 +44,19 @@ async function requireStation(token, clients) {
   const station = await resolveStation(token, clients);
   if (!station) throw new WorkstationSessionError("INVALID_SESSION");
   return station;
+}
+
+/** @param {{workstationToken: string}} input @param {Clients} [dependencies] */
+export async function listActivatedMembers(input, dependencies) {
+  return sessionOperation(async () => {
+    const clients = dependencies ?? createWorkstationClients();
+    await requireStation(input.workstationToken, clients);
+    const rows = await rpc(clients.admin, "admin_list_workstation_members", {
+      p_workstation_token_hash: hashSessionToken(input.workstationToken),
+    });
+    if (!Array.isArray(rows)) throw new WorkstationSessionError("UNAVAILABLE");
+    return rows.map(safeActivatedMember);
+  });
 }
 
 /** @param {string} name @param {string} tokenHash @param {Clients} clients */

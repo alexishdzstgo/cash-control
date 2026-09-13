@@ -27,6 +27,13 @@ export type RealWorkstationOperator = {
   workstationSessionId?: string;
 };
 
+export type RealWorkstationMember = {
+  memberId: string;
+  username: string;
+  displayName: string;
+  role: "owner" | "employee";
+};
+
 export type RealWorkstationState =
   | "loading"
   | "NO_WORKSTATION"
@@ -55,11 +62,18 @@ type ResolveResponse = {
   operator?: RealWorkstationOperator;
 };
 
+type MembersResponse = {
+  state: Exclude<RealWorkstationState, "loading">;
+  members?: RealWorkstationMember[];
+};
+
 type RealWorkstationSessionContextValue = {
   state: RealWorkstationState;
   operator: RealWorkstationOperator | null;
+  activatedMembers: RealWorkstationMember[];
   error: string | null;
   refresh: () => Promise<boolean>;
+  loadActivatedMembers: () => Promise<boolean>;
   start: (input: StartInput) => Promise<boolean>;
   activate: (input: ActivateInput) => Promise<boolean>;
   unlock: (input: UnlockInput) => Promise<boolean>;
@@ -106,7 +120,42 @@ export function RealWorkstationSessionProvider({
   const [operator, setOperator] = useState<RealWorkstationOperator | null>(
     null,
   );
+  const [activatedMembers, setActivatedMembers] = useState<
+    RealWorkstationMember[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
+
+  const loadActivatedMembers = useCallback(async () => {
+    try {
+      const response = await fetch("/api/workstation/members", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const body = (await response.json().catch(() => null)) as MembersResponse;
+      if (!response.ok) {
+        if (response.status === 401) {
+          setState("INVALID_SESSION");
+          setOperator(null);
+          setActivatedMembers([]);
+        }
+        setError(messageFromBody(body));
+        return false;
+      }
+      if (body.state === "NO_WORKSTATION" || body.state === "INVALID_SESSION") {
+        setState(body.state);
+        setOperator(null);
+        setActivatedMembers([]);
+        setError(null);
+        return false;
+      }
+      setActivatedMembers(body.members ?? []);
+      setError(null);
+      return true;
+    } catch {
+      setError("No se pudo consultar los miembros activados.");
+      return false;
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -118,6 +167,9 @@ export function RealWorkstationSessionProvider({
       if (!response.ok) throw new Error(messageFromBody(body));
       setState(body.state);
       setOperator(body.state === "ACTIVE" ? (body.operator ?? null) : null);
+      if (body.state === "NO_WORKSTATION" || body.state === "INVALID_SESSION")
+        setActivatedMembers([]);
+      else if (!(await loadActivatedMembers())) return false;
       setError(null);
       return true;
     } catch {
@@ -126,7 +178,7 @@ export function RealWorkstationSessionProvider({
       setError("No se pudo consultar la sesión real.");
       return false;
     }
-  }, []);
+  }, [loadActivatedMembers]);
 
   useEffect(() => {
     void refresh();
@@ -166,9 +218,10 @@ export function RealWorkstationSessionProvider({
       const nextOperator = operatorFromMutation(body);
       setOperator(nextOperator);
       setState("ACTIVE");
+      await loadActivatedMembers();
       return true;
     },
-    [mutate],
+    [loadActivatedMembers, mutate],
   );
 
   const activate = useCallback(
@@ -178,9 +231,10 @@ export function RealWorkstationSessionProvider({
       const nextOperator = operatorFromMutation(body);
       setOperator(nextOperator);
       setState("ACTIVE");
+      await loadActivatedMembers();
       return true;
     },
-    [mutate],
+    [loadActivatedMembers, mutate],
   );
 
   const unlock = useCallback(
@@ -207,6 +261,7 @@ export function RealWorkstationSessionProvider({
     const body = await mutate("/api/workstation/close", {});
     if (!body) return false;
     setOperator(null);
+    setActivatedMembers([]);
     setState("NO_WORKSTATION");
     return true;
   }, [mutate]);
@@ -215,15 +270,29 @@ export function RealWorkstationSessionProvider({
     () => ({
       state,
       operator,
+      activatedMembers,
       error,
       refresh,
+      loadActivatedMembers,
       start,
       activate,
       unlock,
       lock,
       close,
     }),
-    [state, operator, error, refresh, start, activate, unlock, lock, close],
+    [
+      state,
+      operator,
+      activatedMembers,
+      error,
+      refresh,
+      loadActivatedMembers,
+      start,
+      activate,
+      unlock,
+      lock,
+      close,
+    ],
   );
 
   return (

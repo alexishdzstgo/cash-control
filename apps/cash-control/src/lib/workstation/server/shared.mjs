@@ -60,6 +60,20 @@ export function safeIdentity(row) {
   };
 }
 
+/** Strict projection for the activated-member picker; no user ID is needed.
+ * @param {Record<string, unknown>} row
+ */
+export function safeActivatedMember(row) {
+  if (row.role !== "owner" && row.role !== "employee")
+    throw new WorkstationSessionError("UNAVAILABLE");
+  return {
+    memberId: safeString(row.member_id),
+    username: safeString(row.username),
+    displayName: safeString(row.display_name),
+    role: row.role,
+  };
+}
+
 /** Catch both returned SDK errors and thrown transport errors, without a cause.
  * @template T @param {() => Promise<T>} operation @returns {Promise<T>}
  */
