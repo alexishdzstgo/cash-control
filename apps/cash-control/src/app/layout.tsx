@@ -6,6 +6,7 @@ import { BusinessFundsProvider } from "@/components/business-funds/BusinessFunds
 import { CommissionRulesProvider } from "@/components/commissions/CommissionRulesContext";
 import { ReceiptPreferencesProvider } from "@/components/receipts/ReceiptPreferencesContext";
 import { MockSessionProvider } from "@/components/session/MockSessionContext";
+import { RealAppSessionProvider } from "@/components/session/RealAppSessionProvider";
 import { SettingsProvider } from "@/components/settings/SettingsContext";
 import { NotificationProvider } from "@/components/shared/NotificationProvider";
 import { ShiftProvider } from "@/components/shifts/ShiftContext";
@@ -42,23 +43,27 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full">
-        <CommissionRulesProvider>
-          <UsersProvider>
-            <MockSessionProvider>
-              <ShiftProvider>
-                <BusinessFundsProvider>
-                  <FinancialAlertsProvider>
-                    <ReceiptPreferencesProvider>
-                      <SettingsProvider>
-                        <NotificationProvider>{children}</NotificationProvider>
-                      </SettingsProvider>
-                    </ReceiptPreferencesProvider>
-                  </FinancialAlertsProvider>
-                </BusinessFundsProvider>
-              </ShiftProvider>
-            </MockSessionProvider>
-          </UsersProvider>
-        </CommissionRulesProvider>
+        <RealAppSessionProvider>
+          <CommissionRulesProvider>
+            <UsersProvider>
+              <MockSessionProvider>
+                <ShiftProvider>
+                  <BusinessFundsProvider>
+                    <FinancialAlertsProvider>
+                      <ReceiptPreferencesProvider>
+                        <SettingsProvider>
+                          <NotificationProvider>
+                            {children}
+                          </NotificationProvider>
+                        </SettingsProvider>
+                      </ReceiptPreferencesProvider>
+                    </FinancialAlertsProvider>
+                  </BusinessFundsProvider>
+                </ShiftProvider>
+              </MockSessionProvider>
+            </UsersProvider>
+          </CommissionRulesProvider>
+        </RealAppSessionProvider>
       </body>
     </html>
   );

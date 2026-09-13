@@ -23,8 +23,6 @@ export type RealWorkstationOperator = {
   identity: SessionIdentity;
   operatorExpiresAt: string;
   workstationExpiresAt?: string;
-  operatorSessionId?: string;
-  workstationSessionId?: string;
 };
 
 export type RealWorkstationMember = {
@@ -102,12 +100,6 @@ function operatorFromMutation(body: Record<string, unknown>) {
     ...(typeof body.workstationExpiresAt === "string"
       ? { workstationExpiresAt: body.workstationExpiresAt }
       : {}),
-    ...(typeof body.operatorSessionId === "string"
-      ? { operatorSessionId: body.operatorSessionId }
-      : {}),
-    ...(typeof body.workstationSessionId === "string"
-      ? { workstationSessionId: body.workstationSessionId }
-      : {}),
   } satisfies RealWorkstationOperator;
 }
 
@@ -175,6 +167,7 @@ export function RealWorkstationSessionProvider({
     } catch {
       setState("INVALID_SESSION");
       setOperator(null);
+      setActivatedMembers([]);
       setError("No se pudo consultar la sesión real.");
       return false;
     }

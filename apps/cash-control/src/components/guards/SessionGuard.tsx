@@ -1,22 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { type ReactNode, useEffect, useRef } from "react";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
 
 export function SessionGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { authenticatedUser } = useMockSession();
+  const { state } = useRealAppSession();
+  const redirecting = useRef(false);
 
   useEffect(() => {
-    if (!authenticatedUser) {
+    if (state === "ACTIVE") {
+      redirecting.current = false;
+      return;
+    }
+
+    if (state !== "loading" && !redirecting.current) {
+      redirecting.current = true;
       router.replace("/workstation");
     }
-  }, [authenticatedUser, router]);
+  }, [router, state]);
 
-  if (!authenticatedUser) {
-    return null;
-  }
+  if (state !== "ACTIVE") return null;
 
   return <>{children}</>;
 }

@@ -8,7 +8,7 @@
    perfiles/membresías/PIN y bootstrap del primer Owner. 0002 aplicada al cloud.
    **Fase 2B.1 — sesiones de estación y operador:** foundation server-only preparada
    en 0003 y 0003/0004 aplicadas al cloud. **Fase 2B.2:** integración con cookies
-   y UX, sin sustituir todavía el piloto en esta entrega.
+   y UX, sin conectar todavía el actor real con el piloto financiero.
 3. **Turnos + participantes:** persistir el ciclo operativo y participantes.
 4. **Caja + bancos + reservas:** recursos y obligaciones por negocio.
 5. **Operaciones financieras:** registro transaccional de depósitos/retiros.
@@ -308,10 +308,11 @@ tokens únicamente desde las cookies del servidor y solo expone una identidad se
 Las mutaciones validan `Origin` explícitamente. En producción se compara con
 `APP_ORIGIN`; en desarrollo, sin esa variable, solo se aceptan localhost/127.0.0.1
 en los puertos locales de Next.js. Origin ausente o externo se rechaza. La UI real
-vive únicamente en `/workstation` mediante `RealWorkstationSessionProvider`; el
-`MockSessionContext`, los guards globales y todo el piloto financiero siguen intactos
-e in-memory. Lock conserva la estación y elimina solo el operador; Close revoca la
-estación y elimina ambas cookies.
+comenzó en `/workstation` mediante `RealWorkstationSessionProvider`; el
+`MockSessionContext`, la participación del piloto y todo el piloto financiero siguen
+intactos e in-memory. El puente de Fase 2B.2-B reutiliza ese contexto para la sesión
+de aplicación y los guards, sin convertirlo en actor financiero. Lock conserva la
+estación y elimina solo el operador; Close revoca la estación y elimina ambas cookies.
 
 Si se pierde la respuesta de emisión, se intenta revocar el token no entregado;
 si falla un inicio, también se revoca la estación nueva. No hay reintentos ciegos
@@ -339,6 +340,28 @@ autorizar rol/negocio y revalidar vigencia dentro de su transacción para evitar
 una carrera entre resolución y revocación. La RLS anterior basada en auth.uid()
 permanece como protección de las lecturas authenticated; no representa el operador
 de estas escrituras backend con service_role.
+
+### Fase 2B.2-B: puente de sesión real hacia la aplicación
+
+`RealAppSessionProvider` convierte la sesión de Workstation en la fuente real de
+identidad para la aplicación. Reutiliza el único contexto de
+`RealWorkstationSessionProvider`, resuelve siempre mediante
+`GET /api/workstation/resolve` y expone a los guards únicamente el estado, la
+identidad segura, `refresh`, `lock` y `close`. Los tokens, hashes, PIN y
+credenciales no llegan al cliente.
+
+El provider se monta en el layout raíz. `SessionGuard` autoriza las rutas internas
+solo cuando el estado real es `ACTIVE`; `NO_WORKSTATION`, `NO_OPERATOR` e
+`INVALID_SESSION` redirigen a `/workstation` sin ciclos. `OwnerOnlyGuard` conserva
+su frontera propia y usa el rol de la identidad real. `ParticipationGuard` y
+`MockSessionContext` siguen siendo parte del piloto in-memory: no se sincronizan
+con la identidad real ni determinan si la sesión real está autenticada.
+
+La cabecera muestra el display name y username del operador real cuando existe.
+Lock elimina únicamente el operador y deja accesible la workstation; Close elimina
+ambas cookies y deja el estado en `NO_WORKSTATION`. Esta fase no conecta el actor
+real con depósitos, retiros, caja, bancos, turnos ni ninguna otra mutación
+financiera.
 
 ## Reglas para las fases financieras
 
