@@ -125,6 +125,21 @@ test("la recarga usa resolve y no el estado anterior de React", () => {
   assert.match(provider, /void refresh\(\)/);
 });
 
+test("WorkstationPage no monta un provider real duplicado", () => {
+  const workstationPage = source(
+    "src/components/workstation/WorkstationPage.tsx",
+  );
+  const rootLayout = source("src/app/layout.tsx");
+  const appProvider = source(
+    "src/components/session/RealAppSessionProvider.tsx",
+  );
+
+  assert.doesNotMatch(workstationPage, /RealWorkstationSessionProvider/);
+  assert.match(workstationPage, /<RealWorkstationPanel\s*\/>/);
+  assert.match(rootLayout, /<RealAppSessionProvider>/);
+  assert.match(appProvider, /<RealWorkstationSessionProvider>/);
+});
+
 test("lock conserva la workstation y pasa a NO_OPERATOR", () => {
   const provider = source(
     "src/components/workstation/RealWorkstationSessionProvider.tsx",
