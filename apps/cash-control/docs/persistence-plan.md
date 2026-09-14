@@ -9,7 +9,8 @@
    **Fase 2B.1 — sesiones de estación y operador:** foundation server-only preparada
    en 0003 y 0003/0004 aplicadas al cloud. **Fase 2B.2:** integración con cookies
    y UX, sin conectar todavía el actor real con el piloto financiero.
-3. **Turnos + participantes:** persistir el ciclo operativo y participantes.
+3. **Fase 2C.1 — turnos + participantes:** persistir el ciclo operativo y participantes
+   sin conectar todavía la UI ni las finanzas.
 4. **Caja + bancos + reservas:** recursos y obligaciones por negocio.
 5. **Operaciones financieras:** registro transaccional de depósitos/retiros.
 6. **Fondos + correcciones + aclaraciones:** mutaciones y trazabilidad.
@@ -30,6 +31,8 @@ mutaciones Admin, bootstrap ni cambios remotos durante esta fase.
 
 `0005_list_workstation_members.sql` queda preparada localmente para la siguiente
 capacidad de lectura de miembros activados; no se aplica al cloud desde Codex.
+`0006_shifts_and_participants.sql` queda preparada localmente para persistir turnos
+y participantes; tampoco se aplica al cloud desde Codex.
 
 Factories preparados:
 
@@ -363,6 +366,28 @@ ambas cookies y deja el estado en `NO_WORKSTATION`. Esta fase no conecta el acto
 real con depósitos, retiros, caja, bancos, turnos ni ninguna otra mutación
 financiera.
 
+### Fase 2C.1: persistencia de turnos y participantes
+
+`0006_shifts_and_participants.sql` agrega únicamente el modelo operativo de turnos
+y participantes. Las tablas viven en `private`, tienen RLS habilitada y no tienen
+permisos directos, incluso para `service_role`; las operaciones se exponen mediante
+RPC SECURITY DEFINER con `search_path = ''` y ejecución exclusiva de `service_role`.
+
+El folio `TUR-000001` es generado por una secuencia PostgreSQL y el índice único
+parcial permite como máximo un turno abierto por negocio. Las claves foráneas
+compuestas mantienen turno, participante y membresía dentro del mismo negocio.
+La base garantiza un único participante activo por miembro, conserva el historial
+cuando abandona y mantiene exactamente un responsable activo en un turno abierto.
+La transferencia cambia la proyección del turno y los roles de participantes dentro
+de una única RPC; todavía no existe RPC de cierre ni se persisten importes,
+depósitos, retiros o saldos.
+
+Las RPC reciben únicamente el hash del token de operador y derivan el actor mediante
+la sesión real de estación/operador. `src/lib/shifts/server/shifts.mjs` valida esa
+sesión con `resolveCurrentOperator`, envía las mutaciones a las RPC y devuelve
+proyecciones estrictas sin secretos. No se conecta `ShiftContext`, no se crea ruta
+`/shifts` y no cambia la UI ni la lógica financiera.
+
 ## Reglas para las fases financieras
 
 - Dinero como `bigint` en **CENTAVOS**, sin float para fórmulas críticas en DB.
@@ -384,6 +409,7 @@ supabase db lint --local --level warning
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/identity_and_business.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/auth_provisioning.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/workstation_sessions.sql
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -v ON_ERROR_STOP=1 -f supabase/tests/shifts.sql
 supabase gen types typescript --local --schema public > src/types/database/database.types.ts
 ```
 
@@ -407,6 +433,7 @@ simulados se ejecutan por separado:
 ```sh
 node --conditions=react-server --test tests/auth-provisioning.mjs
 node --conditions=react-server --test tests/workstation-sessions.mjs
+node --conditions=react-server --test tests/shifts-server.mjs
 ```
 
 Validación histórica de Fase 2A (2026-09-09): Node v22.20.0, `npx tsc --noEmit`, Biome
