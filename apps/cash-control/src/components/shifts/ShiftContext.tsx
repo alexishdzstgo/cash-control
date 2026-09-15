@@ -66,7 +66,7 @@ type ShiftContextValue = {
   addParticipant: (memberId: string) => Promise<ShiftResult>;
   transferResponsibility: (
     memberId: string,
-    compatibilityPin?: string,
+    receiverPin?: string,
   ) => ShiftResult | Promise<ShiftResult>;
   leaveShift: () => Promise<ShiftResult>;
   closeCurrentShift: (input: CloseShiftInput) => ShiftResult;
@@ -431,7 +431,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
 
   function transferResponsibility(
     memberId: string,
-    compatibilityPin = "",
+    receiverPin = "",
   ): ShiftResult | Promise<ShiftResult> {
     if (!isPersisted) {
       if (!authenticatedUser)
@@ -439,7 +439,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       const result = transferMockResponsibility(
         authenticatedUser.userId,
         memberId,
-        compatibilityPin,
+        receiverPin,
       );
       return result.success ? { success: true } : { ...result };
     }
@@ -447,6 +447,11 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       return {
         success: false,
         error: "Solo el responsable actual puede transferir el turno.",
+      };
+    if (!/^\d{4,6}$/.test(receiverPin))
+      return {
+        success: false,
+        error: "Ingresa un PIN válido del nuevo responsable.",
       };
     return runRemoteMutation(() =>
       transferPersistedShiftResponsibility(memberId),

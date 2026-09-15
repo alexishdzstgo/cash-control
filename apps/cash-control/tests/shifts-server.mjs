@@ -154,6 +154,16 @@ test("shift server mutations do not accept a client actor", async () => {
   });
   assert.equal(Object.hasOwn(addCall[1], "p_actor_id"), false);
   assert.equal(Object.hasOwn(addCall[1], "p_business_id"), false);
+
+  const transferCall = calls.find(
+    ([name]) => name === "admin_transfer_shift_responsibility",
+  );
+  assert.deepEqual(transferCall[1], {
+    p_operator_token_hash: hashSessionToken(session.operatorToken),
+    p_new_responsible_member_id: targetMemberId,
+  });
+  assert.equal(Object.hasOwn(transferCall[1], "p_actor_id"), false);
+  assert.equal(Object.hasOwn(transferCall[1], "p_user_id"), false);
 });
 
 test("shift server reads strictly project database rows", async () => {

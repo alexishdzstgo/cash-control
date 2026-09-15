@@ -12,7 +12,6 @@ interface TransferResponsibilityModalProps {
   transferSummary: TransferSummary | null;
   transferPin: string;
   transferError: string;
-  requiresPin?: boolean;
   onClose: () => void;
   onPinChange: (pin: string) => void;
   onConfirm: () => void;
@@ -24,7 +23,6 @@ export function TransferResponsibilityModal({
   transferSummary,
   transferPin,
   transferError,
-  requiresPin = true,
   onClose,
   onPinChange,
   onConfirm,
@@ -32,11 +30,7 @@ export function TransferResponsibilityModal({
   return (
     <ModalShell
       title="Transferir responsabilidad"
-      description={
-        requiresPin
-          ? "Confirma la entrega del turno con el PIN del nuevo responsable."
-          : "Confirma la entrega del turno. La sesión real autoriza la operación."
-      }
+      description="Confirma la entrega del turno con el PIN del nuevo responsable."
       onClose={onClose}
       closeOnOverlayClick
       maxWidth="sm"
@@ -53,9 +47,7 @@ export function TransferResponsibilityModal({
           </button>
           <Button
             onClick={onConfirm}
-            disabled={
-              isEnding || (requiresPin && !/^\d{4,6}$/.test(transferPin))
-            }
+            disabled={isEnding || !/^\d{4,6}$/.test(transferPin)}
             className="gap-2"
           >
             {isEnding ? "Transfiriendo..." : "Aceptar responsabilidad"}
@@ -177,31 +169,27 @@ export function TransferResponsibilityModal({
             </div>
           )}
 
-          {requiresPin && (
-            <>
-              <div className="mb-4 rounded-lg border border-blue-200 border-l-4 border-l-[#2563EB] bg-white p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  {selectedParticipant.userName}, ingresa tu PIN para aceptar la
-                  responsabilidad de esta estación.
-                </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Confirma que recibes la responsabilidad del turno.
-                </p>
-              </div>
+          <div className="mb-4 rounded-lg border border-blue-200 border-l-4 border-l-[#2563EB] bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">
+              {selectedParticipant.userName}, ingresa tu PIN para aceptar la
+              responsabilidad de esta estación.
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Confirma que recibes la responsabilidad del turno.
+            </p>
+          </div>
 
-              <div className="mb-4">
-                <input
-                  type="password"
-                  maxLength={6}
-                  inputMode="numeric"
-                  value={transferPin}
-                  onChange={(e) => onPinChange(e.target.value)}
-                  placeholder="PIN del receptor"
-                  className="field-input text-center text-2xl tracking-widest"
-                />
-              </div>
-            </>
-          )}
+          <div className="mb-4">
+            <input
+              type="password"
+              maxLength={6}
+              inputMode="numeric"
+              value={transferPin}
+              onChange={(e) => onPinChange(e.target.value)}
+              placeholder="PIN del receptor"
+              className="field-input text-center text-2xl tracking-widest"
+            />
+          </div>
 
           {transferError && (
             <p className="mb-4 text-sm text-red-600">{transferError}</p>

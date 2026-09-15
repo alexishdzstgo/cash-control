@@ -241,8 +241,19 @@ test("POST /api/shifts/participants expone fallos de negocio sin filtrar detalle
   });
 });
 
-test("POST /api/shifts/responsibility usa el miembro destino y la sesión de cookies", async () => {
+test("POST /api/shifts/responsibility no aparenta validar PIN ni ejecuta la RPC 0006", async () => {
   resetState();
+  const noSession = await responsibilityRoute.POST(
+    fakeRequest({
+      session: {},
+      body: {
+        p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+      },
+    }),
+  );
+  assert.equal(noSession.status, 401);
+  assert.equal(state.calls.length, 0);
+
   const response = await responsibilityRoute.POST(
     fakeRequest({
       body: {
@@ -250,11 +261,24 @@ test("POST /api/shifts/responsibility usa el miembro destino y la sesión de coo
       },
     }),
   );
-  assert.equal(response.status, 200);
-  assert.deepEqual(state.calls[0].input, {
-    ...state.session,
-    memberId: "33333333-3333-4333-8333-333333333333",
+  assert.equal(response.status, 501);
+  assert.deepEqual(response.body, {
+    error:
+      "La transferencia persistida requiere validación del PIN del receptor en una fase posterior.",
+    code: "TRANSFER_PIN_UNSUPPORTED",
   });
+  assert.equal(state.calls.length, 0);
+
+  const invalid = await responsibilityRoute.POST(
+    fakeRequest({
+      body: {
+        p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+        userId: "client-controlled",
+      },
+    }),
+  );
+  assert.equal(invalid.status, 400);
+  assert.equal(state.calls.length, 0);
 });
 
 test("POST /api/shifts/leave no acepta actor del cliente y traduce responsable activo", async () => {

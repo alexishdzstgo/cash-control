@@ -398,6 +398,20 @@ salir o transferir con lock de la fila del turno antes de tocar participantes o
 miembros. La secuencia de folios es monotónica y no reutiliza valores; puede dejar
 huecos si una transacción obtiene un `nextval` y después hace rollback.
 
+### Fase 2C.2: conexión de `/shifts` con persistencia
+
+`/shifts` consulta y muta turnos y participantes mediante Route Handlers
+server-only. La sesión real de workstation/operador determina al actor; el
+navegador solo puede enviar el miembro destino de una operación permitida y no
+puede autorizarla con `userId`, `actorId` ni otro identificador de actor.
+
+La transferencia de responsabilidad conserva el PIN obligatorio del nuevo
+responsable en la UI. La RPC disponible en `0006_shifts_and_participants.sql`
+no recibe ni valida ese PIN, por lo que el endpoint persistido devuelve una
+respuesta controlada de funcionalidad pendiente y no ejecuta la RPC. La
+transferencia persistida queda pendiente de una fase posterior que agregue esa
+validación backend; no debe considerarse funcionalmente completa mientras tanto.
+
 ## Reglas para las fases financieras
 
 - Dinero como `bigint` en **CENTAVOS**, sin float para fórmulas críticas en DB.

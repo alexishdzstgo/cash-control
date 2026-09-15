@@ -384,7 +384,6 @@ export function ShiftsPage() {
           transferSummary={transferSummary}
           transferPin={transferPin}
           transferError={transferError}
-          requiresPin={!realWorkstationSession}
           onClose={closeTransfer}
           onPinChange={setTransferPin}
           onConfirm={handleTransferConfirm}
