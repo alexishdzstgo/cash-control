@@ -1,4 +1,4 @@
--- Disposable local/test Supabase, as postgres, after 0001-0006.
+-- Disposable local/test Supabase, as postgres, after 0001-0007.
 -- psql -v ON_ERROR_STOP=1 -f supabase/tests/shifts.sql
 begin;
 
@@ -57,6 +57,7 @@ begin
     'public.admin_add_shift_participant(text,uuid)',
     'public.admin_leave_shift(text)',
     'public.admin_transfer_shift_responsibility(text,uuid)',
+    'public.admin_transfer_shift_responsibility_with_pin(text,uuid,text)',
     'public.admin_resolve_open_shift(text)',
     'public.admin_list_shift_participants(text)'
   ] loop
@@ -88,6 +89,7 @@ begin
     'public.admin_add_shift_participant(text,uuid)',
     'public.admin_leave_shift(text)',
     'public.admin_transfer_shift_responsibility(text,uuid)',
+    'public.admin_transfer_shift_responsibility_with_pin(text,uuid,text)',
     'public.admin_resolve_open_shift(text)',
     'public.admin_list_shift_participants(text)'
   ] loop
@@ -363,6 +365,44 @@ begin
          and role = 'shift_responsible' and status = 'active'
     ) then
     raise exception 'responsibility transfer projection is incorrect';
+  end if;
+
+  -- The PIN-aware transfer is atomic. A wrong PIN commits its attempt counter
+  -- and leaves the responsibility unchanged; the correct PIN transfers it.
+  v_employee_operator_hash := repeat('h', 64);
+  perform public.admin_issue_operator_session(
+    repeat('1', 64), v_employee, v_employee_operator_hash, clock_timestamp() + interval '11 hours'
+  );
+  select * into v_open
+    from public.admin_transfer_shift_responsibility_with_pin(
+      v_employee_operator_hash, v_owner, '0000'
+    );
+  if v_open.pin_verified is distinct from false
+     or (select responsible_member_id from private.shifts where id = v_shift) is distinct from v_employee
+     or (select failed_attempts from private.member_pins where member_id = v_owner) <> 1
+     or to_jsonb(v_open) ?| array['pin', 'receiver_pin', 'pin_hash'] then
+    raise exception 'wrong receiver PIN changed responsibility or leaked PIN data';
+  end if;
+
+  select * into v_open
+    from public.admin_transfer_shift_responsibility_with_pin(
+      v_employee_operator_hash, v_owner, '123456'
+    );
+  if v_open.pin_verified is distinct from true
+     or v_open.previous_responsible_member_id is distinct from v_employee
+     or v_open.responsible_member_id is distinct from v_owner then
+    raise exception 'correct receiver PIN did not transfer responsibility';
+  end if;
+
+  -- Restore the expected employee-responsible state for the remaining 0006 tests.
+  v_operator_hash := repeat('i', 64);
+  perform public.admin_issue_operator_session(
+    repeat('1', 64), v_owner, v_operator_hash, clock_timestamp() + interval '11 hours'
+  );
+  select * into v_open
+    from public.admin_transfer_shift_responsibility(v_operator_hash, v_employee);
+  if v_open.responsible_member_id is distinct from v_employee then
+    raise exception 'responsibility restore after PIN-aware transfer failed';
   end if;
 
   -- Directly changing the responsible participant's member is also rejected;

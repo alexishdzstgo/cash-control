@@ -26,6 +26,9 @@ const shiftErrorMessages = {
     "La responsabilidad solo puede transferirse a un participante activo.",
   DIFFERENT_PARTICIPANT_REQUIRED:
     "Selecciona un participante distinto para transferir la responsabilidad.",
+  CURRENT_SHIFT_RESPONSIBLE_REQUIRED:
+    "Solo el responsable actual puede transferir la responsabilidad.",
+  INVALID_RECEIVER_PIN: "No se pudo confirmar el PIN del nuevo responsable.",
 };
 
 /** @typedef {keyof typeof shiftErrorMessages} ShiftErrorCode */
@@ -160,6 +163,8 @@ function mapShiftRpcError(error) {
     return new ShiftOperationError("TRANSFER_REQUIRES_ACTIVE_PARTICIPANT");
   if (normalized.includes("different active participant is required"))
     return new ShiftOperationError("DIFFERENT_PARTICIPANT_REQUIRED");
+  if (normalized.includes("current shift responsible required"))
+    return new ShiftOperationError("CURRENT_SHIFT_RESPONSIBLE_REQUIRED");
 
   return null;
 }
@@ -226,23 +231,30 @@ export async function leaveShift(input, dependencies) {
   );
 }
 
-/** @param {SessionInput & {memberId: string}} input @param {Clients} [dependencies] */
+/** @param {SessionInput & {memberId: string, receiverPin: string}} input @param {Clients} [dependencies] */
 export async function transferShiftResponsibility(input, dependencies) {
-  if (!isUuid(input.memberId))
+  if (
+    !isUuid(input.memberId) ||
+    typeof input.receiverPin !== "string" ||
+    !/^[0-9]{4,6}$/.test(input.receiverPin)
+  )
     throw new WorkstationSessionError("INVALID_SESSION");
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
       const rows = await shiftRpc(
         clients.admin,
-        "admin_transfer_shift_responsibility",
+        "admin_transfer_shift_responsibility_with_pin",
         {
           p_operator_token_hash: operatorTokenHash,
           p_new_responsible_member_id: input.memberId,
+          p_receiver_pin: input.receiverPin,
         },
       );
       const row = Array.isArray(rows) && rows[0];
       if (!row) throw new WorkstationSessionError("UNAVAILABLE");
+      if (row.pin_verified !== true)
+        throw new ShiftOperationError("INVALID_RECEIVER_PIN");
       return {
         shiftId: safeString(row.shift_id),
         previousResponsibleMemberId: safeString(

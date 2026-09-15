@@ -1,5 +1,7 @@
 import "server-only";
 import type { NextRequest } from "next/server";
+import { transferShiftResponsibility } from "@/lib/shifts/server/shifts.mjs";
+import { isUuid } from "@/lib/workstation/server/shared.mjs";
 import {
   assertMutationOrigin,
   invalidInputResponse,
@@ -19,24 +21,27 @@ export async function POST(request: NextRequest) {
 
   const body = await readJsonObject(request);
   const memberId = body && textField(body, "p_new_responsible_member_id");
+  const receiverPin = body && textField(body, "receiverPin");
   if (
     !memberId ||
-    Object.keys(body ?? {}).some((key) => key !== "p_new_responsible_member_id")
+    !isUuid(memberId) ||
+    !receiverPin ||
+    !/^[0-9]{4,6}$/.test(receiverPin) ||
+    Object.keys(body ?? {}).some(
+      (key) => key !== "p_new_responsible_member_id" && key !== "receiverPin",
+    )
   )
     return invalidInputResponse();
 
   try {
     const session = readShiftSession(request);
-    void memberId;
-    void session;
-    return jsonResponse(
-      {
-        error:
-          "La transferencia persistida requiere validación del PIN del receptor en una fase posterior.",
-        code: "TRANSFER_PIN_UNSUPPORTED",
-      },
-      501,
-    );
+    return jsonResponse({
+      result: await transferShiftResponsibility({
+        ...session,
+        memberId,
+        receiverPin,
+      }),
+    });
   } catch (error) {
     return shiftErrorResponse(error);
   }

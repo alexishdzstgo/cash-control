@@ -454,7 +454,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         error: "Ingresa un PIN válido del nuevo responsable.",
       };
     return runRemoteMutation(() =>
-      transferPersistedShiftResponsibility(memberId),
+      transferPersistedShiftResponsibility(memberId, receiverPin),
     );
   }
 

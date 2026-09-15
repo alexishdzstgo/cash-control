@@ -32,7 +32,9 @@ function statusForShiftError(code: string) {
   if (code === "DUPLICATE_OPEN_SHIFT") return 409;
   if (
     code === "ACTIVE_SHIFT_MANAGER_REQUIRED" ||
-    code === "RESPONSIBLE_CANNOT_LEAVE"
+    code === "RESPONSIBLE_CANNOT_LEAVE" ||
+    code === "CURRENT_SHIFT_RESPONSIBLE_REQUIRED" ||
+    code === "INVALID_RECEIVER_PIN"
   )
     return 403;
   if (

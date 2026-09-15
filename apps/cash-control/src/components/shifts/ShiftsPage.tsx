@@ -191,9 +191,9 @@ export function ShiftsPage() {
   }
 
   function finishTransfer(result: { success: boolean; error?: string }) {
+    setTransferPin("");
     if (result.success) {
       setSelectedTransferParticipant(null);
-      setTransferPin("");
       setTransferError("");
     } else {
       setTransferError(

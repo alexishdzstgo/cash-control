@@ -94,7 +94,10 @@ export function addPersistedShiftParticipant(memberId: string) {
   );
 }
 
-export function transferPersistedShiftResponsibility(memberId: string) {
+export function transferPersistedShiftResponsibility(
+  memberId: string,
+  receiverPin: string,
+) {
   return request<{
     result: {
       shiftId: string;
@@ -103,7 +106,10 @@ export function transferPersistedShiftResponsibility(memberId: string) {
     };
   }>("/api/shifts/responsibility", {
     method: "POST",
-    body: JSON.stringify({ p_new_responsible_member_id: memberId }),
+    body: JSON.stringify({
+      p_new_responsible_member_id: memberId,
+      receiverPin,
+    }),
   });
 }
 

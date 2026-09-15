@@ -406,11 +406,19 @@ navegador solo puede enviar el miembro destino de una operación permitida y no
 puede autorizarla con `userId`, `actorId` ni otro identificador de actor.
 
 La transferencia de responsabilidad conserva el PIN obligatorio del nuevo
-responsable en la UI. La RPC disponible en `0006_shifts_and_participants.sql`
-no recibe ni valida ese PIN, por lo que el endpoint persistido devuelve una
-respuesta controlada de funcionalidad pendiente y no ejecuta la RPC. La
-transferencia persistida queda pendiente de una fase posterior que agregue esa
-validación backend; no debe considerarse funcionalmente completa mientras tanto.
+responsable en la UI. La migración local
+`0007_atomic_shift_transfer_pin.sql` agrega una RPC atómica que resuelve al
+actor desde las cookies de sesión, comprueba que el destino sea un participante
+activo del mismo negocio, valida el PIN mediante `private.verify_member_pin` y
+solo actualiza la responsabilidad después de una validación correcta. Un PIN
+incorrecto devuelve un error de negocio sin filtrar el PIN y conserva el
+contador de intentos fallidos, porque la RPC devuelve `false` en vez de lanzar
+una excepción durante esa validación.
+
+`0007_atomic_shift_transfer_pin.sql` está preparada localmente y no ha sido
+aplicada a Supabase cloud. Por tanto, la transferencia requiere aplicar esa
+migración antes de desplegar esta versión contra el proyecto remoto; no se
+debe considerar disponible en cloud hasta que el nuevo RPC exista allí.
 
 ## Reglas para las fases financieras
 

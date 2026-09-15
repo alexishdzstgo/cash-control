@@ -126,10 +126,21 @@ const nextServerMock = {
 
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
+  if (request === "server-only") return {};
   if (request === "next/server") return nextServerMock;
   if (request === "@/lib/shifts/server/shifts.mjs") return serviceMock;
   if (request === "@/lib/workstation/server/shared.mjs")
-    return { WorkstationSessionError };
+    return {
+      WorkstationSessionError,
+      isUuid(value) {
+        return (
+          typeof value === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            value,
+          )
+        );
+      },
+    };
   if (request === "@/lib/workstation/server/csrf.mjs")
     return {
       OriginValidationError,
@@ -241,13 +252,14 @@ test("POST /api/shifts/participants expone fallos de negocio sin filtrar detalle
   });
 });
 
-test("POST /api/shifts/responsibility no aparenta validar PIN ni ejecuta la RPC 0006", async () => {
+test("POST /api/shifts/responsibility exige PIN y deriva el actor de las cookies", async () => {
   resetState();
   const noSession = await responsibilityRoute.POST(
     fakeRequest({
       session: {},
       body: {
         p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+        receiverPin: "1234",
       },
     }),
   );
@@ -258,21 +270,50 @@ test("POST /api/shifts/responsibility no aparenta validar PIN ni ejecuta la RPC 
     fakeRequest({
       body: {
         p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+        receiverPin: "1234",
       },
     }),
   );
-  assert.equal(response.status, 501);
+  assert.equal(response.status, 200);
   assert.deepEqual(response.body, {
-    error:
-      "La transferencia persistida requiere validación del PIN del receptor en una fase posterior.",
-    code: "TRANSFER_PIN_UNSUPPORTED",
+    result: {
+      shiftId: state.shift.id,
+      responsibleMemberId: "33333333-3333-4333-8333-333333333333",
+    },
   });
-  assert.equal(state.calls.length, 0);
+  assert.deepEqual(state.calls[0], {
+    name: "transferShiftResponsibility",
+    input: {
+      ...state.session,
+      memberId: "33333333-3333-4333-8333-333333333333",
+      receiverPin: "1234",
+    },
+  });
+  assert.equal(Object.hasOwn(state.calls[0].input, "userId"), false);
+  assert.equal(JSON.stringify(response.body).includes("1234"), false);
 
+  resetState();
+  state.errors.transferShiftResponsibility = new ShiftOperationError(
+    "INVALID_RECEIVER_PIN",
+  );
+  const invalidPin = await responsibilityRoute.POST(
+    fakeRequest({
+      body: {
+        p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+        receiverPin: "9999",
+      },
+    }),
+  );
+  assert.equal(invalidPin.status, 403);
+  assert.equal(invalidPin.body.code, "INVALID_RECEIVER_PIN");
+  assert.equal(JSON.stringify(invalidPin.body).includes("9999"), false);
+
+  resetState();
   const invalid = await responsibilityRoute.POST(
     fakeRequest({
       body: {
         p_new_responsible_member_id: "33333333-3333-4333-8333-333333333333",
+        receiverPin: "1234",
         userId: "client-controlled",
       },
     }),

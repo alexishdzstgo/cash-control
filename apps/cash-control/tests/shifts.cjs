@@ -2400,6 +2400,7 @@ test("transfer UI: participant card selects Pedro, preserves receiver PIN, one A
   assert.equal(session.getContextResponsibleUserId(), "ana-lopez");
   modal = componentNamed(view(), "TransferResponsibilityModal");
   assert.equal(modal.props.transferError, "PIN incorrecto");
+  assert.equal(modal.props.transferPin, "");
   const renderedModal = renderComponent(modal.type, {
     ...modal.props,
     transferSummary: {

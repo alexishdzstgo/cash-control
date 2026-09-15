@@ -83,6 +83,15 @@ function fixture() {
         responsible_member_id: targetMemberId,
       },
     ],
+    admin_transfer_shift_responsibility_with_pin: [
+      {
+        pin_verified: true,
+        shift_id: shiftId,
+        previous_responsible_member_id: memberId,
+        responsible_member_id: targetMemberId,
+        receiver_pin: "must-not-leak",
+      },
+    ],
     admin_resolve_open_shift: [],
     admin_list_shift_participants: [
       {
@@ -141,7 +150,12 @@ test("shift server mutations do not accept a client actor", async () => {
   );
   await leaveShift(session, dependencies);
   await transferShiftResponsibility(
-    { ...session, memberId: targetMemberId, actorId: "client-controlled" },
+    {
+      ...session,
+      memberId: targetMemberId,
+      receiverPin: "1234",
+      actorId: "client-controlled",
+    },
     dependencies,
   );
 
@@ -156,14 +170,23 @@ test("shift server mutations do not accept a client actor", async () => {
   assert.equal(Object.hasOwn(addCall[1], "p_business_id"), false);
 
   const transferCall = calls.find(
-    ([name]) => name === "admin_transfer_shift_responsibility",
+    ([name]) => name === "admin_transfer_shift_responsibility_with_pin",
   );
   assert.deepEqual(transferCall[1], {
     p_operator_token_hash: hashSessionToken(session.operatorToken),
     p_new_responsible_member_id: targetMemberId,
+    p_receiver_pin: "1234",
   });
   assert.equal(Object.hasOwn(transferCall[1], "p_actor_id"), false);
   assert.equal(Object.hasOwn(transferCall[1], "p_user_id"), false);
+  assert.equal(Object.hasOwn(transferCall[1], "actorId"), false);
+  assert.equal(Object.hasOwn(transferCall[1], "userId"), false);
+
+  const result = await transferShiftResponsibility(
+    { ...session, memberId: targetMemberId, receiverPin: "1234" },
+    dependencies,
+  );
+  assert.equal(Object.hasOwn(result, "receiverPin"), false);
 });
 
 test("shift server reads strictly project database rows", async () => {
