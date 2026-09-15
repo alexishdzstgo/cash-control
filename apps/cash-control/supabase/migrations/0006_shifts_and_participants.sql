@@ -699,7 +699,7 @@ begin
     'private.assert_open_shift_responsible_participant_trigger()'
   ] loop
     execute pg_catalog.format(
-      'revoke all on function %s from public, anon, authenticated, service_role',
+      'revoke execute on function %s from public, anon, authenticated, service_role',
       v_signature
     );
   end loop;
@@ -728,6 +728,64 @@ begin
       'grant execute on function %s to service_role',
       v_signature
     );
+  end loop;
+end;
+$$;
+
+-- Keep the security contract executable at migration time. PostgreSQL stores
+-- SET search_path = '' in pg_proc.proconfig as search_path="".
+do $$
+declare
+  v_signature text;
+begin
+  foreach v_signature in array array[
+    'private.resolve_shift_operator(text)',
+    'private.assert_shift_business_integrity_for(uuid)',
+    'private.assert_shift_business_integrity_shift_trigger()',
+    'private.assert_shift_business_integrity_participant_trigger()',
+    'private.assert_open_shift_responsible_for(uuid)',
+    'private.assert_open_shift_responsible_shift_trigger()',
+    'private.assert_open_shift_responsible_participant_trigger()',
+    'public.admin_open_shift(text)',
+    'public.admin_add_shift_participant(text,uuid)',
+    'public.admin_leave_shift(text)',
+    'public.admin_transfer_shift_responsibility(text,uuid)',
+    'public.admin_resolve_open_shift(text)',
+    'public.admin_list_shift_participants(text)'
+  ] loop
+    if not exists (
+      select 1
+        from pg_catalog.pg_proc p
+       where p.oid = pg_catalog.to_regprocedure(v_signature)
+         and p.prosecdef
+         and exists (
+           select 1
+             from pg_catalog.unnest(coalesce(p.proconfig, array[]::text[])) as config(setting)
+            where config.setting = 'search_path=""'
+         )
+         and not exists (
+           select 1
+             from pg_catalog.aclexplode(
+               coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+             ) as acl
+            where acl.grantee = 0
+              and acl.privilege_type = 'EXECUTE'
+         )
+    ) then
+      raise exception 'function security definition is invalid: %', v_signature;
+    end if;
+
+    if v_signature like 'private.%' then
+      if has_function_privilege('service_role', v_signature, 'EXECUTE')
+        or has_function_privilege('anon', v_signature, 'EXECUTE')
+        or has_function_privilege('authenticated', v_signature, 'EXECUTE') then
+        raise exception 'private shift function is executable: %', v_signature;
+      end if;
+    elsif not has_function_privilege('service_role', v_signature, 'EXECUTE')
+      or has_function_privilege('anon', v_signature, 'EXECUTE')
+      or has_function_privilege('authenticated', v_signature, 'EXECUTE') then
+      raise exception 'wrong shift RPC privileges: %', v_signature;
+    end if;
   end loop;
 end;
 $$;

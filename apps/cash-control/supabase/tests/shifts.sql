@@ -62,7 +62,17 @@ begin
   ] loop
     if not has_function_privilege('service_role', v_signature, 'EXECUTE')
       or has_function_privilege('anon', v_signature, 'EXECUTE')
-      or has_function_privilege('authenticated', v_signature, 'EXECUTE') then
+      or has_function_privilege('authenticated', v_signature, 'EXECUTE')
+      or exists (
+        select 1
+          from pg_catalog.pg_proc p
+          cross join lateral pg_catalog.aclexplode(
+            coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+          ) as acl
+         where p.oid = to_regprocedure(v_signature)
+           and acl.grantee = 0
+           and acl.privilege_type = 'EXECUTE'
+      ) then
       raise exception 'wrong shift RPC privileges: %', v_signature;
     end if;
   end loop;
@@ -86,12 +96,27 @@ begin
         from pg_catalog.pg_proc p
        where p.oid = to_regprocedure(v_function)
          and p.prosecdef
-         and 'search_path=' = any(coalesce(p.proconfig, array[]::text[]))
+         and exists (
+           select 1
+             from pg_catalog.unnest(coalesce(p.proconfig, array[]::text[])) as config(setting)
+            where config.setting = 'search_path=""'
+         )
     ) then
       raise exception 'function is not hardened: %', v_function;
     end if;
     if v_function like 'private.%'
        and (
+         exists (
+           select 1
+             from pg_catalog.pg_proc p
+             cross join lateral pg_catalog.aclexplode(
+               coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))
+             ) as acl
+            where p.oid = to_regprocedure(v_function)
+              and acl.grantee = 0
+              and acl.privilege_type = 'EXECUTE'
+         )
+         or
          has_function_privilege('service_role', v_function, 'EXECUTE')
          or has_function_privilege('anon', v_function, 'EXECUTE')
          or has_function_privilege('authenticated', v_function, 'EXECUTE')
