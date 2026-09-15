@@ -48,7 +48,9 @@ const { updateSession } = require("../src/lib/supabase/proxy.ts");
 const envNames = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
 ];
 async function withEnv(configured, run) {
   const before = envNames.map((name) => process.env[name]);
@@ -156,5 +158,21 @@ test("public factories never receive service role; admin is stateless and server
     assert.doesNotThrow(() =>
       calls[1].args[2].cookies.setAll([{ name: "session", value: "new" }]),
     );
+  });
+});
+
+test("legacy Supabase environment aliases remain compatible", async () => {
+  await withEnv(false, async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "legacy-public";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "legacy-server-only";
+
+    browser.createClient();
+    await server.createClient();
+    admin.createAdminClient();
+
+    assert.equal(calls[0].args[1], "legacy-public");
+    assert.equal(calls[1].args[1], "legacy-public");
+    assert.equal(calls[2].args[1], "legacy-server-only");
   });
 });

@@ -30,8 +30,8 @@ try {
     );
   }
   const key = requiredText(
-    process.env.SUPABASE_SECRET_KEY,
-    "SUPABASE_SECRET_KEY",
+    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    "SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)",
   );
   const admin = createClient(url, key, {
     auth: {

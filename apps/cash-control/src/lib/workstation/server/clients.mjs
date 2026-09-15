@@ -16,8 +16,10 @@ export function createWorkstationClients(
   factory = createClient,
 ) {
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
-  const secretKey = env.SUPABASE_SECRET_KEY;
-  const publishableKey = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const secretKey = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  const publishableKey =
+    env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !secretKey || !publishableKey)
     throw new WorkstationSessionError("UNAVAILABLE");
   const options = () => ({

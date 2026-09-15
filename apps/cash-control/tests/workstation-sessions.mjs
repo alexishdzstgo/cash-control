@@ -376,6 +376,26 @@ test("password clients use publishable key, are isolated and stateless", () => {
     });
 });
 
+test("workstation clients accept legacy Supabase environment aliases", () => {
+  const calls = [];
+  const clients = createWorkstationClients(
+    {
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "legacy-server-key",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "legacy-public-key",
+    },
+    (...args) => {
+      calls.push(args);
+      return {};
+    },
+  );
+  clients.createPasswordClient();
+  assert.deepEqual(
+    calls.map((args) => args[1]),
+    ["legacy-server-key", "legacy-public-key"],
+  );
+});
+
 test("wrong password and different returned Auth ID never create a workstation", async () => {
   for (const wrongAuthId of [false, true]) {
     const f = fixture();

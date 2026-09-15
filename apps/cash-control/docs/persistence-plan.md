@@ -52,6 +52,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 SUPABASE_SECRET_KEY=
 ```
 
+La aplicación prefiere esos nombres actuales. Para instalaciones que todavía
+usan los nombres históricos de Supabase también acepta
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` como clave pública y
+`SUPABASE_SERVICE_ROLE_KEY` como clave exclusivamente de servidor; no se deben
+configurar ambas variantes con valores distintos.
+
 No hay clientes creados al importar módulos. Las llamadas explícitas a factories
 sin configuración lanzan errores claros. Solo el proxy hace no-op temporal cuando
 falta URL o clave pública. En Fase 2 exigir configuración y autorización real;
@@ -324,6 +330,12 @@ controlado sin token/hash/password/PIN/email. La activación puede conservarse c
 su contraseña fue válida pero falló la emisión posterior. Las RPC con service_role
 son primitivas confiables: nunca concederlas al navegador ni invocarlas desde un
 endpoint sin estas comprobaciones.
+
+En cada entorno desplegado, `APP_ORIGIN` debe configurarse con el origen exacto
+que usa el navegador, por ejemplo `https://cash-control.vercel.app`, sin ruta,
+query ni hash. Es obligatorio en producción para que las mutaciones de inicio,
+activación, desbloqueo y cierre puedan establecer o modificar las cookies de
+sesión.
 
 ### Fase 2B.2-A.1: enumeración segura de miembros activados
 
