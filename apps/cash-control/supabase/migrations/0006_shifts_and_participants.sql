@@ -6,11 +6,6 @@ create type public.shift_status as enum ('open', 'closed');
 create type public.shift_participant_role as enum ('shift_responsible', 'operator');
 create type public.shift_participant_status as enum ('active', 'left');
 
--- The redundant composite key lets the new tables enforce that every member
--- reference belongs to the same business as its shift.
-alter table public.business_members
-  add constraint business_members_id_business_key unique (id, business_id);
-
 create sequence private.shift_folio_seq
   as bigint
   start with 1
@@ -27,14 +22,13 @@ create table private.shifts (
   closed_at timestamptz,
   opened_by_member_id uuid not null,
   responsible_member_id uuid not null,
-  unique (id, business_id),
   unique (folio),
-  constraint shifts_opened_by_member_business_fkey
-    foreign key (opened_by_member_id, business_id)
-    references public.business_members(id, business_id),
-  constraint shifts_responsible_member_business_fkey
-    foreign key (responsible_member_id, business_id)
-    references public.business_members(id, business_id),
+  constraint shifts_opened_by_member_fkey
+    foreign key (opened_by_member_id)
+    references public.business_members(id),
+  constraint shifts_responsible_member_fkey
+    foreign key (responsible_member_id)
+    references public.business_members(id),
   check (
     (status = 'open' and closed_at is null)
     or (status = 'closed' and closed_at is not null)
@@ -51,12 +45,12 @@ create table private.shift_participants (
   status public.shift_participant_status not null default 'active',
   joined_at timestamptz not null default clock_timestamp(),
   left_at timestamptz,
-  constraint shift_participants_shift_business_fkey
-    foreign key (shift_id, business_id)
-    references private.shifts(id, business_id),
-  constraint shift_participants_member_business_fkey
-    foreign key (member_id, business_id)
-    references public.business_members(id, business_id),
+  constraint shift_participants_shift_fkey
+    foreign key (shift_id)
+    references private.shifts(id),
+  constraint shift_participants_member_fkey
+    foreign key (member_id)
+    references public.business_members(id),
   check (
     (status = 'active' and left_at is null)
     or (status = 'left' and left_at is not null)
@@ -74,8 +68,8 @@ create index shifts_opened_by_member_idx
 create index shifts_responsible_member_idx
   on private.shifts(responsible_member_id);
 
--- The first column supports the shift participant listing; the business column
--- supports the composite foreign key and historical membership checks.
+-- The first columns support tenant-scoped listing and membership lookups. The
+-- partial unique indexes protect active participation and responsibility.
 create index shift_participants_shift_idx
   on private.shift_participants(shift_id, business_id, status, joined_at);
 create index shift_participants_member_idx
@@ -93,6 +87,11 @@ revoke all on private.shifts, private.shift_participants
   from public, anon, authenticated, service_role;
 revoke all on sequence private.shift_folio_seq
   from public, anon, authenticated, service_role;
+
+-- All mutating RPCs resolve the operator with a shared workstation lock first.
+-- Opening then locks the business row to serialize the open-shift check. The
+-- participant mutations lock the open shift row and only then participant or
+-- member rows. No mutation acquires those resources in the reverse order.
 
 -- Resolve and lock the operator row before a shift operation. The workstation
 -- row is shared-locked first, matching closeWorkstation's lock order.
@@ -146,6 +145,106 @@ begin
      for share of o;
 end;
 $$;
+
+-- Simple member FKs guarantee that referenced members exist. These deferred
+-- database checks preserve the stronger invariant that every shift member and
+-- participant belongs to the shift's business without altering business_members.
+create function private.assert_shift_business_integrity_for(p_shift_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_business_id uuid;
+  v_opened_by_member_id uuid;
+  v_responsible_member_id uuid;
+begin
+  select s.business_id, s.opened_by_member_id, s.responsible_member_id
+    into v_business_id, v_opened_by_member_id, v_responsible_member_id
+    from private.shifts s
+   where s.id = p_shift_id;
+  if not found then
+    return;
+  end if;
+
+  if not exists (
+       select 1 from public.business_members m
+        where m.id = v_opened_by_member_id
+          and m.business_id = v_business_id
+     )
+     or not exists (
+       select 1 from public.business_members m
+        where m.id = v_responsible_member_id
+          and m.business_id = v_business_id
+     ) then
+    raise exception 'Shift members must belong to the shift business.'
+      using errcode = '23514';
+  end if;
+
+  if exists (
+    select 1
+      from private.shift_participants p
+      left join public.business_members m on m.id = p.member_id
+     where p.shift_id = p_shift_id
+       and (
+         p.business_id is distinct from v_business_id
+         or m.id is null
+         or m.business_id is distinct from v_business_id
+       )
+  ) then
+    raise exception 'Shift participants must belong to the shift business.'
+      using errcode = '23514';
+  end if;
+end;
+$$;
+
+create function private.assert_shift_business_integrity_shift_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' then
+    perform private.assert_shift_business_integrity_for(old.id);
+  else
+    perform private.assert_shift_business_integrity_for(new.id);
+  end if;
+  return null;
+end;
+$$;
+
+create function private.assert_shift_business_integrity_participant_trigger()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' then
+    return null;
+  end if;
+
+  perform private.assert_shift_business_integrity_for(new.shift_id);
+  if tg_op = 'UPDATE' and old.shift_id is distinct from new.shift_id then
+    perform private.assert_shift_business_integrity_for(old.shift_id);
+  end if;
+  return null;
+end;
+$$;
+
+create constraint trigger shifts_business_integrity
+after insert or update of business_id, opened_by_member_id, responsible_member_id
+on private.shifts
+deferrable initially deferred
+for each row execute function private.assert_shift_business_integrity_shift_trigger();
+
+create constraint trigger shift_participants_business_integrity
+after insert or update of shift_id, business_id, member_id
+on private.shift_participants
+deferrable initially deferred
+for each row execute function private.assert_shift_business_integrity_participant_trigger();
 
 -- Deferred checks allow a responsibility transfer to update both participant
 -- rows and the shift projection before the transaction is validated.
@@ -235,7 +334,7 @@ deferrable initially deferred
 for each row execute function private.assert_open_shift_responsible_shift_trigger();
 
 create constraint trigger shift_participants_responsible_invariant
-after insert or update of shift_id, business_id, role, status or delete
+after insert or update of shift_id, business_id, member_id, role, status or delete
 on private.shift_participants
 deferrable initially deferred
 for each row execute function private.assert_open_shift_responsible_participant_trigger();
@@ -358,7 +457,7 @@ begin
      and m.business_id = v_actor.business_id
      and m.status = 'active'
      and b.status = 'active'
-   for share of b, m;
+   for share of m;
   if not found then
     raise exception 'Active member of this business required.' using errcode = '22023';
   end if;
@@ -592,6 +691,9 @@ declare
 begin
   foreach v_signature in array array[
     'private.resolve_shift_operator(text)',
+    'private.assert_shift_business_integrity_for(uuid)',
+    'private.assert_shift_business_integrity_shift_trigger()',
+    'private.assert_shift_business_integrity_participant_trigger()',
     'private.assert_open_shift_responsible_for(uuid)',
     'private.assert_open_shift_responsible_shift_trigger()',
     'private.assert_open_shift_responsible_participant_trigger()'

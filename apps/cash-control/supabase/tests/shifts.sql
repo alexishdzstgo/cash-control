@@ -17,10 +17,14 @@ declare
   v_station uuid;
   v_other_station uuid;
   v_shift uuid;
+  v_invalid_shift uuid;
+  v_other_shift uuid;
+  v_now timestamptz;
   v_open record;
   v_participant record;
   v_i integer;
   v_signature text;
+  v_function text;
   v_table text;
   v_operator_hash text := repeat('a', 64);
   v_employee_operator_hash text := repeat('b', 64);
@@ -62,6 +66,39 @@ begin
       raise exception 'wrong shift RPC privileges: %', v_signature;
     end if;
   end loop;
+  foreach v_function in array array[
+    'private.resolve_shift_operator(text)',
+    'private.assert_shift_business_integrity_for(uuid)',
+    'private.assert_shift_business_integrity_shift_trigger()',
+    'private.assert_shift_business_integrity_participant_trigger()',
+    'private.assert_open_shift_responsible_for(uuid)',
+    'private.assert_open_shift_responsible_shift_trigger()',
+    'private.assert_open_shift_responsible_participant_trigger()',
+    'public.admin_open_shift(text)',
+    'public.admin_add_shift_participant(text,uuid)',
+    'public.admin_leave_shift(text)',
+    'public.admin_transfer_shift_responsibility(text,uuid)',
+    'public.admin_resolve_open_shift(text)',
+    'public.admin_list_shift_participants(text)'
+  ] loop
+    if not exists (
+      select 1
+        from pg_catalog.pg_proc p
+       where p.oid = to_regprocedure(v_function)
+         and p.prosecdef
+         and 'search_path=' = any(coalesce(p.proconfig, array[]::text[]))
+    ) then
+      raise exception 'function is not hardened: %', v_function;
+    end if;
+    if v_function like 'private.%'
+       and (
+         has_function_privilege('service_role', v_function, 'EXECUTE')
+         or has_function_privilege('anon', v_function, 'EXECUTE')
+         or has_function_privilege('authenticated', v_function, 'EXECUTE')
+       ) then
+      raise exception 'private shift function is executable: %', v_function;
+    end if;
+  end loop;
   if to_regprocedure('public.admin_close_shift(text)') is not null then
     raise exception 'financial shift close RPC must not exist yet';
   end if;
@@ -86,16 +123,31 @@ begin
     raise exception 'open-shift partial unique index is missing';
   end if;
 
+  if exists (
+    select 1 from pg_catalog.pg_constraint
+     where conname = 'business_members_id_business_key'
+       and conrelid = 'public.business_members'::regclass
+  ) then
+    raise exception '0006 must not alter business_members';
+  end if;
   if not exists (
     select 1 from pg_catalog.pg_constraint
-     where conname = 'shift_participants_shift_business_fkey'
+     where conname = 'shifts_opened_by_member_fkey'
+       and conrelid = 'private.shifts'::regclass
+  ) or not exists (
+    select 1 from pg_catalog.pg_constraint
+     where conname = 'shifts_responsible_member_fkey'
+       and conrelid = 'private.shifts'::regclass
+  ) or not exists (
+    select 1 from pg_catalog.pg_constraint
+     where conname = 'shift_participants_shift_fkey'
        and conrelid = 'private.shift_participants'::regclass
   ) or not exists (
     select 1 from pg_catalog.pg_constraint
-     where conname = 'shift_participants_member_business_fkey'
+     where conname = 'shift_participants_member_fkey'
        and conrelid = 'private.shift_participants'::regclass
   ) then
-    raise exception 'business integrity composite foreign keys are missing';
+    raise exception 'simple member and shift foreign keys are missing';
   end if;
 
   insert into auth.users (id)
@@ -119,6 +171,51 @@ begin
     v_other_business, v_other_user, 'Other', 'Business', 'Other Business', null,
     'other', 'owner', '', '4567'
   );
+
+  -- Cross-business references are rejected by deferred DB checks, not by JS.
+  begin
+    insert into private.shifts (
+      business_id, folio, status, opened_at, opened_by_member_id, responsible_member_id
+    ) values (
+      v_other_business, 'TUR-900001', 'open', clock_timestamp(), v_owner, v_other
+    ) returning id into v_invalid_shift;
+    insert into private.shift_participants (shift_id, business_id, member_id, role, status)
+      values (v_invalid_shift, v_other_business, v_other, 'shift_responsible', 'active');
+    set constraints all immediate;
+    raise exception 'business A opened a shift in business B';
+  exception when check_violation then null; end;
+  set constraints all deferred;
+
+  begin
+    insert into private.shifts (
+      business_id, folio, status, opened_at, opened_by_member_id, responsible_member_id
+    ) values (
+      v_other_business, 'TUR-900002', 'open', clock_timestamp(), v_other, v_owner
+    ) returning id into v_invalid_shift;
+    insert into private.shift_participants (shift_id, business_id, member_id, role, status)
+      values (v_invalid_shift, v_other_business, v_owner, 'shift_responsible', 'active');
+    set constraints all immediate;
+    raise exception 'business A became responsible for a shift in business B';
+  exception when check_violation then null; end;
+  set constraints all deferred;
+
+  v_now := clock_timestamp();
+  insert into private.shifts (
+    business_id, folio, status, opened_at, closed_at,
+    opened_by_member_id, responsible_member_id
+  ) values (
+    v_other_business, 'TUR-900003', 'closed', v_now, v_now + interval '1 second',
+    v_other, v_other
+  ) returning id into v_other_shift;
+  set constraints all immediate;
+  set constraints all deferred;
+  begin
+    insert into private.shift_participants (shift_id, business_id, member_id, role, status)
+      values (v_other_shift, v_business, v_owner, 'operator', 'active');
+    set constraints all immediate;
+    raise exception 'business A participant entered a shift in business B';
+  exception when check_violation then null; end;
+  set constraints all deferred;
 
   v_station := public.admin_create_workstation_session(
     v_business, v_owner, repeat('1', 64), clock_timestamp() + interval '23 hours'
@@ -227,6 +324,10 @@ begin
   if v_open.previous_responsible_member_id is distinct from v_owner
     or v_open.responsible_member_id is distinct from v_employee
     or (select responsible_member_id from private.shifts where id = v_shift) is distinct from v_employee
+    or (select count(*) from private.shift_participants
+         where shift_id = v_shift and role = 'shift_responsible' and status = 'active') <> 1
+    or (select count(*) from private.shift_participants
+         where shift_id = v_shift and role = 'operator' and status = 'active') <> 1
     or not exists (
       select 1 from private.shift_participants
        where shift_id = v_shift and member_id = v_owner and role = 'operator' and status = 'active'
@@ -238,6 +339,27 @@ begin
     ) then
     raise exception 'responsibility transfer projection is incorrect';
   end if;
+
+  -- Directly changing the responsible participant's member is also rejected;
+  -- the deferred trigger keeps it aligned with shifts.responsible_member_id.
+  begin
+    update private.shift_participants
+       set member_id = v_left
+     where shift_id = v_shift
+       and role = 'shift_responsible'
+       and status = 'active';
+    set constraints all immediate;
+    raise exception 'responsible participant diverged from shift projection';
+  exception when check_violation then null; end;
+  set constraints all deferred;
+
+  -- A second active responsible row is rejected immediately; concurrent
+  -- transfers are additionally serialized by the RPC's shift-row lock.
+  begin
+    insert into private.shift_participants (shift_id, business_id, member_id, role, status)
+      values (v_shift, v_business, v_left, 'shift_responsible', 'active');
+    raise exception 'two active shift responsibles were accepted';
+  exception when unique_violation then null; end;
 
   -- The new responsible must be an active participant; a left participant is rejected.
   v_employee_operator_hash := repeat('f', 64);

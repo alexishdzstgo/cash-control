@@ -375,7 +375,11 @@ RPC SECURITY DEFINER con `search_path = ''` y ejecución exclusiva de `service_r
 
 El folio `TUR-000001` es generado por una secuencia PostgreSQL y el índice único
 parcial permite como máximo un turno abierto por negocio. Las claves foráneas
-compuestas mantienen turno, participante y membresía dentro del mismo negocio.
+simples mantienen las filas referenciadas existentes; triggers de restricción
+deferibles validan dentro de PostgreSQL que el `business_id` del turno, el del
+participante y el de su miembro sean iguales. Esto evita modificar
+`business_members` con la clave redundante `(id, business_id)` y no delega la
+integridad en JavaScript.
 La base garantiza un único participante activo por miembro, conserva el historial
 cuando abandona y mantiene exactamente un responsable activo en un turno abierto.
 La transferencia cambia la proyección del turno y los roles de participantes dentro
@@ -387,6 +391,12 @@ la sesión real de estación/operador. `src/lib/shifts/server/shifts.mjs` valida
 sesión con `resolveCurrentOperator`, envía las mutaciones a las RPC y devuelve
 proyecciones estrictas sin secretos. No se conecta `ShiftContext`, no se crea ruta
 `/shifts` y no cambia la UI ni la lógica financiera.
+
+Las mutaciones usan un orden de locks explícito: resolución del operador con lock
+compartido de la workstation; apertura con lock de la fila de negocio; y agregar,
+salir o transferir con lock de la fila del turno antes de tocar participantes o
+miembros. La secuencia de folios es monotónica y no reutiliza valores; puede dejar
+huecos si una transacción obtiene un `nextval` y después hace rollback.
 
 ## Reglas para las fases financieras
 
