@@ -303,3 +303,7 @@ export function useRealWorkstationSession() {
     );
   return context;
 }
+
+export function useOptionalRealWorkstationSession() {
+  return useContext(RealWorkstationSessionContext);
+}

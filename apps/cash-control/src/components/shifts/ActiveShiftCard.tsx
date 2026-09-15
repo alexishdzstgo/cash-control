@@ -108,8 +108,8 @@ export function ActiveShiftCard({
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Las acciones de este módulo son una simulación local y se reinician al
-        recargar.
+        El turno y sus participantes se consultan desde la sesión real y el
+        backend persistido.
       </p>
     </div>
   );

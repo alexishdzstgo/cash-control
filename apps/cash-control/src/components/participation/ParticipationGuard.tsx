@@ -3,7 +3,8 @@
 import { ArrowLeft, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
+import { useShift } from "@/components/shifts/ShiftContext";
 import { Button } from "@/components/ui/button";
 
 interface ParticipationGuardProps {
@@ -12,40 +13,24 @@ interface ParticipationGuardProps {
 
 export function ParticipationGuard({ children }: ParticipationGuardProps) {
   const router = useRouter();
-  const {
-    authenticatedUser,
-    participants,
-    startParticipation,
-    updateAuthenticatedUser,
-  } = useMockSession();
+  const { state } = useRealAppSession();
+  const { loading, error, currentShift, isCurrentUserParticipant, refresh } =
+    useShift();
 
   useEffect(() => {
-    if (!authenticatedUser) {
+    if (state !== "loading" && state !== "ACTIVE") {
       router.replace("/workstation");
     }
-  }, [authenticatedUser, router]);
+  }, [router, state]);
 
-  if (!authenticatedUser) {
+  if (state !== "ACTIVE" || loading) {
     return null;
   }
 
-  const activeParticipation = participants.find(
-    (p) => p.userId === authenticatedUser.userId && p.status === "active",
-  );
-
-  // If user has active participation, show the protected content
-  if (activeParticipation) {
+  if (currentShift && isCurrentUserParticipant()) {
     return <>{children}</>;
   }
 
-  const handleStartParticipation = () => {
-    if (authenticatedUser) {
-      startParticipation(authenticatedUser.userId);
-      updateAuthenticatedUser({ hasActiveParticipation: true });
-    }
-  };
-
-  // If user doesn't have active participation, show blocking screen
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -59,14 +44,31 @@ export function ParticipationGuard({ children }: ParticipationGuardProps) {
           </h2>
 
           <p className="mt-2 text-sm text-slate-600">
-            Para registrar o gestionar operaciones debes iniciar tu
-            participación.
+            Para registrar o gestionar operaciones debes tener un turno abierto
+            y una participación activa.
           </p>
 
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+
           <div className="mt-6 flex w-full flex-col gap-3">
-            <Button onClick={handleStartParticipation} className="w-full gap-2">
+            <Button
+              onClick={() => router.push("/shifts")}
+              className="w-full gap-2"
+            >
               <UserCheck className="h-4 w-4" />
-              Iniciar participación
+              Ir a Turnos
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => void refresh()}
+              className="w-full gap-2"
+            >
+              Actualizar turno
             </Button>
 
             <Button

@@ -5,6 +5,7 @@ import {
   type RealWorkstationOperator,
   RealWorkstationSessionProvider,
   type RealWorkstationState,
+  useOptionalRealWorkstationSession,
   useRealWorkstationSession,
 } from "@/components/workstation/RealWorkstationSessionProvider";
 
@@ -41,4 +42,33 @@ export function useRealAppSession() {
     lock,
     close,
   };
+}
+
+/**
+ * Compatibility hook for isolated legacy tests that render ShiftProvider
+ * without the root session provider. The application always mounts the real
+ * provider from RootLayout.
+ */
+export function useOptionalRealAppSession() {
+  const context = useOptionalRealWorkstationSession();
+  if (!context)
+    return {
+      state: "NO_OPERATOR" as const,
+      operator: null,
+      refresh: async () => false,
+      lock: async () => false,
+      close: async () => false,
+    };
+
+  const { state, operator, refresh, lock, close } = context;
+  const safeOperator: RealAppSessionOperator | null = operator
+    ? {
+        identity: operator.identity,
+        operatorExpiresAt: operator.operatorExpiresAt,
+        ...(operator.workstationExpiresAt
+          ? { workstationExpiresAt: operator.workstationExpiresAt }
+          : {}),
+      }
+    : null;
+  return { state, operator: safeOperator, refresh, lock, close };
 }

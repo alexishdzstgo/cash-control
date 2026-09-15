@@ -4,7 +4,6 @@ import { createWorkstationClients } from "../../workstation/server/clients.mjs";
 import { resolveCurrentOperator } from "../../workstation/server/sessions.mjs";
 import {
   isUuid,
-  rpc,
   safeString,
   WorkstationSessionError,
 } from "../../workstation/server/shared.mjs";
@@ -12,6 +11,33 @@ import {
   hashSessionToken,
   isSessionToken,
 } from "../../workstation/server/tokens.mjs";
+
+const shiftErrorMessages = {
+  DUPLICATE_OPEN_SHIFT: "Ya existe un turno abierto para este negocio.",
+  NO_OPEN_SHIFT: "No existe un turno abierto.",
+  INVALID_MEMBER: "El participante no es válido para este negocio.",
+  ACTIVE_SHIFT_MANAGER_REQUIRED:
+    "Solo el responsable activo o el propietario puede administrar participantes.",
+  ACTIVE_PARTICIPATION_REQUIRED:
+    "Necesitas una participación activa en el turno.",
+  RESPONSIBLE_CANNOT_LEAVE:
+    "El responsable no puede salir del turno. Primero transfiere la responsabilidad.",
+  TRANSFER_REQUIRES_ACTIVE_PARTICIPANT:
+    "La responsabilidad solo puede transferirse a un participante activo.",
+  DIFFERENT_PARTICIPANT_REQUIRED:
+    "Selecciona un participante distinto para transferir la responsabilidad.",
+};
+
+/** @typedef {keyof typeof shiftErrorMessages} ShiftErrorCode */
+
+export class ShiftOperationError extends Error {
+  /** @param {ShiftErrorCode} code */
+  constructor(code) {
+    super(shiftErrorMessages[code]);
+    this.name = "ShiftOperationError";
+    this.code = code;
+  }
+}
 
 /** @typedef {import('@supabase/supabase-js').SupabaseClient} SupabaseClient */
 /** @typedef {{admin: SupabaseClient, createPasswordClient: () => SupabaseClient}} Clients */
@@ -101,9 +127,48 @@ async function withActor(input, operation, dependencies) {
     await requireActor(input, clients);
     return await operation(clients, hashSessionToken(input.operatorToken));
   } catch (error) {
-    if (error instanceof WorkstationSessionError) throw error;
+    if (
+      error instanceof WorkstationSessionError ||
+      error instanceof ShiftOperationError
+    )
+      throw error;
     throw new WorkstationSessionError("UNAVAILABLE");
   }
+}
+
+/** @param {unknown} error */
+function mapShiftRpcError(error) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(error.message)
+      : "";
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("open shift already exists"))
+    return new ShiftOperationError("DUPLICATE_OPEN_SHIFT");
+  if (normalized.includes("open shift required"))
+    return new ShiftOperationError("NO_OPEN_SHIFT");
+  if (normalized.includes("active member of this business"))
+    return new ShiftOperationError("INVALID_MEMBER");
+  if (normalized.includes("active shift manager required"))
+    return new ShiftOperationError("ACTIVE_SHIFT_MANAGER_REQUIRED");
+  if (normalized.includes("active shift participation required"))
+    return new ShiftOperationError("ACTIVE_PARTICIPATION_REQUIRED");
+  if (normalized.includes("transfer responsibility before leaving"))
+    return new ShiftOperationError("RESPONSIBLE_CANNOT_LEAVE");
+  if (normalized.includes("new responsible must be an active participant"))
+    return new ShiftOperationError("TRANSFER_REQUIRES_ACTIVE_PARTICIPANT");
+  if (normalized.includes("different active participant is required"))
+    return new ShiftOperationError("DIFFERENT_PARTICIPANT_REQUIRED");
+
+  return null;
+}
+
+/** @param {SupabaseClient} admin @param {string} name @param {Record<string, unknown>} parameters */
+async function shiftRpc(admin, name, parameters) {
+  const result = await admin.rpc(name, parameters);
+  if (result.error) throw mapShiftRpcError(result.error) ?? result.error;
+  return result.data;
 }
 
 /** @param {SessionInput} input @param {Clients} [dependencies] */
@@ -111,7 +176,7 @@ export async function openShift(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(clients.admin, "admin_open_shift", {
+      const rows = await shiftRpc(clients.admin, "admin_open_shift", {
         p_operator_token_hash: operatorTokenHash,
       });
       if (!Array.isArray(rows) || !rows[0])
@@ -129,10 +194,14 @@ export async function addShiftParticipant(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(clients.admin, "admin_add_shift_participant", {
-        p_operator_token_hash: operatorTokenHash,
-        p_member_id: input.memberId,
-      });
+      const rows = await shiftRpc(
+        clients.admin,
+        "admin_add_shift_participant",
+        {
+          p_operator_token_hash: operatorTokenHash,
+          p_member_id: input.memberId,
+        },
+      );
       if (!Array.isArray(rows) || !rows[0])
         throw new WorkstationSessionError("UNAVAILABLE");
       return safeParticipant(rows[0]);
@@ -146,7 +215,7 @@ export async function leaveShift(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(clients.admin, "admin_leave_shift", {
+      const rows = await shiftRpc(clients.admin, "admin_leave_shift", {
         p_operator_token_hash: operatorTokenHash,
       });
       if (!Array.isArray(rows) || !rows[0])
@@ -164,7 +233,7 @@ export async function transferShiftResponsibility(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(
+      const rows = await shiftRpc(
         clients.admin,
         "admin_transfer_shift_responsibility",
         {
@@ -191,7 +260,7 @@ export async function resolveOpenShift(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(clients.admin, "admin_resolve_open_shift", {
+      const rows = await shiftRpc(clients.admin, "admin_resolve_open_shift", {
         p_operator_token_hash: operatorTokenHash,
       });
       if (!Array.isArray(rows))
@@ -207,9 +276,13 @@ export async function listShiftParticipants(input, dependencies) {
   return withActor(
     input,
     async (clients, operatorTokenHash) => {
-      const rows = await rpc(clients.admin, "admin_list_shift_participants", {
-        p_operator_token_hash: operatorTokenHash,
-      });
+      const rows = await shiftRpc(
+        clients.admin,
+        "admin_list_shift_participants",
+        {
+          p_operator_token_hash: operatorTokenHash,
+        },
+      );
       if (!Array.isArray(rows))
         throw new WorkstationSessionError("UNAVAILABLE");
       return rows.map(safeListedParticipant);

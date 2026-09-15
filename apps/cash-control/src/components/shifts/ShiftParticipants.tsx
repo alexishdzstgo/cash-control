@@ -9,9 +9,11 @@ interface ShiftParticipantsProps {
   canAddParticipants: boolean;
   canRemoveParticipants: boolean;
   canTransferResponsibility: boolean;
+  canLeaveCurrentUser?: boolean;
   onAddParticipant: () => void;
   onRemoveParticipant: (participantId: string) => void;
   onTransferResponsibility: (participant: ShiftParticipant) => void;
+  onLeaveCurrentUser?: () => void;
 }
 
 export function ShiftParticipants({
@@ -19,9 +21,11 @@ export function ShiftParticipants({
   canAddParticipants,
   canRemoveParticipants,
   canTransferResponsibility,
+  canLeaveCurrentUser = false,
   onAddParticipant,
   onRemoveParticipant,
   onTransferResponsibility,
+  onLeaveCurrentUser,
 }: ShiftParticipantsProps) {
   const activeParticipants = shift.participants.filter(
     (p) => p.status === "active",
@@ -45,11 +49,18 @@ export function ShiftParticipants({
           </p>
         </div>
 
-        {canAddParticipants && (
-          <Button variant="outline" onClick={onAddParticipant}>
-            Agregar al turno
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canAddParticipants && (
+            <Button variant="outline" onClick={onAddParticipant}>
+              Agregar al turno
+            </Button>
+          )}
+          {canLeaveCurrentUser && onLeaveCurrentUser && (
+            <Button variant="ghost" onClick={onLeaveCurrentUser}>
+              Salir del turno
+            </Button>
+          )}
+        </div>
       </div>
 
       {activeParticipants.length === 0 ? (

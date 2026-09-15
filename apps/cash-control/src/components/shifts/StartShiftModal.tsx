@@ -1,15 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
 import { ModalShell } from "@/components/shared/ModalShell";
 import { computeFinancialTotalsFromBalances } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
-import {
-  getNextShiftFolio,
-  getShiftResponsible,
-  validateShiftOpening,
-} from "@/lib/shifts";
+import { getNextShiftFolio, validateShiftOpening } from "@/lib/shifts";
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 import { useShift } from "./ShiftContext";
@@ -23,27 +18,36 @@ export function StartShiftModal({
   banks: BankAccountBalance[];
   onClose: () => void;
 }) {
-  const { participants } = useMockSession();
-
-  const { shifts, canStartShift, startShift } = useShift();
+  const {
+    participants,
+    shifts,
+    canStartShift,
+    startShift,
+    isMutating,
+    isPersisted,
+  } = useShift();
 
   const [error, setError] = useState<string | null>(null);
 
   const totals = computeFinancialTotalsFromBalances({ cash, banks });
 
-  const folio = getNextShiftFolio(shifts);
-
   const validationError = validateShiftOpening({ cash, banks });
 
-  function confirm() {
-    const result = startShift({ cash, banks });
-
+  function complete(result: Awaited<ReturnType<typeof startShift>>) {
     if (!result.success) {
       setError(result.error ?? "No se pudo iniciar el turno.");
       return;
     }
-
     onClose();
+  }
+
+  function confirm() {
+    const result = startShift({ cash, banks });
+    if (result instanceof Promise) {
+      void result.then(complete);
+      return;
+    }
+    complete(result);
   }
 
   return (
@@ -65,9 +69,15 @@ export function StartShiftModal({
             type="button"
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             onClick={confirm}
-            disabled={!canStartShift() || Boolean(validationError)}
+            disabled={
+              isMutating || !canStartShift() || Boolean(validationError)
+            }
           >
-            Iniciar {folio}
+            {isMutating
+              ? "Iniciando..."
+              : isPersisted
+                ? "Iniciar turno"
+                : `Iniciar ${getNextShiftFolio(shifts)}`}
           </button>
         </div>
       }
@@ -76,7 +86,11 @@ export function StartShiftModal({
         <div>
           <dt className="text-slate-500">Responsable</dt>
           <dd className="mt-1 font-semibold text-slate-900">
-            {getShiftResponsible(participants)?.userName ?? "Sin responsable"}
+            {participants.find(
+              (participant) =>
+                participant.shiftRole === "shift_responsible" &&
+                participant.status === "active",
+            )?.name ?? "Operador actual"}
           </dd>
         </div>
         <div>
