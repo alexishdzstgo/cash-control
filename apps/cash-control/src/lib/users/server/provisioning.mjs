@@ -187,3 +187,198 @@ export async function createBusinessMember(rawInput, { admin, authorize }) {
     );
   }
 }
+
+/**
+ * @typedef {{ businessId: string, userId: string, firstName: string,
+ * lastName: string, displayName: string, username: string,
+ * role: 'owner' | 'employee', pin: string, avatar?: Record<string, unknown> | null,
+ * internalNotes?: string }} ExistingAuthMemberInput
+ */
+
+/** @param {ExistingAuthMemberInput} input */
+function validateExistingAuthMemberInput(input) {
+  const firstName = requiredText(input.firstName, "firstName");
+  const lastName = requiredText(input.lastName, "lastName");
+  const displayName = requiredText(input.displayName, "displayName");
+  const username = requiredText(input.username, "username");
+  const userId = requiredText(input.userId, "userId");
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      input.businessId,
+    )
+  ) {
+    throw new ProvisioningError("businessId inválido.");
+  }
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      userId,
+    )
+  ) {
+    throw new ProvisioningError("userId inválido.");
+  }
+  if (input.role !== "owner" && input.role !== "employee") {
+    throw new ProvisioningError("Rol inválido.");
+  }
+  if (typeof input.pin !== "string" || !/^[0-9]{4,6}$/.test(input.pin)) {
+    throw new ProvisioningError("El PIN debe tener entre 4 y 6 dígitos.");
+  }
+  const internalNotes = input.internalNotes ?? "";
+  if (typeof internalNotes !== "string" || internalNotes.includes("\0")) {
+    throw new ProvisioningError("Notas inválidas.");
+  }
+  const avatar = input.avatar ?? null;
+  if (
+    avatar !== null &&
+    (typeof avatar !== "object" || Array.isArray(avatar))
+  ) {
+    throw new ProvisioningError("Avatar inválido.");
+  }
+  try {
+    JSON.stringify(avatar);
+  } catch {
+    throw new ProvisioningError("Avatar no serializable.");
+  }
+  return {
+    ...input,
+    businessId: input.businessId,
+    userId,
+    firstName,
+    lastName,
+    displayName,
+    username,
+    internalNotes,
+    avatar,
+  };
+}
+
+/**
+ * Links an already existing Supabase Auth identity to the existing business
+ * model. It never creates or deletes an Auth user.
+ *
+ * @param {ExistingAuthMemberInput} rawInput
+ * @param {ServerAccess} access
+ */
+export async function provisionExistingAuthMember(
+  rawInput,
+  { admin, authorize },
+) {
+  const input = validateExistingAuthMemberInput(rawInput);
+  if (
+    typeof authorize !== "function" ||
+    !(await authorize({ businessId: input.businessId, role: input.role }))
+  ) {
+    throw new ProvisioningError("Actor no autorizado.");
+  }
+
+  const existing = await admin.rpc("admin_find_member_by_username", {
+    p_business_id: input.businessId,
+    p_username: input.username,
+  });
+  if (existing.error) {
+    throw new ProvisioningError(
+      "No se pudo comprobar el username; verifica la migración 0002.",
+    );
+  }
+
+  if (existing.data) {
+    const member = await admin
+      .from("business_members")
+      .select("id,business_id,user_id,role,status")
+      .eq("id", existing.data)
+      .maybeSingle();
+    if (member.error || !member.data) {
+      throw new ProvisioningError(
+        "No se pudo comprobar el miembro existente; revisar el estado antes de reintentar.",
+      );
+    }
+    if (
+      member.data.business_id !== input.businessId ||
+      member.data.user_id !== input.userId
+    ) {
+      throw new ProvisioningError(
+        "El username ya está enlazado a otra identidad; no se modificó la cuenta.",
+      );
+    }
+    if (member.data.role !== input.role || member.data.status !== "active") {
+      throw new ProvisioningError(
+        "El miembro existente no tiene el rol o estado esperado; no se modificó la cuenta.",
+      );
+    }
+    const pin = await admin.rpc("admin_set_member_pin", {
+      p_member_id: member.data.id,
+      p_pin: input.pin,
+    });
+    if (pin.error) {
+      throw new ProvisioningError(
+        "No se pudo confirmar el PIN del miembro existente.",
+      );
+    }
+    return {
+      businessId: input.businessId,
+      userId: input.userId,
+      memberId: String(member.data.id),
+      username: input.username,
+      alreadyLinked: true,
+    };
+  }
+
+  const provisioned = await admin.rpc("admin_provision_member", {
+    p_business_id: input.businessId,
+    p_user_id: input.userId,
+    p_first_name: input.firstName,
+    p_last_name: input.lastName,
+    p_display_name: input.displayName,
+    p_avatar: input.avatar,
+    p_username: input.username,
+    p_role: input.role,
+    p_internal_notes: input.internalNotes,
+    p_pin: input.pin,
+  });
+  if (provisioned.error || typeof provisioned.data !== "string") {
+    throw new ProvisioningError(
+      "No se pudo enlazar la identidad Auth con el miembro; revisar el estado antes de reintentar.",
+    );
+  }
+  return {
+    businessId: input.businessId,
+    userId: input.userId,
+    memberId: provisioned.data,
+    username: input.username,
+    alreadyLinked: false,
+  };
+}
+
+/** @param {import('@supabase/supabase-js').SupabaseClient} admin @param {string} email */
+export async function findAuthUserByEmail(admin, email) {
+  const normalizedEmail = requiredText(email, "OWNER_AUTH_EMAIL").toLowerCase();
+  if (!normalizedEmail.includes("@")) {
+    throw new ProvisioningError("OWNER_AUTH_EMAIL inválido.");
+  }
+  const perPage = 1000;
+  let page = 1;
+  while (page <= 100) {
+    const listed = await admin.auth.admin.listUsers({ page, perPage });
+    if (listed.error) {
+      throw new ProvisioningError(
+        "No se pudo consultar la identidad Auth existente.",
+      );
+    }
+    const users = listed.data?.users ?? [];
+    const matches = users.filter(
+      (user) => user.email?.toLowerCase() === normalizedEmail,
+    );
+    if (matches.length > 1) {
+      throw new ProvisioningError(
+        "Hay más de una identidad Auth para OWNER_AUTH_EMAIL; no se modificó ninguna cuenta.",
+      );
+    }
+    if (matches[0]) {
+      return { id: matches[0].id, email: matches[0].email };
+    }
+    if (users.length < perPage && !listed.data?.nextPage) break;
+    page = listed.data?.nextPage ?? page + 1;
+  }
+  throw new ProvisioningError(
+    "No existe una identidad Auth para OWNER_AUTH_EMAIL; no se creó ninguna cuenta.",
+  );
+}

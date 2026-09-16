@@ -231,6 +231,18 @@ que se compensa. Un fallo de compensación requiere resolver el UUID reportado a
 de reintentar. Un negocio existente nunca se elimina. stdout solo muestra IDs y
 username; los errores controlados no imprimen contraseña, PIN, email interno o notas.
 
+### Enlace del Owner Auth ya existente
+
+Cuando la identidad Auth ya existe (por ejemplo, `zeferino@cashcontrol.com`), no
+se debe ejecutar el bootstrap anterior porque ese flujo crea una identidad Auth
+nueva. El comando `npm run provision:existing-owner` busca el correo exacto con
+Auth Admin y reutiliza su UUID al llamar a `admin_provision_member`. Solo enlaza
+el negocio existente por slug; no crea tablas, usuarios Auth ni RPC nuevas. Si el
+username ya está enlazado a la misma identidad, restablece el PIN mediante
+`admin_set_member_pin`; si pertenece a otra identidad o tiene un rol/estado
+distinto, aborta sin modificarlo. Requiere `NEXT_PUBLIC_SUPABASE_URL` y
+`SUPABASE_SECRET_KEY` (o el alias legado) inyectados únicamente en la terminal.
+
 ## Sesiones de estación y operador: Fase 2B.1
 
 **PIN-only visual switch ≠ Supabase Auth identity switch.** Seleccionar Pedro

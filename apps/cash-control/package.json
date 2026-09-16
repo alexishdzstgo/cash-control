@@ -7,6 +7,7 @@
   },
   "scripts": {
     "bootstrap:first-owner": "node --conditions=react-server scripts/bootstrap-first-owner.mjs",
+    "provision:existing-owner": "node --conditions=react-server scripts/provision-existing-owner.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -4,7 +4,11 @@ import {
   bootstrapFirstOwner,
   readBootstrapInput,
 } from "../src/lib/users/server/bootstrap.mjs";
-import { createBusinessMember } from "../src/lib/users/server/provisioning.mjs";
+import {
+  createBusinessMember,
+  findAuthUserByEmail,
+  provisionExistingAuthMember,
+} from "../src/lib/users/server/provisioning.mjs";
 
 const businessId = "11111111-1111-4111-8111-111111111111";
 const input = {
@@ -32,6 +36,7 @@ function fixture(options = {}) {
   const users = new Map();
   const businesses = new Map();
   const members = new Map();
+  const pins = new Map();
   const calls = [];
   if (options.existingBusiness)
     businesses.set(businessId, {
@@ -39,6 +44,18 @@ function fixture(options = {}) {
       slug: "test",
       status: "active",
     });
+  if (options.existingMember) {
+    const member = {
+      id: "member-existing",
+      business_id: businessId,
+      user_id:
+        options.existingMember.userId ?? "22222222-2222-4222-8222-222222222222",
+      username: options.existingMember.username ?? "zeferino",
+      role: options.existingMember.role ?? "owner",
+      status: options.existingMember.status ?? "active",
+    };
+    members.set(member.id, member);
+  }
   const failure = {
     message: `${input.password} ${input.pin} ${input.internalNotes}`,
   };
@@ -51,6 +68,10 @@ function fixture(options = {}) {
             return { data: { user: null }, error: failure };
           users.set(attributes.id, attributes);
           return { data: { user: { id: attributes.id } }, error: null };
+        },
+        async listUsers() {
+          calls.push(["auth.list"]);
+          return { data: { users: options.authUsers ?? [] }, error: null };
         },
         async deleteUser(id) {
           calls.push(["auth.delete", id]);
@@ -70,6 +91,12 @@ function fixture(options = {}) {
         );
         return { data: existing?.id ?? null, error: null };
       }
+      if (name === "admin_set_member_pin") {
+        const member = members.get(args.p_member_id);
+        if (!member) return { data: null, error: { code: "22023" } };
+        pins.set(args.p_member_id, args.p_pin);
+        return { data: null, error: null };
+      }
       if (options.rpcFails) return { data: null, error: failure };
       if (
         [...members.values()].some(
@@ -86,7 +113,10 @@ function fixture(options = {}) {
         business_id: args.p_business_id,
         user_id: args.p_user_id,
         username: args.p_username,
+        role: args.p_role,
+        status: "active",
       });
+      pins.set(id, args.p_pin);
       if (options.lostResponse) throw new Error("transport error");
       return { data: id, error: null };
     },
@@ -150,6 +180,7 @@ function fixture(options = {}) {
     users,
     businesses,
     members,
+    pins,
     calls,
     access: { admin, authorize: async () => true },
   };
@@ -313,4 +344,119 @@ test("bootstrap can generate a hidden Auth password for PIN-only workstation acc
   assert.equal(typeof auth.password, "string");
   assert.ok(auth.password.length >= 12);
   assert.notEqual(auth.password, input.pin);
+});
+
+test("existing Auth provisioning links the supplied identity without creating Auth", async () => {
+  const f = fixture();
+  const userId = "33333333-3333-4333-8333-333333333333";
+  const result = await provisionExistingAuthMember(
+    {
+      businessId,
+      userId,
+      firstName: "Zeferino",
+      lastName: "Zeferino",
+      displayName: "Zeferino",
+      username: "zeferino",
+      role: "owner",
+      pin: "1234",
+    },
+    f.access,
+  );
+
+  assert.equal(result.alreadyLinked, false);
+  assert.equal(result.userId, userId);
+  assert.equal(
+    f.calls.some(([name]) => name === "auth.create"),
+    false,
+  );
+  const rpc = f.calls.find(([name]) => name === "admin_provision_member")[1];
+  assert.equal(rpc.p_user_id, userId);
+  assert.equal(rpc.p_role, "owner");
+  assert.equal(rpc.p_pin, "1234");
+});
+
+test("existing Auth provisioning is idempotent and only resets the existing PIN", async () => {
+  const f = fixture();
+  const owner = {
+    businessId,
+    userId: "33333333-3333-4333-8333-333333333333",
+    firstName: "Zeferino",
+    lastName: "Zeferino",
+    displayName: "Zeferino",
+    username: "zeferino",
+    role: "owner",
+    pin: "1234",
+  };
+
+  await provisionExistingAuthMember(owner, f.access);
+  const second = await provisionExistingAuthMember(owner, f.access);
+
+  assert.equal(second.alreadyLinked, true);
+  assert.equal(
+    f.calls.filter(([name]) => name === "admin_provision_member").length,
+    1,
+  );
+  assert.equal(
+    f.calls.filter(([name]) => name === "admin_set_member_pin").length,
+    1,
+  );
+  assert.equal(f.pins.get("member-1"), "1234");
+  assert.equal(
+    f.calls.some(([name]) => name === "auth.create"),
+    false,
+  );
+});
+
+test("existing username linked to another Auth identity is never overwritten", async () => {
+  const f = fixture({
+    existingMember: {
+      userId: "44444444-4444-4444-8444-444444444444",
+    },
+  });
+  await assert.rejects(
+    provisionExistingAuthMember(
+      {
+        businessId,
+        userId: "33333333-3333-4333-8333-333333333333",
+        firstName: "Zeferino",
+        lastName: "Zeferino",
+        displayName: "Zeferino",
+        username: "zeferino",
+        role: "owner",
+        pin: "1234",
+      },
+      f.access,
+    ),
+    /otra identidad/,
+  );
+  assert.equal(
+    f.calls.some(([name]) => name === "admin_set_member_pin"),
+    false,
+  );
+  assert.equal(
+    f.calls.some(([name]) => name === "admin_provision_member"),
+    false,
+  );
+});
+
+test("Auth lookup matches the exact email without exposing a password flow", async () => {
+  const userId = "33333333-3333-4333-8333-333333333333";
+  const f = fixture({
+    authUsers: [
+      {
+        id: "55555555-5555-4555-8555-555555555555",
+        email: "other@example.com",
+      },
+      { id: userId, email: "Zeferino@CashControl.com" },
+    ],
+  });
+  const result = await findAuthUserByEmail(f.admin, "zeferino@cashcontrol.com");
+  assert.deepEqual(result, {
+    id: userId,
+    email: "Zeferino@CashControl.com",
+  });
+  assert.equal(
+    f.calls.some(([name]) => name === "auth.create"),
+    false,
+  );
 });
