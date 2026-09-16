@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, ShieldCheck, UserRound } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { useRealWorkstationSession } from "@/components/session/RealAppSessionProvider";
 import { UserAvatar } from "@/components/shared/UserAvatar";
@@ -67,7 +66,6 @@ async function loadCandidates(): Promise<CandidatesResult> {
 }
 
 export function RealPinLoginScreen() {
-  const router = useRouter();
   const { startWithPin, error: sessionError } = useRealWorkstationSession();
   const [candidates, setCandidates] = useState<WorkstationCandidate[] | null>(
     null,
@@ -109,25 +107,36 @@ export function RealPinLoginScreen() {
     setFailed(false);
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!selected || busy || !/^\d{4,6}$/.test(pin)) return;
-    setBusy(true);
-    setFailed(false);
-    const entered = await startWithPin({
-      businessSlug: BUSINESS_SLUG,
-      username: selected.username,
-      pin,
-    });
+const submit = async (event: FormEvent<HTMLFormElement>) => {
+  event.preventDefault();
+
+  if (!selected || busy || !/^\d{4,6}$/.test(pin)) return;
+
+  setBusy(true);
+  setFailed(false);
+
+  const entered = await startWithPin({
+    businessSlug: BUSINESS_SLUG,
+    username: selected.username,
+    pin,
+  });
+
+  setPin("");
+
+  if (!entered) {
     setBusy(false);
-    // El PIN nunca se conserva en el componente después del intento.
-    setPin("");
-    if (!entered) {
-      setFailed(true);
-      return;
-    }
-    router.push("/");
-  };
+    setFailed(true);
+    return;
+  }
+
+  /*
+   * La sesión real ya quedó persistida en cookies HttpOnly.
+   * Usamos navegación del navegador en lugar de router.push()
+   * para evitar que SessionGuard vea durante la navegación el
+   * estado anterior de la sesión y nos devuelva a /workstation.
+   */
+  window.location.replace("/");
+};
 
   const message = failed ? (sessionError ?? ENTRY_ERROR) : null;
   const canSubmit = Boolean(selected) && /^\d{4,6}$/.test(pin);
