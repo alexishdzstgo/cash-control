@@ -1,8 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
 import { ActivityFeed } from "./ActivityFeed";
 import { CurrentStatusCard } from "./CurrentStatusCard";
 import { DashboardGreeting } from "./DashboardGreeting";
@@ -11,20 +9,13 @@ import { OwnerControlCenter } from "./owner/OwnerControlCenter";
 import { QuickActions } from "./QuickActions";
 
 export function DashboardPage() {
-  const router = useRouter();
-  const { authenticatedUser } = useMockSession();
+  const { state, operator } = useRealAppSession();
 
-  useEffect(() => {
-    if (!authenticatedUser) {
-      router.replace("/workstation");
-    }
-  }, [authenticatedUser, router]);
-
-  if (!authenticatedUser) {
+  if (state !== "ACTIVE" || !operator) {
     return null;
   }
 
-  const isOwner = authenticatedUser.systemRole === "owner";
+  const isOwner = operator.identity.role === "owner";
 
   // ── Owner: Centro de Control ejecutivo ──
   if (isOwner) {
