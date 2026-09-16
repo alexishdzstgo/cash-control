@@ -11,6 +11,13 @@ import {
 
 export type RealAppSessionState = RealWorkstationState;
 
+/**
+ * Acceso completo a la sesión real de la estación (incluye `startWithPin`) para
+ * la pantalla exterior y el panel de estación. Reutiliza el ÚNICO contexto real:
+ * no se monta un provider duplicado y los tokens siguen en cookies HttpOnly.
+ */
+export { useRealWorkstationSession };
+
 export type RealAppSessionOperator = Pick<
   RealWorkstationOperator,
   "identity" | "operatorExpiresAt" | "workstationExpiresAt"

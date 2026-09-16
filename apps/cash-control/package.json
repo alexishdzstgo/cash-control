@@ -12,7 +12,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "test": "npm run test:server && npm run test:ui",
+    "test:server": "node --conditions=react-server --test tests/auth-provisioning.mjs tests/workstation-sessions.mjs tests/workstation-candidates.mjs tests/shifts-server.mjs",
+    "test:ui": "node --test tests/supabase-infrastructure.cjs && node --test tests/shifts.cjs && node --test tests/corrections.cjs && node --test tests/cash-closing.cjs && node --test tests/workstation-ui.cjs && node --test tests/workstation-login-ui.cjs && node --test tests/app-session-ui.cjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -98,6 +98,13 @@ Module._load = function (request, parent, isMain) {
       jsx: (type, props) => ({ type, props }),
       jsxs: (type, props) => ({ type, props }),
     };
+  // La sesión real de la estación se simula solo cuando una prueba la declara.
+  if (request.includes("RealWorkstationSessionProvider"))
+    return {
+      RealWorkstationSessionProvider: "RealWorkstationSessionProvider",
+      useOptionalRealWorkstationSession: () => workstationSession,
+      useRealWorkstationSession: () => workstationSession,
+    };
   if (request.startsWith("@/"))
     request = path.resolve(__dirname, "../src", request.slice(2));
   return originalLoad.call(this, request, parent, isMain);
@@ -150,6 +157,7 @@ let directory;
 let session;
 let shift;
 let funds;
+let workstationSession;
 function renderProvider(provider) {
   if (!stores.has(provider)) stores.set(provider, []);
   currentStore = stores.get(provider);
@@ -178,6 +186,7 @@ function reset(open = true) {
     for (const cleanup of cleanups.values()) cleanup?.();
   effectCleanups = new Map();
   stores = new Map();
+  workstationSession = undefined;
   render();
   if (open) {
     login("maria-lopez", "María López", "owner");
@@ -2154,7 +2163,7 @@ function createRobertoFromUsersPage() {
   return { user, view };
 }
 
-test("directory: create in Users without a shift, then select existing Roberto as support in Turnos and station", () => {
+test("directory: create in Users without a shift, select existing Roberto as support in Turnos, and the station shows the real access screen", () => {
   reset(false);
   login("maria-lopez", "María López", "owner");
   const { user } = createRobertoFromUsersPage();
@@ -2194,46 +2203,39 @@ test("directory: create in Users without a shift, then select existing Roberto a
   const {
     WorkstationPage,
   } = require("../src/components/workstation/WorkstationPage.tsx");
-  const access = componentNamed(
-    renderComponent(WorkstationPage),
-    "WorkstationAccessModal",
+  const workstationSource = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      "../src/components/workstation/WorkstationPage.tsx",
+    ),
+    "utf8",
   );
-  assert.ok(
-    access.props.registeredUsers.some((entry) => entry.userId === user.id),
+  assert.doesNotMatch(
+    workstationSource,
+    /useMockSession|useUsers|WorkstationAccessModal|María López|Juan Pérez/,
   );
-  const {
-    UserPinStep,
-  } = require("../src/components/workstation/UserPinStep.tsx");
-  let entered = false;
-  const pinView = () =>
-    renderComponent(UserPinStep, {
-      selectedUserId: user.id,
-      selectedUserName: user.displayName,
-      onBack() {},
-      onConfirm() {
-        entered = true;
-        access.props.onAccess(user.id);
-      },
-    });
-  findNode(pinView(), (node) => node.type === "input").props.onChange({
-    target: { value: "0000" },
-  });
-  findNode(
-    pinView(),
-    (node) => node.type === "button" && nodeText(node) === "Confirmar",
-  ).props.onClick();
-  assert.equal(entered, false);
-  findNode(pinView(), (node) => node.type === "input").props.onChange({
-    target: { value: user.pin },
-  });
-  findNode(
-    pinView(),
-    (node) => node.type === "button" && nodeText(node) === "Confirmar",
-  ).props.onClick();
-  render();
-  assert.equal(entered, true);
-  assert.equal(session.authenticatedUser.userId, user.id);
-  assert.equal(session.authenticatedUser.systemRole, "employee");
+  assert.match(workstationSource, /RealPinLoginScreen/);
+
+  workstationSession = { state: "NO_WORKSTATION", operator: null };
+  const stationTree = renderComponent(WorkstationPage);
+  assert.equal(componentNamed(stationTree, "WorkstationAccessModal"), null);
+  assert.ok(componentNamed(stationTree, "RealPinLoginScreen"));
+  assert.equal(nodeText(stationTree).includes(user.displayName), false);
+
+  workstationSession = {
+    state: "NO_OPERATOR",
+    operator: null,
+    activatedMembers: [],
+  };
+  const lockedTree = renderComponent(WorkstationPage);
+  assert.ok(componentNamed(lockedTree, "RealWorkstationPanel"));
+  assert.equal(componentNamed(lockedTree, "RealPinLoginScreen"), null);
+
+  workstationSession = { state: "loading", operator: null };
+  const loadingTree = renderComponent(WorkstationPage);
+  assert.match(nodeText(loadingTree), /Consultando la estación…/);
+  assert.equal(componentNamed(loadingTree, "RealPinLoginScreen"), null);
+  workstationSession = undefined;
 });
 
 test("directory: editing and suspending in Users propagate; reactivation retains ended participation", () => {
