@@ -244,7 +244,9 @@ distinto, aborta sin modificarlo. Requiere `NEXT_PUBLIC_SUPABASE_URL` y
 `SUPABASE_SECRET_KEY` (o el alias legado) inyectados únicamente en la terminal.
 El script carga también los archivos `.env*` estándar del proyecto con el mismo
 loader de Next.js; no es necesario exportar `OWNER_BUSINESS_SLUG`, cuyo valor
-predeterminado es `cash-control`.
+predeterminado es `cash-control`. Para este proyecto, la URL pública confirmada
+de Supabase también tiene un fallback seguro; la Secret Key sigue siendo
+obligatoria y nunca se muestra en la salida.
 
 ## Sesiones de estación y operador: Fase 2B.1
 

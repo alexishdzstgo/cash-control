@@ -1,5 +1,7 @@
 // @ts-check
 import "server-only";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
@@ -11,11 +13,37 @@ import {
 } from "../src/lib/users/server/provisioning.mjs";
 
 const DEFAULT_OWNER_BUSINESS_SLUG = "cash-control";
+const DEFAULT_SUPABASE_URL = "https://lnzhxntfzjvblnmangzp.supabase.co";
+const PROJECT_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const { loadEnvConfig } = nextEnv;
 
-// npm does not load Next.js env files for standalone Node scripts. Use the
-// same loader as the application before reading any server credentials.
-loadEnvConfig(fileURLToPath(new URL("..", import.meta.url)), true, true);
+function findEnvRoot() {
+  const candidates = new Set();
+  for (const start of [PROJECT_ROOT, process.cwd()]) {
+    let current = resolve(start);
+    while (true) {
+      candidates.add(current);
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+  const envFiles = [
+    ".env.development.local",
+    ".env.local",
+    ".env.development",
+    ".env",
+  ];
+  return (
+    [...candidates].find((root) =>
+      envFiles.some((file) => existsSync(resolve(root, file))),
+    ) ?? PROJECT_ROOT
+  );
+}
+
+// npm does not load Next.js env files for standalone Node scripts. Search from
+// the app through the monorepo parents and use the same loader as Next.js.
+loadEnvConfig(findEnvRoot(), true, { error() {} });
 
 function readBusinessSlug(env) {
   const configured = env.OWNER_BUSINESS_SLUG?.trim();
@@ -58,19 +86,13 @@ function readOwnerInput(env) {
 try {
   const input = readOwnerInput(process.env);
   const url = requiredText(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL,
     "NEXT_PUBLIC_SUPABASE_URL",
   );
   const parsed = new URL(url);
-  if (
-    parsed.protocol !== "https:" &&
-    !(
-      parsed.protocol === "http:" &&
-      ["localhost", "127.0.0.1"].includes(parsed.hostname)
-    )
-  ) {
+  if (parsed.protocol !== "https:" || parsed.origin !== DEFAULT_SUPABASE_URL) {
     throw new ProvisioningError(
-      "URL Supabase inválida; requiere HTTPS o localhost.",
+      `URL Supabase inválida; este provisioning requiere ${DEFAULT_SUPABASE_URL}.`,
     );
   }
   const key = requiredText(
