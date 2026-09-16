@@ -164,8 +164,10 @@ por correo ni recuperación por ese email reservado. El identificador visible
 es username; el email no se duplica en public y se podrá recuperar con Auth Admin
 por user_id. No se añade metadata con secretos ni login username/password.
 
-La contraseña (mínimo local de 12 caracteres, sujeto además a las reglas de Auth)
-solo se envía a Auth. El PIN se envía transitoriamente a la RPC para su hash privado.
+La contraseña explícita (mínimo local de 12 caracteres, sujeto además a las reglas
+de Auth) solo se envía a Auth. Si el bootstrap inicial no recibe una contraseña,
+genera una credencial aleatoria de infraestructura que no se muestra ni se usa
+en el acceso cotidiano. El PIN se envía transitoriamente a la RPC para su hash privado.
 No se registran inputs ni errores crudos del SDK/SQL, que pueden contener valores
 sensibles. El resultado solo contiene businessId, userId, memberId y username.
 Los módulos .mjs usan JSDoc con `@ts-check` y se incluyen en TypeScript, para que
@@ -198,7 +200,9 @@ BOOTSTRAP_BUSINESS_SLUG=
 BOOTSTRAP_OWNER_FIRST_NAME=
 BOOTSTRAP_OWNER_LAST_NAME=
 BOOTSTRAP_OWNER_USERNAME=
-BOOTSTRAP_OWNER_PASSWORD=
+# Opcional: si se omite, el bootstrap genera una credencial Auth aleatoria
+# que no se muestra ni se usa en el acceso cotidiano por PIN.
+# BOOTSTRAP_OWNER_PASSWORD=
 BOOTSTRAP_OWNER_PIN=
 ```
 
@@ -245,6 +249,13 @@ SessionGuard, UsersContext, turnos y datos financieros siguen siendo mock.
 - `private.workstation_member_activations`: PK estación/miembro y authenticated_at.
 - `private.operator_sessions`: estación, miembro, SHA-256, creación, expiración y
   revoked_at. Su FK compuesta exige una activación de ese miembro en esa estación.
+
+El inicio de la primera estación también puede usar el flujo cotidiano de usuario
+y PIN: el backend resuelve el miembro activo por negocio/username, verifica el PIN
+con `admin_verify_member_pin`, crea la estación con las RPC existentes y establece
+las mismas cookies HttpOnly. No crea una sesión Auth en el navegador ni acepta un
+actor enviado por el cliente. El flujo de contraseña permanece disponible para
+activación explícita de miembros existentes.
 
 RLS habilitada sin policies públicas; se revocan permisos directos incluso de
 service_role. `private` sigue fuera del Data API (`schemas = ["public"]`).

@@ -45,6 +45,12 @@ type StartInput = {
   password: string;
 };
 
+type StartPinInput = {
+  businessSlug: string;
+  username: string;
+  pin: string;
+};
+
 type ActivateInput = {
   username: string;
   password: string;
@@ -73,6 +79,7 @@ type RealWorkstationSessionContextValue = {
   refresh: () => Promise<boolean>;
   loadActivatedMembers: () => Promise<boolean>;
   start: (input: StartInput) => Promise<boolean>;
+  startWithPin: (input: StartPinInput) => Promise<boolean>;
   activate: (input: ActivateInput) => Promise<boolean>;
   unlock: (input: UnlockInput) => Promise<boolean>;
   lock: () => Promise<boolean>;
@@ -217,6 +224,19 @@ export function RealWorkstationSessionProvider({
     [loadActivatedMembers, mutate],
   );
 
+  const startWithPin = useCallback(
+    async (input: StartPinInput) => {
+      const body = await mutate("/api/workstation/start-pin", input);
+      if (!body) return false;
+      const nextOperator = operatorFromMutation(body);
+      setOperator(nextOperator);
+      setState("ACTIVE");
+      await loadActivatedMembers();
+      return true;
+    },
+    [loadActivatedMembers, mutate],
+  );
+
   const activate = useCallback(
     async (input: ActivateInput) => {
       const body = await mutate("/api/workstation/activate", input);
@@ -268,6 +288,7 @@ export function RealWorkstationSessionProvider({
       refresh,
       loadActivatedMembers,
       start,
+      startWithPin,
       activate,
       unlock,
       lock,
@@ -281,6 +302,7 @@ export function RealWorkstationSessionProvider({
       refresh,
       loadActivatedMembers,
       start,
+      startWithPin,
       activate,
       unlock,
       lock,

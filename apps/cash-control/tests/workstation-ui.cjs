@@ -91,6 +91,7 @@ function resetSession({ members = true } = {}) {
       : [],
     error: null,
     start: async () => true,
+    startWithPin: async () => true,
     activate: async () => true,
     unlock: async (input) => {
       unlockCalls.push(input);
@@ -228,7 +229,37 @@ test("close clears the activated member list", async () => {
   const tree = render();
   await buttonByText(tree, "Cerrar estación").props.onClick();
   const after = render();
-  assert.match(nodeText(after), /Iniciar estación/);
+  assert.match(nodeText(after), /Entrar a Cash Control/);
   assert.doesNotMatch(nodeText(after), /Alexis Hernández/);
   assert.doesNotMatch(nodeText(after), /Juan Pérez/);
+});
+
+test("first real station accepts business, username and PIN", async () => {
+  resetSession({ members: false });
+  session.state = "NO_WORKSTATION";
+  session.operator = null;
+  const startCalls = [];
+  session.startWithPin = async (input) => {
+    startCalls.push(input);
+    session.state = "ACTIVE";
+    return true;
+  };
+
+  const tree = render();
+  const form = allNodes(tree).find(
+    (node) =>
+      node.type === "form" && nodeText(node).includes("Entrar a Cash Control"),
+  );
+  const inputs = allNodes(form).filter((node) => node.type === "input");
+  for (const [index, value] of ["cash-control", "zeferino", "1234"].entries())
+    inputs[index].props.onChange({ target: { value } });
+  const updatedForm = allNodes(render()).find(
+    (node) =>
+      node.type === "form" && nodeText(node).includes("Entrar a Cash Control"),
+  );
+  await updatedForm.props.onSubmit({ preventDefault() {} });
+
+  assert.deepEqual(startCalls, [
+    { businessSlug: "cash-control", username: "zeferino", pin: "1234" },
+  ]);
 });

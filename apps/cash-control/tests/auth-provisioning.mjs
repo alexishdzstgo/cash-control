@@ -301,3 +301,16 @@ test("bootstrap validates environment before creating business or Auth", async (
   assert.equal(f.calls.length, 0);
   assert.equal(readBootstrapInput(env).member.username, "Owner");
 });
+
+test("bootstrap can generate a hidden Auth password for PIN-only workstation access", async () => {
+  const f = fixture();
+  const inputWithoutPassword = { ...env };
+  delete inputWithoutPassword.BOOTSTRAP_OWNER_PASSWORD;
+
+  await bootstrapFirstOwner(f.admin, inputWithoutPassword);
+
+  const auth = f.calls.find(([name]) => name === "auth.create")[1];
+  assert.equal(typeof auth.password, "string");
+  assert.ok(auth.password.length >= 12);
+  assert.notEqual(auth.password, input.pin);
+});

@@ -1,6 +1,6 @@
 // @ts-check
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   createBusinessMember,
   ProvisioningError,
@@ -36,7 +36,11 @@ export function readBootstrapInput(env) {
       "BOOTSTRAP_OWNER_USERNAME",
     ),
     role: "owner",
-    password: env.BOOTSTRAP_OWNER_PASSWORD ?? "",
+    // Auth remains the backing identity, while the daily workstation flow
+    // uses the member PIN. Keep an explicit password available when supplied;
+    // otherwise create an unlogged random Auth credential for infrastructure.
+    password:
+      env.BOOTSTRAP_OWNER_PASSWORD ?? randomBytes(32).toString("base64url"),
     pin: env.BOOTSTRAP_OWNER_PIN ?? "",
   });
   return { businessName, businessSlug, member };

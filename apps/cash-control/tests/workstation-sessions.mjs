@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
-import { authenticateMemberPassword } from "../src/lib/workstation/server/authenticate-member.mjs";
+import {
+  authenticateMemberPassword,
+  authenticateMemberPin,
+} from "../src/lib/workstation/server/authenticate-member.mjs";
 import { createWorkstationClients } from "../src/lib/workstation/server/clients.mjs";
 import {
   activateMemberWithPassword,
@@ -10,6 +13,7 @@ import {
   lockCurrentOperator,
   resolveCurrentOperator,
   startWorkstationWithPassword,
+  startWorkstationWithPin,
   unlockOperatorWithPin,
 } from "../src/lib/workstation/server/sessions.mjs";
 import {
@@ -342,6 +346,53 @@ test("password returns safe identity, verifies returned Auth ID and discards tra
     f.calls.some(([name]) => name === "admin_create_workstation_session"),
     false,
   );
+});
+
+test("PIN starts the first real workstation without creating an Auth browser session", async () => {
+  const f = fixture();
+  const identity = await authenticateMemberPin(
+    { businessSlug: "shop", username: "Alice", pin: "1234" },
+    f.clients,
+  );
+  assert.deepEqual(identity, {
+    businessId,
+    memberId,
+    userId,
+    username: "Alice",
+    role: "owner",
+    displayName: "Alice Test",
+  });
+  assert.equal(
+    f.calls.some(([name]) => name === "password.client"),
+    false,
+  );
+  assert.equal(
+    f.calls.some(([name]) => name === "auth.getUserById"),
+    false,
+  );
+
+  const result = await startWorkstationWithPin(
+    { businessSlug: "shop", username: "Alice", pin: "1234" },
+    f.clients,
+  );
+  assert.equal(result.identity.memberId, memberId);
+  assert.equal(f.stations.size, 1);
+  assert.equal(f.operators.size, 1);
+  assertSafe(result);
+});
+
+test("wrong initial PIN never creates a workstation", async () => {
+  const f = fixture();
+  f.options.pinFalse = true;
+  await assert.rejects(
+    startWorkstationWithPin(
+      { businessSlug: "shop", username: "Alice", pin: "1234" },
+      f.clients,
+    ),
+    { code: "INVALID_PIN" },
+  );
+  assert.equal(f.stations.size, 0);
+  assert.equal(f.operators.size, 0);
 });
 
 test("password clients use publishable key, are isolated and stateless", () => {

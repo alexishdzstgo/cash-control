@@ -81,6 +81,72 @@ function RealPasswordForm({
   );
 }
 
+function RealPinStartForm({
+  values,
+  onChange,
+  onSubmit,
+  busy,
+}: {
+  values: { businessSlug: string; username: string; pin: string };
+  onChange: (field: "businessSlug" | "username" | "pin", value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  busy: boolean;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <h3 className="font-semibold text-slate-900">Entrar a Cash Control</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Selecciona tu usuario e introduce el PIN para abrir esta estación.
+        </p>
+      </div>
+      <label className="block text-sm font-medium text-slate-700">
+        Identificador del negocio
+        <input
+          className={inputClass}
+          name="businessSlug"
+          value={values.businessSlug}
+          onChange={(event) => onChange("businessSlug", event.target.value)}
+          autoComplete="organization"
+          required
+        />
+      </label>
+      <label className="block text-sm font-medium text-slate-700">
+        Usuario
+        <input
+          className={inputClass}
+          name="username"
+          value={values.username}
+          onChange={(event) => onChange("username", event.target.value)}
+          autoComplete="username"
+          required
+        />
+      </label>
+      <label className="block text-sm font-medium text-slate-700">
+        PIN
+        <input
+          className={inputClass}
+          type="password"
+          name="pin"
+          value={values.pin}
+          onChange={(event) => {
+            if (/^\d{0,6}$/.test(event.target.value))
+              onChange("pin", event.target.value);
+          }}
+          inputMode="numeric"
+          minLength={4}
+          maxLength={6}
+          autoComplete="off"
+          required
+        />
+      </label>
+      <button type="submit" className={buttonClass} disabled={busy}>
+        {busy ? "Verificando…" : "Entrar"}
+      </button>
+    </form>
+  );
+}
+
 function PinForm({
   onSubmit,
   members,
@@ -206,7 +272,7 @@ export function RealWorkstationPanel() {
     operator,
     activatedMembers,
     error,
-    start,
+    startWithPin,
     activate,
     unlock,
     lock,
@@ -217,7 +283,7 @@ export function RealWorkstationPanel() {
   const [startForm, setStartForm] = useState({
     businessSlug: "",
     username: "",
-    password: "",
+    pin: "",
   });
   const [activateForm, setActivateForm] = useState({
     username: "",
@@ -238,10 +304,10 @@ export function RealWorkstationPanel() {
     event.preventDefault();
     setBusy("start");
     setNotice(null);
-    const ok = await start(startForm);
+    const ok = await startWithPin(startForm);
     setBusy(null);
     if (ok) {
-      setStartForm((current) => ({ ...current, password: "" }));
+      setStartForm((current) => ({ ...current, pin: "" }));
       setSelectedMemberId(null);
     }
   };
@@ -354,10 +420,7 @@ export function RealWorkstationPanel() {
         <p className="mt-5 text-sm text-slate-600">Consultando la estación…</p>
       ) : state === "NO_WORKSTATION" || state === "INVALID_SESSION" ? (
         <div className="mt-5 max-w-xl rounded-xl border border-white bg-white p-4">
-          <RealPasswordForm
-            title="Iniciar estación"
-            description="Valida usuario y contraseña para crear la estación y activar al primer miembro."
-            submitLabel="Iniciar estación real"
+          <RealPinStartForm
             values={startForm}
             onChange={(field, value) =>
               setStartForm((current) => ({ ...current, [field]: value }))

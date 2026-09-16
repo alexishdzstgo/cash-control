@@ -1,6 +1,9 @@
 // @ts-check
 import "server-only";
-import { authenticateMemberPassword } from "./authenticate-member.mjs";
+import {
+  authenticateMemberPassword,
+  authenticateMemberPin,
+} from "./authenticate-member.mjs";
 import { createWorkstationClients } from "./clients.mjs";
 import {
   isUuid,
@@ -91,6 +94,40 @@ async function issueOperator(stationToken, memberId, stationExpiry, clients) {
   }
 }
 
+/** @param {{businessId: string, memberId: string}} identity
+ * @param {string} workstationToken @param {Clients} clients
+ */
+async function createWorkstationSession(identity, workstationToken, clients) {
+  const tokenHash = hashSessionToken(workstationToken);
+  const workstationExpiresAt = new Date(
+    Date.now() + WORKSTATION_TTL_MS,
+  ).toISOString();
+  try {
+    safeString(
+      await rpc(clients.admin, "admin_create_workstation_session", {
+        p_business_id: identity.businessId,
+        p_created_by_member_id: identity.memberId,
+        p_token_hash: tokenHash,
+        p_expires_at: workstationExpiresAt,
+      }),
+    );
+    const operator = await issueOperator(
+      workstationToken,
+      identity.memberId,
+      workstationExpiresAt,
+      clients,
+    );
+    return { identity, workstationToken, workstationExpiresAt, ...operator };
+  } catch {
+    try {
+      await revoke("admin_revoke_workstation_session", tokenHash, clients);
+    } catch {
+      throw new WorkstationSessionError("CLEANUP_PENDING");
+    }
+    throw new WorkstationSessionError("UNAVAILABLE");
+  }
+}
+
 /** Raw tokens are a SERVER-ONLY handoff for future HttpOnly cookies, not DTOs.
  * @param {import('./authenticate-member.mjs').PasswordInput} input @param {Clients} [dependencies]
  */
@@ -99,34 +136,19 @@ export async function startWorkstationWithPassword(input, dependencies) {
     const clients = dependencies ?? createWorkstationClients();
     const identity = await authenticateMemberPassword(input, clients);
     const workstationToken = generateSessionToken();
-    const tokenHash = hashSessionToken(workstationToken);
-    const workstationExpiresAt = new Date(
-      Date.now() + WORKSTATION_TTL_MS,
-    ).toISOString();
-    try {
-      safeString(
-        await rpc(clients.admin, "admin_create_workstation_session", {
-          p_business_id: identity.businessId,
-          p_created_by_member_id: identity.memberId,
-          p_token_hash: tokenHash,
-          p_expires_at: workstationExpiresAt,
-        }),
-      );
-      const operator = await issueOperator(
-        workstationToken,
-        identity.memberId,
-        workstationExpiresAt,
-        clients,
-      );
-      return { identity, workstationToken, workstationExpiresAt, ...operator };
-    } catch {
-      try {
-        await revoke("admin_revoke_workstation_session", tokenHash, clients);
-      } catch {
-        throw new WorkstationSessionError("CLEANUP_PENDING");
-      }
-      throw new WorkstationSessionError("UNAVAILABLE");
-    }
+    return createWorkstationSession(identity, workstationToken, clients);
+  });
+}
+
+/** Raw tokens are a SERVER-ONLY handoff for future HttpOnly cookies, not DTOs.
+ * @param {import('./authenticate-member.mjs').PinInput} input @param {Clients} [dependencies]
+ */
+export async function startWorkstationWithPin(input, dependencies) {
+  return sessionOperation(async () => {
+    const clients = dependencies ?? createWorkstationClients();
+    const identity = await authenticateMemberPin(input, clients);
+    const workstationToken = generateSessionToken();
+    return createWorkstationSession(identity, workstationToken, clients);
   });
 }
 
