@@ -135,7 +135,9 @@ test("WorkstationPage no monta un provider real duplicado", () => {
   );
 
   assert.doesNotMatch(workstationPage, /RealWorkstationSessionProvider/);
-  assert.match(workstationPage, /<RealWorkstationPanel\s*\/>/);
+  assert.doesNotMatch(workstationPage, /RealWorkstationPanel/);
+  assert.match(workstationPage, /mode="initial"/);
+  assert.match(workstationPage, /mode="unlock"/);
   assert.match(rootLayout, /<RealAppSessionProvider>/);
   assert.match(appProvider, /<RealWorkstationSessionProvider>/);
 });

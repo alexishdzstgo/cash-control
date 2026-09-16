@@ -49,6 +49,8 @@ type StartPinInput = {
   businessSlug: string;
   username: string;
   pin: string;
+  /** Solo para el acceso inicial que recarga la app desde las cookies reales. */
+  deferStateUpdate?: boolean;
 };
 
 type ActivateInput = {
@@ -226,12 +228,15 @@ export function RealWorkstationSessionProvider({
 
   const startWithPin = useCallback(
     async (input: StartPinInput) => {
-      const body = await mutate("/api/workstation/start-pin", input);
+      const { deferStateUpdate, ...credentials } = input;
+      const body = await mutate("/api/workstation/start-pin", credentials);
       if (!body) return false;
       const nextOperator = operatorFromMutation(body);
-      setOperator(nextOperator);
-      setState("ACTIVE");
-      await loadActivatedMembers();
+      if (!deferStateUpdate) {
+        setOperator(nextOperator);
+        setState("ACTIVE");
+        await loadActivatedMembers();
+      }
       return true;
     },
     [loadActivatedMembers, mutate],

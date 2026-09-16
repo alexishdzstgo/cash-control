@@ -7,6 +7,10 @@ import {
 } from "../src/lib/workstation/server/authenticate-member.mjs";
 import { createWorkstationClients } from "../src/lib/workstation/server/clients.mjs";
 import {
+  publicOperatorResponse,
+  publicSessionResponse,
+} from "../src/lib/workstation/server/responses.mjs";
+import {
   activateMemberWithPassword,
   closeWorkstation,
   listActivatedMembers,
@@ -42,6 +46,36 @@ const poison = {
   refresh_token: "REFRESH_SECRET",
   token_hash: "TOKEN_HASH_SECRET",
 };
+
+test("start-pin y resolve conservan owner también después de lock/unlock", async () => {
+  const f = fixture();
+  const started = await startWorkstationWithPin(
+    { businessSlug: "shop", username: "Alice", pin: "1234" },
+    f.clients,
+  );
+  assert.equal(publicSessionResponse(started).identity.role, "owner");
+  const resolved = await resolveCurrentOperator(started, f.clients);
+  assert.equal(publicOperatorResponse(resolved).identity.role, "owner");
+  await lockCurrentOperator(started, f.clients);
+  const unlocked = await unlockOperatorWithPin(
+    { workstationToken: started.workstationToken, memberId, pin: "1234" },
+    f.clients,
+  );
+  assert.equal(publicOperatorResponse(unlocked).identity.role, "owner");
+  const afterUnlock = await resolveCurrentOperator(
+    {
+      workstationToken: started.workstationToken,
+      operatorToken: unlocked.operatorToken,
+    },
+    f.clients,
+  );
+  assert.equal(publicOperatorResponse(afterUnlock).identity.role, "owner");
+  assert.equal(
+    f.calls.filter(([name]) => name === "admin_create_workstation_session")
+      .length,
+    1,
+  );
+});
 
 function fixture() {
   const calls = [];

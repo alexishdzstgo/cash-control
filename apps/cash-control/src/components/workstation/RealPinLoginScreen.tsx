@@ -8,7 +8,12 @@ import { getUserRoleLabel } from "@/lib/users";
 
 /** El acceso inicial siempre pertenece al negocio operado por esta instalación. */
 const BUSINESS_SLUG = "cash-control";
+type Props = {
+  mode: "initial" | "unlock";
+};
+
 const LOAD_ERROR = "No se pudieron cargar los usuarios del negocio.";
+const MEMBERS_LOAD_ERROR = "No se pudieron cargar los miembros de la estación.";
 const ENTRY_ERROR = "No se pudo entrar con ese PIN.";
 
 type WorkstationCandidate = {
@@ -37,9 +42,14 @@ function readCandidate(value: unknown): WorkstationCandidate | null {
   return { memberId, username, displayName, role };
 }
 
-function pickCandidates(body: unknown): WorkstationCandidate[] | null {
+function pickCandidates(
+  body: unknown,
+  mode: Props["mode"],
+): WorkstationCandidate[] | null {
   if (!body || typeof body !== "object") return null;
-  const list = (body as Record<string, unknown>).candidates;
+  const list = (body as Record<string, unknown>)[
+    mode === "initial" ? "candidates" : "members"
+  ];
   if (!Array.isArray(list)) return null;
   const candidates: WorkstationCandidate[] = [];
   for (const value of list) {
@@ -50,23 +60,30 @@ function pickCandidates(body: unknown): WorkstationCandidate[] | null {
   return candidates;
 }
 
-async function loadCandidates(): Promise<CandidatesResult> {
+async function loadCandidates(mode: Props["mode"]): Promise<CandidatesResult> {
+  const error = mode === "initial" ? LOAD_ERROR : MEMBERS_LOAD_ERROR;
   try {
     const response = await fetch(
-      `/api/workstation/candidates?businessSlug=${BUSINESS_SLUG}`,
+      mode === "initial"
+        ? `/api/workstation/candidates?businessSlug=${BUSINESS_SLUG}`
+        : "/api/workstation/members",
       { cache: "no-store", credentials: "same-origin" },
     );
     const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) return { error: LOAD_ERROR };
-    const candidates = pickCandidates(body);
-    return candidates ? { candidates } : { error: LOAD_ERROR };
+    if (!response.ok) return { error };
+    const candidates = pickCandidates(body, mode);
+    return candidates ? { candidates } : { error };
   } catch {
-    return { error: LOAD_ERROR };
+    return { error };
   }
 }
 
-export function RealPinLoginScreen() {
-  const { startWithPin, error: sessionError } = useRealWorkstationSession();
+export function RealPinLoginScreen({ mode }: Props) {
+  const {
+    startWithPin,
+    unlock,
+    error: sessionError,
+  } = useRealWorkstationSession();
   const [candidates, setCandidates] = useState<WorkstationCandidate[] | null>(
     null,
   );
@@ -79,7 +96,7 @@ export function RealPinLoginScreen() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const result = await loadCandidates();
+      const result = await loadCandidates(mode);
       if (cancelled) return;
       if ("error" in result) {
         setCandidates([]);
@@ -93,7 +110,7 @@ export function RealPinLoginScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [mode]);
 
   const selectCandidate = (candidate: WorkstationCandidate) => {
     setSelected(candidate);
@@ -107,36 +124,40 @@ export function RealPinLoginScreen() {
     setFailed(false);
   };
 
-const submit = async (event: FormEvent<HTMLFormElement>) => {
-  event.preventDefault();
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-  if (!selected || busy || !/^\d{4,6}$/.test(pin)) return;
+    if (!selected || busy || !/^\d{4,6}$/.test(pin)) return;
 
-  setBusy(true);
-  setFailed(false);
+    setBusy(true);
+    setFailed(false);
 
-  const entered = await startWithPin({
-    businessSlug: BUSINESS_SLUG,
-    username: selected.username,
-    pin,
-  });
+    const entered =
+      mode === "initial"
+        ? await startWithPin({
+            businessSlug: BUSINESS_SLUG,
+            username: selected.username,
+            pin,
+            deferStateUpdate: true,
+          })
+        : await unlock({ memberId: selected.memberId, pin });
 
-  setPin("");
+    setPin("");
 
-  if (!entered) {
-    setBusy(false);
-    setFailed(true);
-    return;
-  }
+    if (!entered) {
+      setBusy(false);
+      setFailed(true);
+      return;
+    }
 
-  /*
-   * La sesión real ya quedó persistida en cookies HttpOnly.
-   * Usamos navegación del navegador en lugar de router.push()
-   * para evitar que SessionGuard vea durante la navegación el
-   * estado anterior de la sesión y nos devuelva a /workstation.
-   */
-  window.location.replace("/");
-};
+    /*
+     * La sesión real ya quedó persistida en cookies HttpOnly.
+     * Usamos navegación del navegador en lugar de router.push()
+     * para evitar que SessionGuard vea durante la navegación el
+     * estado anterior de la sesión y nos devuelva a /workstation.
+     */
+    window.location.replace("/");
+  };
 
   const message = failed ? (sessionError ?? ENTRY_ERROR) : null;
   const canSubmit = Boolean(selected) && /^\d{4,6}$/.test(pin);
@@ -148,10 +169,14 @@ const submit = async (event: FormEvent<HTMLFormElement>) => {
         </span>
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-brand-text">
-            Entrar a Cash Control
+            {mode === "initial"
+              ? "Entrar a Cash Control"
+              : "Desbloquear Cash Control"}
           </h2>
           <p className="mt-1 text-sm text-brand-text-muted">
-            Selecciona tu usuario e introduce tu PIN para abrir esta estación.
+            {mode === "initial"
+              ? "Selecciona tu usuario e introduce tu PIN para abrir esta estación."
+              : "Selecciona tu usuario e introduce tu PIN."}
           </p>
         </div>
       </header>
@@ -169,14 +194,19 @@ const submit = async (event: FormEvent<HTMLFormElement>) => {
       {candidates !== null && candidates.length === 0 && (
         <output className="mt-6 flex items-start gap-3 rounded-xl border border-dashed border-brand-border px-4 py-6 text-sm text-brand-text-muted">
           <UserRound className="h-5 w-5 shrink-0" aria-hidden="true" />
-          {loadError ?? "No hay usuarios activos en este negocio."}
+          {loadError ??
+            (mode === "initial"
+              ? "No hay usuarios activos en este negocio."
+              : "No hay miembros activados en esta estación.")}
         </output>
       )}
 
       {candidates !== null && candidates.length > 0 && (
         <fieldset className="mt-6 grid gap-3 sm:grid-cols-2">
           <legend className="text-xs font-semibold uppercase tracking-wide text-brand-text-muted">
-            Usuarios del negocio
+            {mode === "initial"
+              ? "Usuarios del negocio"
+              : "Miembros activados de la estación"}
           </legend>
           {candidates.map((candidate) => {
             const isSelected = selected?.memberId === candidate.memberId;
@@ -185,6 +215,7 @@ const submit = async (event: FormEvent<HTMLFormElement>) => {
                 key={candidate.memberId}
                 type="button"
                 aria-pressed={isSelected}
+                disabled={busy}
                 onClick={() => selectCandidate(candidate)}
                 className={`flex min-h-20 w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary-ring ${
                   isSelected
@@ -242,6 +273,7 @@ const submit = async (event: FormEvent<HTMLFormElement>) => {
               className="field-input mt-1"
               type="password"
               name="pin"
+              disabled={busy}
               value={pin}
               onChange={(event) => {
                 if (!/^\d{0,6}$/.test(event.target.value)) return;

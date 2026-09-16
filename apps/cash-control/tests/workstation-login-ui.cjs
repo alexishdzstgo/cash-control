@@ -6,6 +6,7 @@ const { test } = require("node:test");
 const ts = require("typescript");
 
 let session;
+let mode;
 let routerCalls;
 let fetchCalls;
 let fetchBody;
@@ -85,6 +86,9 @@ for (const extension of [".ts", ".tsx"]) {
 const {
   RealPinLoginScreen,
 } = require("../src/components/workstation/RealPinLoginScreen.tsx");
+const {
+  WorkstationPage,
+} = require("../src/components/workstation/WorkstationPage.tsx");
 
 const ana = {
   memberId: "member-ana",
@@ -100,7 +104,11 @@ const zeferino = {
 };
 
 function reset({ candidates = [ana, zeferino], ok = true, body } = {}) {
+  mode = "initial";
   routerCalls = [];
+  globalThis.window = {
+    location: { replace: (href) => routerCalls.push(href) },
+  };
   fetchCalls = [];
   fetchOk = ok;
   fetchBody = body ?? { candidates };
@@ -164,7 +172,7 @@ function renderOnce() {
   if (!stores.has(RealPinLoginScreen)) stores.set(RealPinLoginScreen, []);
   currentStore = stores.get(RealPinLoginScreen);
   cursor = 0;
-  return RealPinLoginScreen();
+  return RealPinLoginScreen({ mode });
 }
 
 function flush() {
@@ -262,7 +270,12 @@ test("el PIN se envía con el usuario seleccionado y se limpia al entrar", async
   const after = await settle();
 
   assert.deepEqual(startCalls, [
-    { businessSlug: "cash-control", username: "zeferino", pin: "1234" },
+    {
+      businessSlug: "cash-control",
+      username: "zeferino",
+      pin: "1234",
+      deferStateUpdate: true,
+    },
   ]);
   assert.deepEqual(routerCalls, ["/"]);
   assert.equal(pinInput(after).props.value, "");
@@ -329,4 +342,83 @@ test("sin usuarios activos no se ofrece el formulario de PIN", async () => {
   const tree = await render();
   assert.match(nodeText(tree), /No hay usuarios activos en este negocio\./);
   assert.equal(formOf(tree), undefined);
+});
+
+for (const [state, expectedMode] of [
+  ["NO_WORKSTATION", "initial"],
+  ["INVALID_SESSION", "initial"],
+  ["NO_OPERATOR", "unlock"],
+  ["loading", null],
+  ["ACTIVE", null],
+]) {
+  test(`WorkstationPage: ${state} muestra solo el flujo correspondiente`, () => {
+    reset();
+    session.state = state;
+    currentStore = [];
+    cursor = 0;
+    const tree = WorkstationPage();
+    const nodes = allNodes(tree);
+    const login = nodes.find((node) => node.type === RealPinLoginScreen);
+    assert.equal(login?.props.mode ?? null, expectedMode);
+    assert.equal(
+      nodes.some((node) => node.type?.name === "RealWorkstationPanel"),
+      false,
+    );
+    assert.deepEqual(routerCalls, []);
+    for (const effect of pendingEffects) effect();
+    assert.deepEqual(routerCalls, state === "ACTIVE" ? ["/"] : []);
+    if (state === "ACTIVE")
+      assert.match(nodeText(tree), /Entrando a Cash Control/);
+  });
+}
+
+for (const accepted of [true, false]) {
+  test(`unlock usa solo miembros activados y unlock (PIN aceptado: ${accepted})`, async () => {
+    reset({ body: { state: "ACTIVE", members: [zeferino] } });
+    mode = "unlock";
+    session.state = "NO_OPERATOR";
+    session.startWithPin = async () =>
+      assert.fail("No se debe crear otra estación");
+    const calls = [];
+    session.unlock = async (input) => {
+      calls.push(input);
+      if (!accepted) session.error = "PIN incorrecto.";
+      return accepted;
+    };
+    const tree = await render();
+    assert.deepEqual(
+      fetchCalls.map((call) => call.url),
+      ["/api/workstation/members"],
+    );
+    assert.match(nodeText(tree), /Desbloquear Cash Control/);
+    assert.match(nodeText(tree), /Selecciona tu usuario e introduce tu PIN\./);
+    assert.equal(cardByText(tree, "Ana López"), undefined);
+    cardByText(tree, "Zeferino").props.onClick();
+    let selected = await settle();
+    pinInput(selected).props.onChange({ target: { value: "1234" } });
+    selected = await settle();
+    await formOf(selected).props.onSubmit({ preventDefault() {} });
+    const after = await settle();
+    assert.deepEqual(calls, [{ memberId: zeferino.memberId, pin: "1234" }]);
+    assert.deepEqual(routerCalls, accepted ? ["/"] : []);
+    assert.equal(pinInput(after).props.value, "");
+    assert.equal(pinInput(after).props.disabled, accepted);
+    assert.doesNotMatch(
+      nodeText(after),
+      /Sesión real de Workstation|Activar otro miembro|Cambiar operador/,
+    );
+    if (!accepted) assert.match(nodeText(after), /PIN incorrecto/);
+  });
+}
+
+test("unlock sin activaciones no consulta candidates ni ofrece PIN", async () => {
+  reset({ body: { state: "ACTIVE", members: [] } });
+  mode = "unlock";
+  const tree = await render();
+  assert.equal(formOf(tree), undefined);
+  assert.match(nodeText(tree), /No hay miembros activados en esta estación/);
+  assert.deepEqual(
+    fetchCalls.map((call) => call.url),
+    ["/api/workstation/members"],
+  );
 });

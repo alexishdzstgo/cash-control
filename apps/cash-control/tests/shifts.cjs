@@ -2228,8 +2228,11 @@ test("directory: create in Users without a shift, select existing Roberto as sup
     activatedMembers: [],
   };
   const lockedTree = renderComponent(WorkstationPage);
-  assert.ok(componentNamed(lockedTree, "RealWorkstationPanel"));
-  assert.equal(componentNamed(lockedTree, "RealPinLoginScreen"), null);
+  assert.equal(componentNamed(lockedTree, "RealWorkstationPanel"), null);
+  assert.equal(
+    componentNamed(lockedTree, "RealPinLoginScreen").props.mode,
+    "unlock",
+  );
 
   workstationSession = { state: "loading", operator: null };
   const loadingTree = renderComponent(WorkstationPage);

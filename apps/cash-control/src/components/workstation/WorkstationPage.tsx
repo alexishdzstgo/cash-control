@@ -1,17 +1,21 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
 import { Footer } from "@/components/layout/Footer";
 // Acceso real: la sesión se lee de la fachada de sesión de la app (la misma
 // fuente que usan SessionGuard y OwnerOnlyGuard) para no montar un provider
 // real duplicado dentro de la estación.
 import { useRealWorkstationSession } from "@/components/session/RealAppSessionProvider";
 import { RealPinLoginScreen } from "./RealPinLoginScreen";
-import { RealWorkstationPanel } from "./RealWorkstationPanel";
 
 export function WorkstationPage() {
   const { state, activatedMembers } = useRealWorkstationSession();
   const hasStation = state === "ACTIVE" || state === "NO_OPERATOR";
+
+  useEffect(() => {
+    if (state === "ACTIVE") window.location.replace("/");
+  }, [state]);
 
   return (
     <div className="flex min-h-screen flex-col bg-brand-surface">
@@ -51,21 +55,23 @@ export function WorkstationPage() {
       {/* Main content */}
       <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl space-y-6">
-          {state === "loading" ? (
+          {state === "loading" || state === "ACTIVE" ? (
             <div className="rounded-2xl border border-brand-border bg-white p-10 text-center shadow-sm">
               <span
                 className="mx-auto block h-5 w-5 animate-spin rounded-full border-2 border-brand-primary-ring border-t-brand-primary"
                 aria-hidden="true"
               />
               <p className="mt-3 text-sm text-brand-text-muted">
-                Consultando la estación…
+                {state === "ACTIVE"
+                  ? "Entrando a Cash Control…"
+                  : "Consultando la estación…"}
               </p>
             </div>
           ) : state === "NO_WORKSTATION" || state === "INVALID_SESSION" ? (
-            <RealPinLoginScreen />
-          ) : (
-            <RealWorkstationPanel />
-          )}
+            <RealPinLoginScreen key="initial" mode="initial" />
+          ) : state === "NO_OPERATOR" ? (
+            <RealPinLoginScreen key="unlock" mode="unlock" />
+          ) : null}
         </div>
       </main>
       <Footer />
