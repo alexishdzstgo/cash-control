@@ -1,5 +1,7 @@
 // @ts-check
 import "server-only";
+import { fileURLToPath } from "node:url";
+import nextEnv from "@next/env";
 import { createClient } from "@supabase/supabase-js";
 import {
   findAuthUserByEmail,
@@ -9,6 +11,11 @@ import {
 } from "../src/lib/users/server/provisioning.mjs";
 
 const DEFAULT_OWNER_BUSINESS_SLUG = "cash-control";
+const { loadEnvConfig } = nextEnv;
+
+// npm does not load Next.js env files for standalone Node scripts. Use the
+// same loader as the application before reading any server credentials.
+loadEnvConfig(fileURLToPath(new URL("..", import.meta.url)), true, true);
 
 function readBusinessSlug(env) {
   const configured = env.OWNER_BUSINESS_SLUG?.trim();
