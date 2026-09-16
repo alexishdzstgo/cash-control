@@ -43,7 +43,20 @@ function findEnvRoot() {
 
 // npm does not load Next.js env files for standalone Node scripts. Search from
 // the app through the monorepo parents and use the same loader as Next.js.
-loadEnvConfig(findEnvRoot(), true, { error() {} });
+const loadedEnv = loadEnvConfig(findEnvRoot(), true, { error() {} });
+
+function readConfiguredSecretKey(env, envConfig) {
+  const candidates = [env.SUPABASE_SECRET_KEY, env.SUPABASE_SERVICE_ROLE_KEY];
+  for (const file of envConfig.loadedEnvFiles ?? []) {
+    candidates.push(
+      file.env?.SUPABASE_SECRET_KEY,
+      file.env?.SUPABASE_SERVICE_ROLE_KEY,
+    );
+  }
+  return candidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim(),
+  );
+}
 
 function readBusinessSlug(env) {
   const configured = env.OWNER_BUSINESS_SLUG?.trim();
@@ -96,7 +109,7 @@ try {
     );
   }
   const key = requiredText(
-    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+    readConfiguredSecretKey(process.env, loadedEnv),
     "SUPABASE_SECRET_KEY (o SUPABASE_SERVICE_ROLE_KEY)",
   );
   const admin = createClient(url, key, {
