@@ -8,6 +8,22 @@ import {
   requiredText,
 } from "../src/lib/users/server/provisioning.mjs";
 
+const DEFAULT_OWNER_BUSINESS_SLUG = "cash-control";
+
+function readBusinessSlug(env) {
+  const configured = env.OWNER_BUSINESS_SLUG?.trim();
+  // Ignore copied placeholder labels such as OWNER\_BUSINESS\_SLUG. They are
+  // not valid data and must not override the real project default.
+  if (
+    !configured ||
+    configured === "OWNER_BUSINESS_SLUG" ||
+    configured === "OWNER\\_BUSINESS\\_SLUG"
+  ) {
+    return DEFAULT_OWNER_BUSINESS_SLUG;
+  }
+  return configured;
+}
+
 function readOwnerInput(env) {
   const firstName = requiredText(
     env.OWNER_FIRST_NAME ?? "Zeferino",
@@ -18,10 +34,7 @@ function readOwnerInput(env) {
       env.OWNER_AUTH_EMAIL ?? "zeferino@cashcontrol.com",
       "OWNER_AUTH_EMAIL",
     ),
-    businessSlug: requiredText(
-      env.OWNER_BUSINESS_SLUG ?? "cash-control",
-      "OWNER_BUSINESS_SLUG",
-    ),
+    businessSlug: requiredText(readBusinessSlug(env), "OWNER_BUSINESS_SLUG"),
     firstName,
     // profiles.last_name is required by the existing schema. The default keeps
     // the requested single-name profile while allowing a real surname override.
@@ -70,9 +83,14 @@ try {
     .select("id,status")
     .eq("slug", input.businessSlug)
     .maybeSingle();
-  if (business.error || !business.data) {
+  if (business.error) {
     throw new ProvisioningError(
-      "No existe un negocio con OWNER_BUSINESS_SLUG; no se creó ni modificó ninguna cuenta.",
+      `No se pudo consultar el negocio con slug "${input.businessSlug}" en Supabase; no se creó ni modificó ninguna cuenta.`,
+    );
+  }
+  if (!business.data) {
+    throw new ProvisioningError(
+      `No existe un negocio con slug "${input.businessSlug}"; no se creó ni modificó ninguna cuenta.`,
     );
   }
   if (business.data.status !== "active") {
