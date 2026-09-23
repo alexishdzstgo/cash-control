@@ -11,7 +11,7 @@ import {
   UserX,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -35,7 +35,6 @@ import {
   wouldRemoveLastActiveOwner,
 } from "@/lib/users";
 import type { UserAccount, UserFilter } from "@/types/user";
-import { initialUserAccounts } from "./userMockData";
 
 type DetailTab = "info" | "access" | "activity" | "stats";
 type FormMode = "create" | "edit";
@@ -82,12 +81,15 @@ const filters: Array<{ value: UserFilter; label: string }> = [
 export function UsersPage() {
   const { getUserAvatar, participants } = useMockSession();
   const { operations } = useBusinessFunds();
-  const [users, setUsers] = useState<UserAccount[]>(initialUserAccounts);
+  const [users, setUsers] = useState<UserAccount[]>([]);
+const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+const [usersError, setUsersError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(
-    initialUserAccounts[0]?.id ?? null,
-  );
+
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
   const [detailTab, setDetailTab] = useState<DetailTab>("info");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
@@ -104,6 +106,53 @@ export function UsersPage() {
     user: UserAccount;
     password: string;
   } | null>(null);
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadUsers() {
+    try {
+      setIsLoadingUsers(true);
+      setUsersError(null);
+
+      const response = await fetch("/api/users");
+
+      if (!response.ok) {
+        throw new Error("No se pudieron cargar los usuarios.");
+      }
+
+      const data: { ok: boolean; users?: UserAccount[]; error?: string } =
+        await response.json();
+
+      if (!data.ok || !data.users) {
+        throw new Error(data.error ?? "Respuesta inválida del servidor.");
+      }
+
+      if (!cancelled) {
+        setUsers(data.users);
+        setSelectedUserId(data.users[0]?.id ?? null);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setUsersError(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron cargar los usuarios.",
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setIsLoadingUsers(false);
+      }
+    }
+  }
+
+  void loadUsers();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   const summary = useMemo(() => getUserSummary(users), [users]);
   const filteredUsers = useMemo(
@@ -297,6 +346,17 @@ export function UsersPage() {
       />
 
       <div className="space-y-6">
+      {isLoadingUsers && (
+  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
+    Cargando usuarios...
+  </div>
+)}
+
+{usersError && (
+  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-sm">
+    {usersError}
+  </div>
+)}
         <UserSummaryCards summary={summary} />
 
         {domainMessage && (

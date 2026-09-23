@@ -8,14 +8,20 @@ import {
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Footer } from "@/components/layout/Footer";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
-import { mockRegisteredUsers } from "./mockData";
 import type { Participant } from "./types";
 import { WorkstationAccessModal } from "./WorkstationAccessModal";
+
+interface RegisteredUser {
+  userId: string;
+  userName: string;
+  pin: string;
+  systemRole: "owner" | "employee";
+}
 
 function ActiveParticipantCard({
   participant,
@@ -63,6 +69,7 @@ function ActiveParticipantCard({
           <p className="font-semibold text-brand-text">
             {participant.userName}
           </p>
+
           {isResponsible && (
             <span className="inline-flex items-center gap-1 rounded-full bg-brand-responsible-soft px-2 py-0.5 text-xs font-medium text-brand-responsible">
               <ShieldCheck className="h-3 w-3" />
@@ -70,11 +77,13 @@ function ActiveParticipantCard({
             </span>
           )}
         </div>
+
         {isResponsible && (
           <p className="mt-0.5 text-xs text-brand-text-muted">
             Responsable de la estación
           </p>
         )}
+
         <div className="mt-1 flex items-center gap-1.5 text-sm text-brand-text-muted">
           <Clock className="h-3.5 w-3.5" />
           <span>
@@ -90,6 +99,7 @@ function ActiveParticipantCard({
           <span className="text-sm font-semibold text-brand-text-muted transition-colors duration-250 ease-out group-hover:text-white">
             Ingresar
           </span>
+
           <ArrowRight className="h-4 w-4 text-brand-text-muted transition-all duration-250 ease-out group-hover:translate-x-1 group-hover:text-white" />
         </div>
       </div>
@@ -117,6 +127,7 @@ function JoinAnotherUserCard({
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-surface text-brand-text-muted">
         <UserPlus className="h-6 w-6" />
       </div>
+
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-brand-text">Activar usuario</p>
         <p className="mt-0.5 text-sm text-brand-text-muted">
@@ -130,12 +141,75 @@ function JoinAnotherUserCard({
 
 export function WorkstationPage() {
   const router = useRouter();
+
   const { getUserAvatar, participants, unlockSession } = useMockSession();
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"access" | "join">("access");
+
   const [preselectedUserId, setPreselectedUserId] = useState<string | null>(
     null,
   );
+
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
+
+  /*
+   * Cargar usuarios reales desde Supabase a través de /api/users.
+   *
+   * Por ahora solo cargamos usuarios activos.
+   * El PIN real todavía no se obtiene aquí; eso será el siguiente paso.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUsers() {
+      try {
+        const response = await fetch("/api/users");
+
+        if (!response.ok) {
+          throw new Error("No se pudieron cargar los usuarios.");
+        }
+
+        const data: {
+          ok: boolean;
+          users?: Array<{
+            id: string;
+            displayName: string;
+            systemRole: "owner" | "employee";
+            status: string;
+          }>;
+          error?: string;
+        } = await response.json();
+
+        if (!data.ok || !data.users) {
+          throw new Error(
+            data.error ?? "Respuesta inválida del servidor.",
+          );
+        }
+
+        if (!cancelled) {
+          const users: RegisteredUser[] = data.users
+            .filter((user) => user.status === "active")
+            .map((user) => ({
+              userId: user.id,
+              userName: user.displayName,
+              pin: "",
+              systemRole: user.systemRole,
+            }));
+
+          setRegisteredUsers(users);
+        }
+      } catch (error) {
+        console.error("Error cargando usuarios:", error);
+      }
+    }
+
+    void loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeParticipants = participants
     .filter((p) => p.status === "active")
@@ -162,7 +236,8 @@ export function WorkstationPage() {
 
   const handleAccess = useCallback(
     (userId: string) => {
-      const user = mockRegisteredUsers.find((u) => u.userId === userId);
+      const user = registeredUsers.find((u) => u.userId === userId);
+
       if (!user) return;
 
       unlockSession({
@@ -171,15 +246,17 @@ export function WorkstationPage() {
         systemRole: user.systemRole,
         hasActiveParticipation: false,
       });
+
       setModalOpen(false);
       router.push("/");
     },
-    [unlockSession, router],
+    [registeredUsers, unlockSession, router],
   );
 
   const handleJoin = useCallback(
     (userId: string) => {
-      const user = mockRegisteredUsers.find((u) => u.userId === userId);
+      const user = registeredUsers.find((u) => u.userId === userId);
+
       if (!user) return;
 
       unlockSession({
@@ -188,10 +265,11 @@ export function WorkstationPage() {
         systemRole: user.systemRole,
         hasActiveParticipation: false,
       });
+
       setModalOpen(false);
       router.push("/");
     },
-    [unlockSession, router],
+    [registeredUsers, unlockSession, router],
   );
 
   const handleCancel = useCallback(() => {
@@ -206,18 +284,24 @@ export function WorkstationPage() {
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <ShieldCheck className="h-6 w-6 text-white" />
+
             <div>
-              <h1 className="text-xl font-bold text-white">Control de caja</h1>
+              <h1 className="text-xl font-bold text-white">
+                Control de caja
+              </h1>
+
               <p className="text-sm text-slate-400">
                 Control de acceso de usuarios
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
               <span className="h-2 w-2 rounded-full bg-brand-responsible animate-pulse-soft" />
               Estación activa
             </span>
+
             <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
               {activeParticipants.length}{" "}
               {activeParticipants.length === 1 ? "activo" : "activos"}
@@ -237,6 +321,7 @@ export function WorkstationPage() {
                   <h3 className="text-lg font-semibold text-brand-text">
                     Control de usuarios
                   </h3>
+
                   <p className="mt-1 text-sm text-brand-text-muted">
                     {activeParticipants.length}{" "}
                     {activeParticipants.length === 1
@@ -263,9 +348,11 @@ export function WorkstationPage() {
                 {activeParticipants.length === 0 && (
                   <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
                     <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
+
                     <p className="mt-2 font-medium text-brand-text">
                       No hay participantes activos
                     </p>
+
                     <p className="text-sm text-brand-text-muted">
                       Inicia una jornada o incorpórate como participante.
                     </p>
@@ -290,12 +377,14 @@ export function WorkstationPage() {
           </div>
         </div>
       </main>
+
       <Footer />
+
       {/* Modal */}
       <WorkstationAccessModal
         open={modalOpen}
         mode={modalMode}
-        registeredUsers={mockRegisteredUsers}
+        registeredUsers={registeredUsers}
         activeUserIds={activeParticipants.map((p) => p.userId)}
         preselectedUserId={preselectedUserId}
         onAccess={handleAccess}
