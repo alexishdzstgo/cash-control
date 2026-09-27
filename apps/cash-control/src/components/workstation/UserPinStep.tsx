@@ -5,9 +5,10 @@ import { ModalSection } from "@/components/shared/ModalShell";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
 
-const VALID_PIN = "1234";
+//const VALID_PIN = "1234"; 
 
 interface UserPinStepProps {
+  selectedUserId: string;
   selectedUserName: string;
   selectedUserAvatar?: UserAvatarModel;
   onBack: () => void;
@@ -15,6 +16,7 @@ interface UserPinStepProps {
 }
 
 export function UserPinStep({
+  selectedUserId,
   selectedUserName,
   selectedUserAvatar,
   onBack,
@@ -22,6 +24,7 @@ export function UserPinStep({
 }: UserPinStepProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,13 +38,47 @@ export function UserPinStep({
     }
   };
 
-  const handleConfirm = () => {
-    if (pin !== VALID_PIN) {
+const handleConfirm = async () => {
+  if (pin.length !== 4 || verifying) return;
+
+  setVerifying(true);
+  setError(null);
+
+  try {
+    const response = await fetch("/api/workstation/verify-pin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        memberId: selectedUserId,
+        pin,
+      }),
+    });
+
+    const data: {
+      ok: boolean;
+      valid?: boolean;
+      error?: string;
+    } = await response.json();
+
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error ?? "No se pudo verificar el PIN.");
+    }
+
+    if (!data.valid) {
       setError("PIN incorrecto. Intenta de nuevo.");
       return;
     }
+
     onConfirm();
-  };
+  } catch (error) {
+    console.error("Error verificando PIN:", error);
+    setError("No se pudo verificar el PIN. Intenta de nuevo.");
+  } finally {
+    setVerifying(false);
+  }
+};
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && pin.length === 4) {
@@ -107,17 +144,19 @@ export function UserPinStep({
           No soy {selectedUserName}
         </button>
         <div className="flex gap-3">
+
           <button type="button" className="btn-secondary" onClick={onBack}>
             Volver
           </button>
           <button
-            type="button"
-            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={handleConfirm}
-            disabled={pin.length !== 4}
-          >
-            Confirmar
-          </button>
+  type="button"
+  className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+  onClick={handleConfirm}
+  disabled={pin.length !== 4 || verifying}
+>
+  {verifying ? "Verificando..." : "Confirmar"}
+</button>
+
         </div>
       </div>
     </div>
