@@ -78,15 +78,58 @@ export function UserParticipationMenu() {
     };
   }, [isOpen]);
 
-  // Derived state - handle null user safely
-  const activeParticipation = authenticatedUser
-    ? participants.find(
-        (p) => p.userId === authenticatedUser.userId && p.status === "active",
-      )
-    : undefined;
 
-  const isResponsible = isCurrentUserResponsible();
-  const activeParticipants = getActiveParticipants();
+
+
+  const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
+
+useEffect(() => {
+  fetch("/api/workstation/participants")
+    .then((response) => response.json())
+    .then((data) => {
+      if (data.ok) {
+        setRealParticipants(
+          data.participants.map((participant: {
+            memberId: string;
+            username: string;
+            displayName: string;
+            role: string;
+            status: string;
+            joinedAt: string;
+          }) => ({
+            userId: participant.memberId,
+            userName: participant.displayName,
+            participationType:
+              participant.role === "shift_responsible"
+                ? "responsible"
+                : "support",
+            status: participant.status,
+            startedAt: new Date(participant.joinedAt).toLocaleTimeString(
+              "es-MX",
+              { hour: "2-digit", minute: "2-digit" },
+            ),
+          })),
+        );
+      }
+    })
+    .catch((error) => {
+      console.error("Error cargando participantes:", error);
+    });
+}, []);
+
+const activeParticipants = realParticipants;
+
+const activeParticipation = authenticatedUser
+  ? realParticipants.find(
+      (p) =>
+        p.userId === authenticatedUser.userId &&
+        p.status === "active",
+    )
+  : undefined;
+
+  const isResponsible =
+  activeParticipation?.participationType === "responsible";
+
   const otherActiveParticipants = activeParticipants.filter(
     (p) => p.userId !== authenticatedUser?.userId,
   );
@@ -110,13 +153,41 @@ export function UserParticipationMenu() {
   const StatusIcon = getStatusIcon();
   const currentUserAvatar = getUserAvatar(authenticatedUser?.userId ?? "");
 
-  const handleStartParticipation = useCallback(() => {
-    if (authenticatedUser) {
-      startParticipation(authenticatedUser.userId);
-      updateAuthenticatedUser({ hasActiveParticipation: true });
-      setIsOpen(false);
+const handleStartParticipation = useCallback(async () => {
+  if (!authenticatedUser) return;
+
+  try {
+    const response = await fetch("/api/workstation/activate-participation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      alert(
+        data.error ??
+          "No se pudo activar la participación.",
+      );
+      return;
     }
-  }, [authenticatedUser, startParticipation, updateAuthenticatedUser]);
+
+    updateAuthenticatedUser({
+      hasActiveParticipation: true,
+    });
+
+    setIsOpen(false);
+  } catch (error) {
+    console.error(
+      "Error activando participación:",
+      error,
+    );
+
+    alert("No se pudo activar la participación.");
+  }
+}, [authenticatedUser, updateAuthenticatedUser]);
 
   const handleLockSession = useCallback(() => {
     setIsOpen(false);
@@ -133,34 +204,46 @@ export function UserParticipationMenu() {
     },
     [router],
   );
+////////////
+ const handleEndParticipation = useCallback(async () => {
+  if (!authenticatedUser) return;
 
-  const handleEndParticipation = useCallback(async () => {
-    if (!authenticatedUser) return;
+  setIsEnding(true);
 
-    setIsEnding(true);
-    const result = endParticipation(authenticatedUser.userId);
+  try {
+    const response = await fetch("/api/workstation/end-participation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
-    if (result.success) {
-      setShowEndModal(false);
-      addActivityEvent(
-        `${authenticatedUser.userName} finalizó su participación`,
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      alert(
+        result.error ?? "No se pudo finalizar la participación.",
       );
-      setIsOpen(false);
-    } else if (result.isResponsible) {
-      setShowEndModal(false);
-      if (result.isOnlyParticipant) {
-        alert(
-          "No puedes finalizar tu participación siendo el único participante activo. Debes iniciar a otro participante o cerrar la estación.",
-        );
-      } else {
-        alert(
-          "No puedes finalizar tu participación mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
-        );
-      }
+      return;
     }
 
+    setShowEndModal(false);
+
+    addActivityEvent(
+      `${authenticatedUser.userName} finalizó su participación`,
+    );
+
+    setIsOpen(false);
+  } catch (error) {
+    console.error("Error finalizando participación:", error);
+
+    alert("No se pudo finalizar la participación.");
+  } finally {
     setIsEnding(false);
-  }, [authenticatedUser, endParticipation, addActivityEvent]);
+  }
+}, [authenticatedUser, addActivityEvent]);
+
+  //////////////
 
   const handleTransferClick = useCallback(
     (userId: string) => {

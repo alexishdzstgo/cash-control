@@ -69,7 +69,8 @@ export async function POST(request: Request) {
      */
     let workstationToken = cookieStore.get(WORKSTATION_COOKIE)?.value;
     let workstationTokenHash: string;
-    let workstationCreated = false;
+let workstationCreated = false;
+let workstationExpiresAt: string | null = null;
 
     if (workstationToken) {
       workstationTokenHash = hashToken(workstationToken);
@@ -81,13 +82,15 @@ export async function POST(request: Request) {
 
       const workstation = workstationData?.[0];
 
-      if (
-        workstationError ||
-        !workstation ||
-        workstation.business_id !== BUSINESS_ID
-      ) {
-        workstationToken = undefined;
-      }
+if (
+  workstationError ||
+  !workstation ||
+  workstation.business_id !== BUSINESS_ID
+) {
+  workstationToken = undefined;
+} else {
+  workstationExpiresAt = workstation.workstation_expires_at;
+}
     }
 
     if (!workstationToken) {
@@ -95,7 +98,7 @@ export async function POST(request: Request) {
       workstationTokenHash = hashToken(workstationToken);
       workstationCreated = true;
 
-      const workstationExpiresAt = new Date(
+       workstationExpiresAt = new Date(
         Date.now() + WORKSTATION_HOURS * 60 * 60 * 1000,
       ).toISOString();
 
@@ -156,9 +159,19 @@ export async function POST(request: Request) {
     const operatorToken = generateToken();
     const operatorTokenHash = hashToken(operatorToken);
 
-    const operatorExpiresAt = new Date(
-      Date.now() + OPERATOR_HOURS * 60 * 60 * 1000,
-    ).toISOString();
+    const operatorLimit = new Date(
+  Date.now() + OPERATOR_HOURS * 60 * 60 * 1000,
+);
+
+const operatorExpiresAt = new Date(
+  Math.min(
+    operatorLimit.getTime(),
+    workstationExpiresAt
+      ? new Date(workstationExpiresAt).getTime()
+      : operatorLimit.getTime(),
+  ),
+).toISOString();
+
 
     const { data: operatorSessionId, error: operatorError } =
       await supabaseServer.rpc("admin_issue_operator_session", {
