@@ -81,41 +81,55 @@ export function UserParticipationMenu() {
 
 
 
-  const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
+
+const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
+
+const refreshRealParticipants = useCallback(async () => {
+  try {
+    const response = await fetch("/api/workstation/participants", {
+      cache: "no-store",
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok) {
+      console.error(
+        "No se pudieron actualizar los participantes:",
+        data.error,
+      );
+      return;
+    }
+
+    setRealParticipants(
+      data.participants.map((participant: {
+        memberId: string;
+        username: string;
+        displayName: string;
+        role: string;
+        status: string;
+        joinedAt: string;
+      }) => ({
+        userId: participant.memberId,
+        userName: participant.displayName,
+        participationType:
+          participant.role === "shift_responsible"
+            ? "responsible"
+            : "support",
+        status: participant.status,
+        startedAt: new Date(participant.joinedAt).toLocaleTimeString(
+          "es-MX",
+          { hour: "2-digit", minute: "2-digit" },
+        ),
+      })),
+    );
+  } catch (error) {
+    console.error("Error cargando participantes:", error);
+  }
+}, []);
 
 useEffect(() => {
-  fetch("/api/workstation/participants")
-    .then((response) => response.json())
-    .then((data) => {
-      if (data.ok) {
-        setRealParticipants(
-          data.participants.map((participant: {
-            memberId: string;
-            username: string;
-            displayName: string;
-            role: string;
-            status: string;
-            joinedAt: string;
-          }) => ({
-            userId: participant.memberId,
-            userName: participant.displayName,
-            participationType:
-              participant.role === "shift_responsible"
-                ? "responsible"
-                : "support",
-            status: participant.status,
-            startedAt: new Date(participant.joinedAt).toLocaleTimeString(
-              "es-MX",
-              { hour: "2-digit", minute: "2-digit" },
-            ),
-          })),
-        );
-      }
-    })
-    .catch((error) => {
-      console.error("Error cargando participantes:", error);
-    });
-}, []);
+  void refreshRealParticipants();
+}, [refreshRealParticipants]);
 
 const activeParticipants = realParticipants;
 
@@ -174,11 +188,13 @@ const handleStartParticipation = useCallback(async () => {
       return;
     }
 
-    updateAuthenticatedUser({
-      hasActiveParticipation: true,
-    });
+updateAuthenticatedUser({
+  hasActiveParticipation: true,
+});
 
-    setIsOpen(false);
+await refreshRealParticipants();
+setIsOpen(false);
+
   } catch (error) {
     console.error(
       "Error activando participación:",
@@ -187,7 +203,11 @@ const handleStartParticipation = useCallback(async () => {
 
     alert("No se pudo activar la participación.");
   }
-}, [authenticatedUser, updateAuthenticatedUser]);
+}, [
+  authenticatedUser,
+  updateAuthenticatedUser,
+  refreshRealParticipants,
+]);
 
   const handleLockSession = useCallback(() => {
     setIsOpen(false);
@@ -227,13 +247,16 @@ const handleStartParticipation = useCallback(async () => {
       return;
     }
 
-    setShowEndModal(false);
+await refreshRealParticipants();
 
-    addActivityEvent(
-      `${authenticatedUser.userName} finalizó su participación`,
-    );
+setShowEndModal(false);
 
-    setIsOpen(false);
+addActivityEvent(
+  `${authenticatedUser.userName} finalizó su participación`,
+);
+
+setIsOpen(false);
+
   } catch (error) {
     console.error("Error finalizando participación:", error);
 
@@ -241,7 +264,11 @@ const handleStartParticipation = useCallback(async () => {
   } finally {
     setIsEnding(false);
   }
-}, [authenticatedUser, addActivityEvent]);
+}, [
+  authenticatedUser,
+  addActivityEvent,
+  refreshRealParticipants,
+]);
 
   //////////////
 

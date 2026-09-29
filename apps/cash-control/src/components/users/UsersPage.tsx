@@ -51,6 +51,7 @@ type UserFormState = {
   systemRole: UserAccount["systemRole"];
   status: UserAccount["status"];
   temporaryPassword: string;
+  pin: string;
   internalNotes: string;
 };
 
@@ -65,6 +66,7 @@ const emptyForm: UserFormState = {
   systemRole: "employee",
   status: "active",
   temporaryPassword: "",
+  pin: "",
   internalNotes: "",
 };
 
@@ -169,7 +171,7 @@ const [usersError, setUsersError] = useState<string | null>(null);
     setFormMode("create");
     setFormStep(1);
     setEditingUserId(null);
-    setForm({ ...emptyForm, temporaryPassword: generateTemporaryPassword() });
+    setForm({ ...emptyForm, pin: "" });
     setFormErrors({});
     setIsFormOpen(true);
   }
@@ -187,79 +189,125 @@ const [usersError, setUsersError] = useState<string | null>(null);
       systemRole: user.systemRole,
       status: user.status,
       temporaryPassword: user.temporaryPassword,
+      pin: "", // Reset PIN field when editing
       internalNotes: user.internalNotes,
     });
     setIsFormOpen(true);
   }
 
-  function submitForm() {
-    const errors = getUserFormErrors(form);
 
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      setDomainMessage(null);
-      if (errors.firstName || errors.lastName) {
-        setFormStep(1);
-      }
-      focusFirstInvalidField({
-        errors,
-        fieldOrder: userFormFieldOrder,
-      });
+async function submitForm() {
+  const errors = getUserFormErrors(form);
+
+  if (Object.keys(errors).length > 0) {
+    setFormErrors(errors);
+    setDomainMessage(null);
+
+    if (errors.firstName || errors.lastName) {
+      setFormStep(1);
+    }
+
+    focusFirstInvalidField({
+      errors,
+      fieldOrder: userFormFieldOrder,
+    });
+
+    return;
+  }
+
+  setFormErrors({});
+
+  // CREAR USUARIO REAL EN SUPABASE
+  if (formMode === "create") {
+    if (!/^\d{4}$/.test(form.pin)) {
+      setDomainMessage("El PIN debe contener exactamente 4 dígitos.");
       return;
     }
 
-    if (formMode === "edit" && editingUserId) {
-      const nextUser: Partial<UserAccount> = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        displayName: `${form.firstName.trim()} ${form.lastName.trim()}`,
-        username: form.username.trim(),
-        systemRole: form.systemRole,
-        status: form.status,
-        internalNotes: form.internalNotes.trim(),
-      };
+    try {
+      setDomainMessage(null);
 
-      if (wouldRemoveLastActiveOwner(users, editingUserId, nextUser)) {
-        setDomainMessage(
-          "Debe existir al menos un dueño activo en el sistema.",
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          username: form.username.trim().toLowerCase(),
+          systemRole: form.systemRole,
+          status: form.status,
+          pin: form.pin,
+          internalNotes: form.internalNotes.trim(),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.error ?? "No se pudo crear el usuario.",
         );
-        return;
       }
 
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === editingUserId ? { ...user, ...nextUser } : user,
-        ),
+      const usersResponse = await fetch("/api/users");
+      const usersResult = await usersResponse.json();
+
+      if (!usersResponse.ok || !usersResult.ok) {
+        throw new Error(
+          "El usuario se registró, pero no se pudo actualizar la lista.",
+        );
+      }
+
+      setUsers(usersResult.users);
+      setSelectedUserId(result.memberId);
+      setIsFormOpen(false);
+      setFormErrors({});
+      setDomainMessage(null);
+      return;
+    } catch (error) {
+      setDomainMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo crear el usuario.",
       );
-      setSelectedUserId(editingUserId);
-    } else {
-      const id = form.username.trim().toLowerCase().replaceAll(".", "-");
-      const newUser: UserAccount = {
-        id: `${id}-${Date.now()}`,
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        displayName: `${form.firstName.trim()} ${form.lastName.trim()}`,
-        username: form.username.trim(),
-        systemRole: form.systemRole,
-        status: form.status,
-        avatar: undefined,
-        createdAt: new Date().toISOString(),
-        lastLogin: "never",
-        temporaryPassword: form.temporaryPassword,
-        internalNotes: form.internalNotes.trim(),
-        authUserId: undefined,
-        profileId: undefined,
-        passwordRecoveryStatus: "not_configured",
-        sessionsReady: false,
-      };
-      setUsers((current) => [...current, newUser]);
-      setSelectedUserId(newUser.id);
+      return;
+    }
+  }
+
+  // EDITAR USUARIO (se conserva tu lógica original)
+  if (formMode === "edit" && editingUserId) {
+    const nextUser: Partial<UserAccount> = {
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      displayName: `${form.firstName.trim()} ${form.lastName.trim()}`,
+      username: form.username.trim(),
+      systemRole: form.systemRole,
+      status: form.status,
+      internalNotes: form.internalNotes.trim(),
+    };
+
+    if (wouldRemoveLastActiveOwner(users, editingUserId, nextUser)) {
+      setDomainMessage(
+        "Debe existir al menos un dueño activo en el sistema.",
+      );
+      return;
     }
 
-    setIsFormOpen(false);
-    setDomainMessage(null);
-    setFormErrors({});
+    setUsers((current) =>
+      current.map((user) =>
+        user.id === editingUserId ? { ...user, ...nextUser } : user,
+      ),
+    );
+
+    setSelectedUserId(editingUserId);
   }
+
+  setIsFormOpen(false);
+  setDomainMessage(null);
+  setFormErrors({});
+}
 
   function continueUserForm() {
     const errors = getUserFormErrors(form);
@@ -278,6 +326,7 @@ const [usersError, setUsersError] = useState<string | null>(null);
     }
 
     setFormErrors({});
+    
     setFormStep(2);
   }
 
@@ -931,12 +980,18 @@ function UserFormPanel({
             validationField="username"
           />
           <TextField
-            id="user-temporary-password"
-            label="Contrasena temporal"
-            value={form.temporaryPassword}
-            onChange={(temporaryPassword) => onChange({ temporaryPassword })}
-            disabled={mode === "edit"}
-          />
+  id="user-pin"
+  label="PIN de acceso (4 dígitos)"
+  value={form.pin}
+  onChange={(pin) => onChange({ pin })}
+  disabled={mode === "edit"}
+/>
+
+{mode === "create" && (
+  <p className="text-xs text-slate-500">
+    El usuario utilizará este PIN para ingresar a Cash Control.
+  </p>
+)}
           <SelectField
             label="Estado"
             value={form.status}
