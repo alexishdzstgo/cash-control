@@ -16,10 +16,14 @@ import { useMockSession } from "@/components/session/MockSessionContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { EndParticipationModal } from "./EndParticipationModal";
 import { TransferResponsibilityModal } from "./TransferResponsibilityModal";
+import { AssumeResponsibilityModal } from "./AssumeResponsibilityModal";
 import { useResponsibilityTransfer } from "./useResponsibilityTransfer";
+import { useAssumeResponsibility } from "./useAssumeResponsibility";
+import { useShift } from "@/components/shifts/ShiftContext";
 
 export function UserParticipationMenu() {
   const router = useRouter();
+  const { isShiftOpen } = useShift();
   const {
     authenticatedUser,
     getUserAvatar,
@@ -32,6 +36,7 @@ export function UserParticipationMenu() {
     addActivityEvent,
     canEndOwnParticipation,
     isCurrentUserResponsible,
+    syncParticipants,
   } = useMockSession();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -82,26 +87,25 @@ export function UserParticipationMenu() {
 
 
 
-const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
+  const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
 
-const refreshRealParticipants = useCallback(async () => {
-  try {
-    const response = await fetch("/api/workstation/participants", {
-      cache: "no-store",
-    });
+  const refreshRealParticipants = useCallback(async () => {
+    try {
+      const response = await fetch("/api/workstation/participants", {
+        cache: "no-store",
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok || !data.ok) {
-      console.error(
-        "No se pudieron actualizar los participantes:",
-        data.error,
-      );
-      return;
-    }
+      if (!response.ok || !data.ok) {
+        console.error(
+          "No se pudieron actualizar los participantes:",
+          data.error,
+        );
+        return;
+      }
 
-    setRealParticipants(
-      data.participants.map((participant: {
+      const mapped = data.participants.map((participant: {
         memberId: string;
         username: string;
         displayName: string;
@@ -117,32 +121,48 @@ const refreshRealParticipants = useCallback(async () => {
             : "support",
         status: participant.status,
         startedAt: new Date(participant.joinedAt).toLocaleTimeString(
-          "es-MX",
-          { hour: "2-digit", minute: "2-digit" },
+          "en-GB",
+          { hour: "2-digit", minute: "2-digit", hour12: false },
         ),
-      })),
-    );
-  } catch (error) {
-    console.error("Error cargando participantes:", error);
-  }
-}, []);
+      }));
 
-useEffect(() => {
-  void refreshRealParticipants();
-}, [refreshRealParticipants]);
+      setRealParticipants(mapped);
+      syncParticipants(mapped);
+    } catch (error) {
+      console.error("Error cargando participantes:", error);
+    }
+  }, [syncParticipants]);
 
-const activeParticipants = realParticipants;
+  useEffect(() => {
+    void refreshRealParticipants();
+  }, [refreshRealParticipants]);
 
-const activeParticipation = authenticatedUser
-  ? realParticipants.find(
+  const activeParticipants = realParticipants;
+
+  const activeParticipation = authenticatedUser
+    ? realParticipants.find(
       (p) =>
         p.userId === authenticatedUser.userId &&
         p.status === "active",
     )
-  : undefined;
+    : undefined;
+
+  const {
+    showAssumeModal,
+    assumePin,
+    assumeError,
+    isAssuming,
+    openAssume,
+    closeAssume,
+    handlePinChange: handleAssumePinChange,
+    handleAssumeConfirm,
+  } = useAssumeResponsibility(authenticatedUser?.userId || "", refreshRealParticipants);
+
+  const hasAnyResponsible = Array.from(realParticipants.values()).some((p) => p.participationType === "responsible");
+  const noOneIsResponsible = !hasAnyResponsible;
 
   const isResponsible =
-  activeParticipation?.participationType === "responsible";
+    activeParticipation?.participationType === "responsible";
 
   const otherActiveParticipants = activeParticipants.filter(
     (p) => p.userId !== authenticatedUser?.userId,
@@ -167,52 +187,62 @@ const activeParticipation = authenticatedUser
   const StatusIcon = getStatusIcon();
   const currentUserAvatar = getUserAvatar(authenticatedUser?.userId ?? "");
 
-const handleStartParticipation = useCallback(async () => {
-  if (!authenticatedUser) return;
+  const [isActivating, setIsActivating] = useState(false);
 
-  try {
-    const response = await fetch("/api/workstation/activate-participation", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+  const handleStartParticipation = useCallback(async () => {
+    if (!authenticatedUser || isActivating) return;
 
-    const data = await response.json();
+    setIsActivating(true);
 
-    if (!response.ok || !data.ok) {
-      alert(
-        data.error ??
+    try {
+      const response = await fetch("/api/workstation/activate-participation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        alert(
+          data.error ??
           "No se pudo activar la participación.",
+        );
+        return;
+      }
+
+      updateAuthenticatedUser({
+        hasActiveParticipation: true,
+      });
+
+      await refreshRealParticipants();
+      setIsOpen(false);
+
+    } catch (error) {
+      console.error(
+        "Error activando participación:",
+        error,
       );
-      return;
+
+      alert("No se pudo activar la participación.");
+    } finally {
+      setIsActivating(false);
     }
+  }, [
+    authenticatedUser,
+    isActivating,
+    updateAuthenticatedUser,
+    refreshRealParticipants,
+  ]);
 
-updateAuthenticatedUser({
-  hasActiveParticipation: true,
-});
-
-await refreshRealParticipants();
-setIsOpen(false);
-
-  } catch (error) {
-    console.error(
-      "Error activando participación:",
-      error,
-    );
-
-    alert("No se pudo activar la participación.");
-  }
-}, [
-  authenticatedUser,
-  updateAuthenticatedUser,
-  refreshRealParticipants,
-]);
-
-  const handleLockSession = useCallback(() => {
+  const handleLockSession = useCallback(async () => {
     setIsOpen(false);
     setShowEndModal(false);
     closeTransfer();
+    try {
+      await fetch("/api/workstation/lock-session", { method: "POST" });
+    } catch { }
     lockSession();
     router.push("/workstation");
   }, [lockSession, router, closeTransfer]);
@@ -224,51 +254,51 @@ setIsOpen(false);
     },
     [router],
   );
-////////////
- const handleEndParticipation = useCallback(async () => {
-  if (!authenticatedUser) return;
+  ////////////
+  const handleEndParticipation = useCallback(async () => {
+    if (!authenticatedUser) return;
 
-  setIsEnding(true);
+    setIsEnding(true);
 
-  try {
-    const response = await fetch("/api/workstation/end-participation", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    try {
+      const response = await fetch("/api/workstation/end-participation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (!response.ok || !result.ok) {
-      alert(
-        result.error ?? "No se pudo finalizar la participación.",
+      if (!response.ok || !result.ok) {
+        alert(
+          result.error ?? "No se pudo finalizar la participación.",
+        );
+        return;
+      }
+
+      await refreshRealParticipants();
+
+      setShowEndModal(false);
+
+      addActivityEvent(
+        `${authenticatedUser.userName} finalizó su participación`,
       );
-      return;
+
+      setIsOpen(false);
+
+    } catch (error) {
+      console.error("Error finalizando participación:", error);
+
+      alert("No se pudo finalizar la participación.");
+    } finally {
+      setIsEnding(false);
     }
-
-await refreshRealParticipants();
-
-setShowEndModal(false);
-
-addActivityEvent(
-  `${authenticatedUser.userName} finalizó su participación`,
-);
-
-setIsOpen(false);
-
-  } catch (error) {
-    console.error("Error finalizando participación:", error);
-
-    alert("No se pudo finalizar la participación.");
-  } finally {
-    setIsEnding(false);
-  }
-}, [
-  authenticatedUser,
-  addActivityEvent,
-  refreshRealParticipants,
-]);
+  }, [
+    authenticatedUser,
+    addActivityEvent,
+    refreshRealParticipants,
+  ]);
 
   //////////////
 
@@ -322,9 +352,8 @@ setIsOpen(false);
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 ${
-          activeParticipation ? "border-emerald-200" : "border-slate-200"
-        }`}
+        className={`inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 ${activeParticipation ? "border-emerald-200" : "border-slate-200"
+          }`}
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
@@ -340,11 +369,10 @@ setIsOpen(false);
         />
 
         <div
-          className={`flex h-7 w-7 items-center justify-center rounded-full ${
-            activeParticipation
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-brand-primary-soft text-brand-primary"
-          }`}
+          className={`flex h-7 w-7 items-center justify-center rounded-full ${activeParticipation
+            ? "bg-emerald-100 text-emerald-700"
+            : "bg-brand-primary-soft text-brand-primary"
+            }`}
         >
           <UserRound className="h-4 w-4" />
         </div>
@@ -438,13 +466,41 @@ setIsOpen(false);
               <button
                 type="button"
                 onClick={handleStartParticipation}
-                className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 transition hover:bg-emerald-100 animate-pulse-subtle"
+                disabled={isActivating}
+                className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 transition hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed animate-pulse-subtle"
                 role="menuitem"
               >
                 <UserCheck className="h-4 w-4 text-emerald-600" />
-                Activar participación
+                {isActivating ? "Activando..." : "Activar participación"}
               </button>
-            ) : canEndOwnParticipation() ? (
+            ) : noOneIsResponsible ? (
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    openAssume();
+                  }}
+                  className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-brand-primary bg-brand-primary-soft transition hover:bg-brand-primary/20"
+                  role="menuitem"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Asumir responsabilidad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeTransfer();
+                    setShowEndModal(true);
+                  }}
+                  className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  role="menuitem"
+                >
+                  <UserX className="h-4 w-4 text-red-600" />
+                  Finalizar participación
+                </button>
+              </div>
+            ) : canEndOwnParticipation() || (isResponsible && !isShiftOpen()) ? (
               <button
                 type="button"
                 onClick={() => {
@@ -538,6 +594,18 @@ setIsOpen(false);
           onClose={closeTransfer}
           onPinChange={handlePinChange}
           onConfirm={handleTransferConfirm}
+        />
+      )}
+
+      {showAssumeModal && (
+        <AssumeResponsibilityModal
+          isAssuming={isAssuming}
+          assumePin={assumePin}
+          assumeError={assumeError}
+          onClose={closeAssume}
+          onPinChange={handleAssumePinChange}
+          onConfirm={handleAssumeConfirm}
+          userName={authenticatedUser?.userName || ""}
         />
       )}
     </div>

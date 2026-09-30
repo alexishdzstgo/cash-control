@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from "react";
 import { initialUserAccounts } from "@/components/users/userMockData";
@@ -24,6 +25,7 @@ export interface SessionUser {
 
 interface MockSessionContextValue {
   authenticatedUser: SessionUser | null;
+  isSessionLoading: boolean;
   participants: Participant[];
   getUserAvatar: (userId: string) => UserAvatar | undefined;
   updateUserAvatar: (userId: string, avatar: UserAvatar) => void;
@@ -58,6 +60,7 @@ interface MockSessionContextValue {
   canEndOwnParticipation: () => boolean;
   isCurrentUserResponsible: () => boolean;
   getContextResponsibleUserId: () => string | null;
+  syncParticipants: (participants: Participant[]) => void;
 }
 
 const MockSessionContext = createContext<MockSessionContextValue | null>(null);
@@ -70,8 +73,7 @@ function getCurrentTime(): string {
 export function MockSessionProvider({ children }: { children: ReactNode }) {
   const [authenticatedUser, setAuthenticatedUser] =
     useState<SessionUser | null>(null);
-  const [participants, setParticipants] =
-    useState<Participant[]>(mockParticipants);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [userAvatars, setUserAvatars] = useState<
     Record<string, UserAvatar | undefined>
   >(() =>
@@ -79,6 +81,54 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       initialUserAccounts.map((user) => [user.id, user.avatar]),
     ),
   );
+
+  const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+  // Hybrid Auth: Validate real cookie session and real participants
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadInitialData() {
+      try {
+        const [sessionRes, partRes] = await Promise.all([
+          fetch("/api/workstation/session").catch(() => null),
+          fetch("/api/workstation/participants").catch(() => null),
+        ]);
+
+        if (sessionRes?.ok) {
+          const sessionData = await sessionRes.json().catch(() => null);
+          if (mounted && sessionData?.ok) {
+            setAuthenticatedUser(sessionData.session);
+          }
+        }
+
+        if (partRes?.ok) {
+          const partData = await partRes.json().catch(() => null);
+          if (mounted && partData?.ok) {
+            const mappedParticipants = partData.participants.map((p: any) => ({
+              userId: p.memberId,
+              userName: p.displayName,
+              participationType: p.role === "shift_responsible" ? "responsible" : "support",
+              status: p.status,
+              startedAt: new Date(p.joinedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
+              id: p.memberId,
+            }));
+            setParticipants(mappedParticipants);
+          }
+        }
+      } catch (e) {
+        // Fallback to defaults
+      } finally {
+        if (mounted) setIsSessionLoading(false);
+      }
+    }
+
+    void loadInitialData();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const unlockSession = useCallback((user: SessionUser) => {
     setAuthenticatedUser(user);
@@ -98,6 +148,10 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const syncParticipants = useCallback((newParticipants: Participant[]) => {
+    setParticipants(newParticipants);
+  }, []);
 
   const getUserAvatar = useCallback(
     (userId: string): UserAvatar | undefined => userAvatars[userId],
@@ -417,6 +471,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     <MockSessionContext.Provider
       value={{
         authenticatedUser,
+        isSessionLoading,
         participants,
         getUserAvatar,
         updateUserAvatar,
@@ -439,6 +494,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         canEndOwnParticipation,
         isCurrentUserResponsible,
         getContextResponsibleUserId,
+        syncParticipants,
       }}
     >
       {children}

@@ -69,8 +69,8 @@ export async function POST(request: Request) {
      */
     let workstationToken = cookieStore.get(WORKSTATION_COOKIE)?.value;
     let workstationTokenHash: string;
-let workstationCreated = false;
-let workstationExpiresAt: string | null = null;
+    let workstationCreated = false;
+    let workstationExpiresAt: string | null = null;
 
     if (workstationToken) {
       workstationTokenHash = hashToken(workstationToken);
@@ -82,15 +82,15 @@ let workstationExpiresAt: string | null = null;
 
       const workstation = workstationData?.[0];
 
-if (
-  workstationError ||
-  !workstation ||
-  workstation.business_id !== BUSINESS_ID
-) {
-  workstationToken = undefined;
-} else {
-  workstationExpiresAt = workstation.workstation_expires_at;
-}
+      if (
+        workstationError ||
+        !workstation ||
+        workstation.business_id !== BUSINESS_ID
+      ) {
+        workstationToken = undefined;
+      } else {
+        workstationExpiresAt = workstation.workstation_expires_at;
+      }
     }
 
     if (!workstationToken) {
@@ -98,7 +98,7 @@ if (
       workstationTokenHash = hashToken(workstationToken);
       workstationCreated = true;
 
-       workstationExpiresAt = new Date(
+      workstationExpiresAt = new Date(
         Date.now() + WORKSTATION_HOURS * 60 * 60 * 1000,
       ).toISOString();
 
@@ -129,7 +129,7 @@ if (
 
       /*
        * 3. Si la workstation ya existía, activar al miembro
-       *    dentro de esta workstation.
+       *    dentro de esta workstation. (Requisito técnico para operatorToken)
        */
       const { error: activationError } =
         await supabaseServer.rpc("admin_activate_workstation_member", {
@@ -160,17 +160,17 @@ if (
     const operatorTokenHash = hashToken(operatorToken);
 
     const operatorLimit = new Date(
-  Date.now() + OPERATOR_HOURS * 60 * 60 * 1000,
-);
+      Date.now() + OPERATOR_HOURS * 60 * 60 * 1000,
+    );
 
-const operatorExpiresAt = new Date(
-  Math.min(
-    operatorLimit.getTime(),
-    workstationExpiresAt
-      ? new Date(workstationExpiresAt).getTime()
-      : operatorLimit.getTime(),
-  ),
-).toISOString();
+    const operatorExpiresAt = new Date(
+      Math.min(
+        operatorLimit.getTime(),
+        workstationExpiresAt
+          ? new Date(workstationExpiresAt).getTime()
+          : operatorLimit.getTime(),
+      ),
+    ).toISOString();
 
 
     const { data: operatorSessionId, error: operatorError } =

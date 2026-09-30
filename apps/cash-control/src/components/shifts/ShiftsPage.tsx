@@ -46,7 +46,7 @@ function participantToShiftParticipant(
     name: p.userName,
     systemRole: systemRoleToShiftRole(
       mockRegisteredUsers.find((u) => u.userId === p.userId)?.systemRole ??
-        "employee",
+      "employee",
     ),
     shiftRole:
       p.participationType === "responsible" ? "shift_responsible" : "operator",
@@ -123,7 +123,9 @@ export function ShiftsPage() {
     closeTransfer,
     handlePinChange,
     handleTransferConfirm,
-  } = useResponsibilityTransfer();
+  } = useResponsibilityTransfer(contextParticipants, async () => {
+    window.location.reload();
+  });
 
   // ── Context-derived values (single source of truth) ──
 
@@ -159,15 +161,15 @@ export function ShiftsPage() {
     () =>
       currentShift
         ? {
-            ...currentShift,
-            participants: displayParticipants,
-            summary: getShiftActivitySummary(
-              currentShift.id,
-              operations,
-              movements,
-            ),
-            activity: getShiftActivity(currentShift, operations, movements),
-          }
+          ...currentShift,
+          participants: displayParticipants,
+          summary: getShiftActivitySummary(
+            currentShift.id,
+            operations,
+            movements,
+          ),
+          activity: getShiftActivity(currentShift, operations, movements),
+        }
         : null,
     [currentShift, displayParticipants, operations, movements],
   );

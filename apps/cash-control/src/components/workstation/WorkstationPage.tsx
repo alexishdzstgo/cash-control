@@ -142,7 +142,7 @@ function JoinAnotherUserCard({
 export function WorkstationPage() {
   const router = useRouter();
 
-  const { getUserAvatar, participants, unlockSession } = useMockSession();
+  const { getUserAvatar, participants: globalParticipants, unlockSession, isSessionLoading } = useMockSession();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"access" | "join">("access");
@@ -156,8 +156,8 @@ export function WorkstationPage() {
   /*
    * Cargar usuarios reales desde Supabase a través de /api/users.
    *
-   * Por ahora solo cargamos usuarios activos.
-   * El PIN real todavía no se obtiene aquí; eso será el siguiente paso.
+   * Además, se inicializa el estado de la sesión verificando la identidad
+   * real mediante el token almacenado en las cookies.
    */
   useEffect(() => {
     let cancelled = false;
@@ -209,9 +209,9 @@ export function WorkstationPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [unlockSession]);
 
-  const activeParticipants = participants
+  const activeParticipants = globalParticipants
     .filter((p) => p.status === "active")
     .sort((a, b) => {
       if (a.participationType === "responsible") return -1;
@@ -236,40 +236,18 @@ export function WorkstationPage() {
 
   const handleAccess = useCallback(
     (userId: string) => {
-      const user = registeredUsers.find((u) => u.userId === userId);
-
-      if (!user) return;
-
-      unlockSession({
-        userId: user.userId,
-        userName: user.userName,
-        systemRole: user.systemRole,
-        hasActiveParticipation: false,
-      });
-
       setModalOpen(false);
-      router.push("/");
+      window.location.href = "/";
     },
-    [registeredUsers, unlockSession, router],
+    [],
   );
 
   const handleJoin = useCallback(
     (userId: string) => {
-      const user = registeredUsers.find((u) => u.userId === userId);
-
-      if (!user) return;
-
-      unlockSession({
-        userId: user.userId,
-        userName: user.userName,
-        systemRole: user.systemRole,
-        hasActiveParticipation: false,
-      });
-
       setModalOpen(false);
-      router.push("/");
+      window.location.href = "/";
     },
-    [registeredUsers, unlockSession, router],
+    [],
   );
 
   const handleCancel = useCallback(() => {
@@ -303,8 +281,14 @@ export function WorkstationPage() {
             </span>
 
             <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
-              {activeParticipants.length}{" "}
-              {activeParticipants.length === 1 ? "activo" : "activos"}
+              {isSessionLoading ? (
+                <span className="animate-pulse">Cargando...</span>
+              ) : (
+                <>
+                  {activeParticipants.length}{" "}
+                  {activeParticipants.length === 1 ? "activo" : "activos"}
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -323,40 +307,53 @@ export function WorkstationPage() {
                   </h3>
 
                   <p className="mt-1 text-sm text-brand-text-muted">
-                    {activeParticipants.length}{" "}
-                    {activeParticipants.length === 1
-                      ? "usuario activo"
-                      : "usuarios activos"}
+                    {isSessionLoading ? "Cargando..." : (
+                      <>
+                        {activeParticipants.length}{" "}
+                        {activeParticipants.length === 1
+                          ? "usuario activo"
+                          : "usuarios activos"}
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                {activeParticipants.map((participant, index) => (
-                  <ActiveParticipantCard
-                    key={participant.id}
-                    participant={participant}
-                    isResponsible={
-                      participant.participationType === "responsible"
-                    }
-                    onSelect={() => handleActiveParticipantClick(participant)}
-                    index={index + 1}
-                    avatar={getUserAvatar(participant.userId)}
-                  />
-                ))}
-
-                {activeParticipants.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
-                    <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
-
-                    <p className="mt-2 font-medium text-brand-text">
-                      No hay participantes activos
-                    </p>
-
-                    <p className="text-sm text-brand-text-muted">
-                      Inicia una jornada o incorpórate como participante.
-                    </p>
+                {isSessionLoading ? (
+                  <div className="rounded-xl border border-brand-border bg-slate-50 p-6 flex flex-col items-center justify-center min-h-30 animate-pulse">
+                    <div className="h-4 w-32 bg-slate-200 rounded mb-2"></div>
+                    <div className="h-3 w-48 bg-slate-200 rounded"></div>
                   </div>
+                ) : (
+                  <>
+                    {activeParticipants.map((participant, index) => (
+                      <ActiveParticipantCard
+                        key={participant.id}
+                        participant={participant}
+                        isResponsible={
+                          participant.participationType === "responsible"
+                        }
+                        onSelect={() => handleActiveParticipantClick(participant)}
+                        index={index + 1}
+                        avatar={getUserAvatar(participant.userId)}
+                      />
+                    ))}
+
+                    {activeParticipants.length === 0 && (
+                      <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
+                        <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
+
+                        <p className="mt-2 font-medium text-brand-text">
+                          No hay participantes activos
+                        </p>
+
+                        <p className="text-sm text-brand-text-muted">
+                          Inicia una jornada o incorpórate como participante.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </section>

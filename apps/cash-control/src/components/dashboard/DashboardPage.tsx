@@ -12,15 +12,15 @@ import { QuickActions } from "./QuickActions";
 
 export function DashboardPage() {
   const router = useRouter();
-  const { authenticatedUser } = useMockSession();
+  const { authenticatedUser, isSessionLoading } = useMockSession();
 
   useEffect(() => {
-    if (!authenticatedUser) {
+    if (!isSessionLoading && !authenticatedUser) {
       router.replace("/workstation");
     }
-  }, [authenticatedUser, router]);
+  }, [authenticatedUser, isSessionLoading, router]);
 
-  if (!authenticatedUser) {
+  if (isSessionLoading || !authenticatedUser) {
     return null;
   }
 
