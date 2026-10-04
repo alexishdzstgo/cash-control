@@ -62,6 +62,22 @@ export async function POST(request: Request) {
       });
     }
 
+    // Registrar acceso únicamente después de validar el PIN.
+    const { error: lastLoginError } = await supabaseServer
+      .from("business_members")
+      .update({ last_login_at: new Date().toISOString() })
+      .eq("id", memberId)
+      .eq("business_id", BUSINESS_ID)
+      .eq("status", "active");
+
+    if (lastLoginError) {
+      console.error("Error registrando último acceso:", lastLoginError);
+      return NextResponse.json(
+        { ok: false, error: "No se pudo registrar el acceso." },
+        { status: 500 },
+      );
+    }
+
     const cookieStore = await cookies();
 
     /*
@@ -160,7 +176,7 @@ export async function POST(request: Request) {
     const operatorTokenHash = hashToken(operatorToken);
 
     const operatorLimit = new Date(
-      Date.now() + OPERATOR_HOURS * 60 * 60 * 1000,
+      Date.now() + OPERATOR_HOURS * 60 * 60 * 1000 - 5 * 60 * 1000,
     );
 
     const operatorExpiresAt = new Date(

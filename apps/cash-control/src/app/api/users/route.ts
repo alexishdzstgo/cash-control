@@ -13,6 +13,7 @@ export async function GET() {
       role,
       status,
       created_at,
+      last_login_at,
       internal_notes,
       profiles (
         first_name,
@@ -46,7 +47,7 @@ export async function GET() {
       systemRole: member.role,
       status: member.status,
       createdAt: member.created_at,
-      lastLogin: "never" as const,
+      lastLogin: member.last_login_at ?? null,
       temporaryPassword: "",
       internalNotes: member.internal_notes ?? "",
       authUserId: member.user_id,

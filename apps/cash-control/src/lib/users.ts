@@ -13,6 +13,7 @@ export function getUserSummary(users: UserAccount[]): UserSummary {
     total: users.length,
     owners: users.filter((user) => user.systemRole === "owner").length,
     employees: users.filter((user) => user.systemRole === "employee").length,
+    active: users.filter((user) => user.status === "active").length,
     suspended: users.filter((user) => user.status === "suspended").length,
   };
 }
@@ -147,7 +148,7 @@ export function getUserStats(
   return {
     deposits: hasOperationData
       ? userOperations.filter((operation) => operation.type === "deposito")
-          .length
+        .length
       : null,
     withdrawals: hasOperationData
       ? userOperations.filter((operation) => operation.type === "retiro").length
@@ -155,13 +156,13 @@ export function getUserStats(
     corrections: hasOperationData ? userCorrections.length : null,
     responsibleShifts: hasShiftData
       ? roleParticipants.filter(
-          (participant) => participant.participationType === "responsible",
-        ).length
+        (participant) => participant.participationType === "responsible",
+      ).length
       : null,
     supportShifts: hasShiftData
       ? roleParticipants.filter(
-          (participant) => participant.participationType === "support",
-        ).length
+        (participant) => participant.participationType === "support",
+      ).length
       : null,
   };
 }

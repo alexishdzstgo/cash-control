@@ -135,13 +135,6 @@ export const navigationGroups: NavigationGroup[] = [
         enabled: true,
         roles: ["owner"],
       },
-      {
-        label: "Personal",
-        href: "/staff",
-        icon: Users,
-        enabled: true,
-        roles: ["owner"],
-      },
     ],
   },
   {

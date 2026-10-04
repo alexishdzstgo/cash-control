@@ -6,13 +6,13 @@ export type UserLastLoginLabel = "today" | "yesterday" | "never";
 
 export type UserAvatar =
   | {
-      type: "generated";
-      style: "avataaars-neutral" | "shapes";
-      seed: string;
-    }
+    type: "generated";
+    style: "avataaars-neutral" | "shapes";
+    seed: string;
+  }
   | {
-      type: "initials";
-    };
+    type: "initials";
+  };
 
 export type UserAccount = {
   id: string;
@@ -44,6 +44,7 @@ export type UserSummary = {
   total: number;
   owners: number;
   employees: number;
+  active: number;
   suspended: number;
 };
 
