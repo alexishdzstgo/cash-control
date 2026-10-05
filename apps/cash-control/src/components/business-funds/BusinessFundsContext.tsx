@@ -4,6 +4,7 @@ import {
   createContext,
   type ReactNode,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -141,6 +142,7 @@ type BusinessFundsContextValue = {
   };
   resetFinancialState: () => void;
   validateReconciliation: (input: ShiftReconciliationInput) => string | null;
+  refreshBanks: () => Promise<void>;
 
   reconcileAfterShiftClosing: (input: ShiftReconciliationInput) => {
     success: boolean;
@@ -158,9 +160,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
   const { rules: commissionRules } = useCommissionRules();
   const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
-  const [banks, setBanks] = useState<BankAccountBalance[]>(() =>
-    buildInitialZeroBanks(),
-  );
+  const [banks, setBanks] = useState<BankAccountBalance[]>([]);
   const [movements, setMovements] = useState<AdministrativeMovement[]>(
     initialAdministrativeMovements,
   );
@@ -172,6 +172,40 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   latestBanks.current = banks;
   const deliverySession = useRef({ authenticatedUser, participants });
   deliverySession.current = { authenticatedUser, participants };
+
+  async function refreshBanks() {
+    try {
+      const res = await fetch(`/api/banks?t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.accounts) {
+          setBanks((currentBanks) => {
+            return data.accounts.map((acc: any) => {
+              // Preserve existing operations if possible
+              const existingIdx = currentBanks.findIndex((b) => b.id === acc.id);
+              const reservedOps = existingIdx >= 0 ? currentBanks[existingIdx].reservedOperations : [];
+              return {
+                id: acc.id,
+                bankName: acc.accountName,
+                accountName: `**** ${acc.accountLastDigits || "0000"}`,
+                rawAccountName: acc.accountName || "",
+                rawAccountLastDigits: acc.accountLastDigits || "",
+                realBalance: acc.realBalance || 0,
+                reservedOperations: reservedOps,
+                status: acc.status === "active" ? "available" : "unavailable",
+              };
+            });
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to refresh banks", e);
+    }
+  }
+
+  useEffect(() => {
+    refreshBanks();
+  }, []);
 
   const resources = useMemo(
     () => getAdministrativeResources(cash, banks),
@@ -260,12 +294,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     const { authenticatedUser: actor, participants } = deliverySession.current;
     return Boolean(
       getCurrentShift()?.status === "open" &&
-        actor &&
-        participants.some(
-          (participant) =>
-            participant.userId === actor.userId &&
-            participant.status === "active",
-        ),
+      actor &&
+      participants.some(
+        (participant) =>
+          participant.userId === actor.userId &&
+          participant.status === "active",
+      ),
     );
   }
 
@@ -876,8 +910,8 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         correctMovement,
         resetFinancialState,
         validateReconciliation,
-
         reconcileAfterShiftClosing,
+        refreshBanks,
       }}
     >
       {children}

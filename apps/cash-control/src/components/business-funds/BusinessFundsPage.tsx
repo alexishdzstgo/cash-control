@@ -102,8 +102,8 @@ export function BusinessFundsPage() {
   const canCorrectMovement = (movement: AdministrativeMovement) =>
     Boolean(
       currentShift?.status === "open" &&
-        movement.shiftId === currentShift.id &&
-        canCorrectRecord(movement, correctionActor),
+      movement.shiftId === currentShift.id &&
+      canCorrectRecord(movement, correctionActor),
     );
   const summary = useMemo(
     () => getAdministrativeMovementsSummary(movements),
@@ -126,29 +126,29 @@ export function BusinessFundsPage() {
   );
   const correctionPreview =
     form?.mode === "edit" &&
-    originalMovement &&
-    amountCents !== null &&
-    isAdministrativeMovementType(form.movementType)
+      originalMovement &&
+      amountCents !== null &&
+      isAdministrativeMovementType(form.movementType)
       ? previewAdministrativeCorrection({
-          resources,
-          original: originalMovement,
-          corrected: {
-            resourceId: form.resourceId,
-            movementType: form.movementType,
-            amountCents,
-          },
-        })
+        resources,
+        original: originalMovement,
+        corrected: {
+          resourceId: form.resourceId,
+          movementType: form.movementType,
+          amountCents,
+        },
+      })
       : [];
   const previewBalanceAfterCents =
     form?.mode === "edit"
       ? (correctionPreview.find((item) => item.resourceId === form.resourceId)
-          ?.availableAfterCents ?? null)
+        ?.availableAfterCents ?? null)
       : selectedResource &&
-          form &&
-          isAdministrativeMovementType(form.movementType) &&
-          amountCents !== null
+        form &&
+        isAdministrativeMovementType(form.movementType) &&
+        amountCents !== null
         ? selectedResource.availableCents +
-          (form.movementType === "income" ? amountCents : -amountCents)
+        (form.movementType === "income" ? amountCents : -amountCents)
         : null;
   const correctionDescription = correctionPreview
     .map(
@@ -160,17 +160,17 @@ export function BusinessFundsPage() {
     form?.mode === "edit"
       ? correctionDescription
       : form &&
-          selectedResource &&
-          isAdministrativeMovementType(form.movementType) &&
-          amountCents !== null &&
-          previewBalanceAfterCents !== null
+        selectedResource &&
+        isAdministrativeMovementType(form.movementType) &&
+        amountCents !== null &&
+        previewBalanceAfterCents !== null
         ? getMovementConfirmationDescription({
-            movementType: form.movementType,
-            resource: selectedResource,
-            amountCents,
-            explanation: form.explanation,
-            balanceAfterCents: previewBalanceAfterCents,
-          })
+          movementType: form.movementType,
+          resource: selectedResource,
+          amountCents,
+          explanation: form.explanation,
+          balanceAfterCents: previewBalanceAfterCents,
+        })
         : "";
   if (!authenticatedUser) {
     return null;
@@ -308,22 +308,22 @@ export function BusinessFundsPage() {
     const result =
       form.mode === "create"
         ? registerMovement({
-            movementType: form.movementType,
-            resourceId: form.resourceId,
-            amountCents: parsedAmountCents,
-            explanation: form.explanation,
-            createdByUserId: actor.userId,
-            createdByUserName: actor.userName,
-          })
+          movementType: form.movementType,
+          resourceId: form.resourceId,
+          amountCents: parsedAmountCents,
+          explanation: form.explanation,
+          createdByUserId: actor.userId,
+          createdByUserName: actor.userName,
+        })
         : correctMovement({
-            movementId: form.movementId ?? "",
-            movementType: form.movementType,
-            resourceId: form.resourceId,
-            amountCents: parsedAmountCents,
-            explanation: form.explanation,
-            editReason: form.editReason,
-            ...correctionActor,
-          });
+          movementId: form.movementId ?? "",
+          movementType: form.movementType,
+          resourceId: form.resourceId,
+          amountCents: parsedAmountCents,
+          explanation: form.explanation,
+          editReason: form.editReason,
+          ...correctionActor,
+        });
 
     if (!result.success) {
       setFormError(
@@ -842,11 +842,10 @@ function MovementForm({
                 key={type}
                 type="button"
                 aria-pressed={isSelected}
-                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
-                  isSelected
+                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${isSelected
                     ? "cc-segmented-option-selected"
                     : "cc-segmented-option-unselected"
-                }`}
+                  }`}
                 onClick={() =>
                   onChange({
                     movementType: type,
@@ -967,11 +966,10 @@ function MovementForm({
                 key={option.value}
                 type="button"
                 aria-pressed={isSelected}
-                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${
-                  isSelected
+                className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${isSelected
                     ? "cc-segmented-option-selected"
                     : "cc-segmented-option-unselected"
-                }`}
+                  }`}
                 onClick={() =>
                   onChange({
                     reasonMode: option.value,
@@ -1055,11 +1053,10 @@ function MovementForm({
 function MovementTypeBadge({ type }: { type: AdministrativeMovementType }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-        type === "income"
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${type === "income"
           ? "bg-[#EFF6FF] text-[#2563EB]"
           : "bg-slate-100 text-slate-700"
-      }`}
+        }`}
     >
       {getMovementTypeLabel(type)}
     </span>
@@ -1069,11 +1066,10 @@ function MovementTypeBadge({ type }: { type: AdministrativeMovementType }) {
 function StatusBadge({ movement }: { movement: AdministrativeMovement }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-        movement.status === "corrected"
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${movement.status === "corrected"
           ? "bg-amber-50 text-amber-700"
           : "bg-slate-100 text-slate-700"
-      }`}
+        }`}
     >
       {movement.status === "corrected" ? "Corregido" : "Registrado"}
     </span>
@@ -1095,7 +1091,7 @@ function IconButton({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+      className="btn-icon"
     >
       {children}
     </button>

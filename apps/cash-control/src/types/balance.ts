@@ -21,6 +21,8 @@ export type BankAccountBalance = {
   id: string;
   bankName: string;
   accountName: string;
+  rawAccountName: string;
+  rawAccountLastDigits: string;
   realBalance: number;
   reservedOperations: ReservedOperation[];
   status: BalanceStatus;

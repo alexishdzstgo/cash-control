@@ -87,7 +87,7 @@ export function ModalShell({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-xl p-2 text-slate-300 transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+              className="btn-icon-dark"
               aria-label={closeLabel}
             >
               <X className="h-5 w-5" />

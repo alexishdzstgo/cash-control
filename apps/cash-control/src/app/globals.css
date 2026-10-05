@@ -504,6 +504,66 @@
   cursor: not-allowed;
 }
 
+/* Botón de icono (Pencil, Eye, X, etc.) */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  color: var(--surface-text-subtle);
+  background-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background-color: var(--surface-neutral);
+  color: var(--surface-text-primary);
+}
+
+.btn-icon:focus-visible {
+  outline: 2px solid var(--primary-blue-ring);
+  outline-offset: 2px;
+}
+
+.btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Botón de icono (para fondos oscuros, ej. headers de modales) */
+.btn-icon-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  color: var(--surface-text-subtle);
+  background-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-icon-dark:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.btn-icon-dark:focus-visible {
+  outline: 2px solid var(--surface-border-strong);
+  outline-offset: 2px;
+}
+
+.btn-icon-dark:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Cash Control Surface System v1 */
 .cc-modal-surface {
   background-color: var(--surface-app);
@@ -569,6 +629,7 @@
     opacity: 0;
     transform: translateY(12px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -579,6 +640,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -589,6 +651,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -596,21 +659,25 @@
 }
 
 @keyframes pulse-soft {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.6;
   }
 }
 
 @keyframes pulse-subtle {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.85;
     transform: scale(1.02);
@@ -619,6 +686,7 @@
 
 /* Respetar preferencias de movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -653,18 +721,23 @@
 .stagger-1 {
   animation-delay: 0.05s;
 }
+
 .stagger-2 {
   animation-delay: 0.1s;
 }
+
 .stagger-3 {
   animation-delay: 0.15s;
 }
+
 .stagger-4 {
   animation-delay: 0.2s;
 }
+
 .stagger-5 {
   animation-delay: 0.25s;
 }
+
 .stagger-6 {
   animation-delay: 0.3s;
 }

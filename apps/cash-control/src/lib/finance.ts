@@ -162,15 +162,15 @@ export function applyOperationFinancialImpact({
   const impact = getOperationFinancialImpact(operation);
   const reservedOperation = impact.cashReservation
     ? {
-        id: operation.id,
-        folio: operation.bankFolio,
-        type: "retiro" as const,
-        customerName: operation.receiverName || operation.bankFolio,
-        amount: impact.cashReservation.amount,
-        registeredAt: operation.createdAt,
-        registeredBy: operation.createdBy,
-        status: "pending" as const,
-      }
+      id: operation.id,
+      folio: operation.bankFolio,
+      type: "retiro" as const,
+      customerName: operation.receiverName || operation.bankFolio,
+      amount: impact.cashReservation.amount,
+      registeredAt: operation.createdAt,
+      registeredBy: operation.createdBy,
+      status: "pending" as const,
+    }
     : null;
 
   return {
@@ -243,9 +243,9 @@ export function getOperationFinancialDelta({
     cashDelta: correctedImpact.cashDelta - originalImpact.cashDelta,
     cashReservation: correctedImpact.cashReservation
       ? buildReservedOperation(
-          correctedImpact.cashReservation.operation,
-          correctedImpact.cashReservation.amount,
-        )
+        correctedImpact.cashReservation.operation,
+        correctedImpact.cashReservation.amount,
+      )
       : undefined,
     bankDeltas: Array.from(bankDeltaMap.entries())
       .map(([bankId, amount]) => ({ bankId, amount }))
@@ -454,6 +454,7 @@ export function computeFinancialTotalsFromBalances({
   cash: CashBalance;
   banks: BankAccountBalance[];
 }): FinancialTotals {
+  const activeBanks = banks.filter((b) => b.status === "available");
   const cashPhysical = cash.physicalBalance;
   const cashReserved = cash.reservedOperations.reduce(
     (sum, op) => sum + op.amount,
@@ -466,7 +467,7 @@ export function computeFinancialTotalsFromBalances({
     criticalBalanceThreshold: cash.criticalBalanceThreshold,
   });
 
-  const bankBreakdown: BankBreakdownItem[] = banks.map((bank) => {
+  const bankBreakdown: BankBreakdownItem[] = activeBanks.map((bank) => {
     const reserved = bank.reservedOperations.reduce(
       (ops, op) => ops + op.amount,
       0,
