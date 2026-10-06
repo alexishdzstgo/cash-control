@@ -108,7 +108,7 @@ export function CommissionRuleDialog({
       message: "Captura una comisión válida.",
     });
   }
-  if (formState.reason.trim() === "" && mode !== "view") {
+  if (formState.reason.trim() === "" && mode !== "view" && mode !== "add") {
     parseErrors.push({
       code: "zero_commission_requires_reason",
       message: "El motivo del cambio es obligatorio.",
@@ -118,18 +118,18 @@ export function CommissionRuleDialog({
   const validation =
     parsed.minAmountCents !== null && parsed.fixedAmountCents !== null
       ? validateCommissionRuleCandidate(
-          {
-            id: mode === "edit" ? rule?.id : undefined,
-            operationType: formState.operationType,
-            minAmountCents: parsed.minAmountCents,
-            maxAmountCents: parsed.maxAmountCents,
-            calculationType: "fixed",
-            fixedAmountCents: parsed.fixedAmountCents,
-            status: formState.status,
-            zeroCommissionReason: formState.reason,
-          },
-          existingRules,
-        )
+        {
+          id: mode === "edit" ? rule?.id : undefined,
+          operationType: formState.operationType,
+          minAmountCents: parsed.minAmountCents,
+          maxAmountCents: parsed.maxAmountCents,
+          calculationType: "fixed",
+          fixedAmountCents: parsed.fixedAmountCents,
+          status: formState.status,
+          zeroCommissionReason: formState.reason,
+        },
+        existingRules,
+      )
       : { errors: [], warnings: [] };
 
   const errors = [...parseErrors, ...validation.errors];
@@ -143,7 +143,7 @@ export function CommissionRuleDialog({
     ...(parsed.fixedAmountCents === null
       ? { fixedAmount: "Ingresa un monto válido." }
       : {}),
-    ...(formState.reason.trim() === "" && mode !== "view"
+    ...(formState.reason.trim() === "" && mode !== "view" && mode !== "add"
       ? { reason: "Este campo es obligatorio." }
       : {}),
   };
@@ -337,33 +337,35 @@ export function CommissionRuleDialog({
           />
         </Field>
 
-        <div className="md:col-span-2">
-          <Field
-            label="Motivo del cambio"
-            error={hasAttemptedSubmit ? fieldErrors.reason : undefined}
-            validationField="reason"
-          >
-            <textarea
-              id="commission-reason"
-              rows={3}
-              value={formState.reason}
-              disabled={isReadOnly}
-              onChange={(event) =>
-                setFormState({ ...formState, reason: event.target.value })
-              }
-              className={inputClass}
-              placeholder="Describe por que se modifica esta regla"
-              aria-invalid={
-                hasAttemptedSubmit && fieldErrors.reason ? true : undefined
-              }
-              aria-describedby={
-                hasAttemptedSubmit && fieldErrors.reason
-                  ? "commission-reason-error"
-                  : undefined
-              }
-            />
-          </Field>
-        </div>
+        {mode !== "add" && (
+          <div className="md:col-span-2">
+            <Field
+              label="Motivo del cambio"
+              error={hasAttemptedSubmit ? fieldErrors.reason : undefined}
+              validationField="reason"
+            >
+              <textarea
+                id="commission-reason"
+                rows={3}
+                value={formState.reason}
+                disabled={isReadOnly}
+                onChange={(event) =>
+                  setFormState({ ...formState, reason: event.target.value })
+                }
+                className={inputClass}
+                placeholder="Describe por que se modifica esta regla"
+                aria-invalid={
+                  hasAttemptedSubmit && fieldErrors.reason ? true : undefined
+                }
+                aria-describedby={
+                  hasAttemptedSubmit && fieldErrors.reason
+                    ? "commission-reason-error"
+                    : undefined
+                }
+              />
+            </Field>
+          </div>
+        )}
       </div>
 
       {errors.length > 0 && !isReadOnly && hasAttemptedSubmit && (

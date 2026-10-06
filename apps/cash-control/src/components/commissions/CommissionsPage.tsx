@@ -3,6 +3,7 @@
 import { Plus } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
+import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
 import {
   hasCommissionRuleBeenApplied,
@@ -33,12 +34,14 @@ type DialogState = {
 } | null;
 
 export function CommissionsPage() {
+  const { showError, showSuccess } = useNotification();
   const [operationType, setOperationType] =
     useState<CommissionOperationType>("deposito");
-  const { rules, setRules } = useCommissionRules();
+  const { rules, refreshRules } = useCommissionRules();
   const { operations } = useBusinessFunds();
   const [dialogState, setDialogState] = useState<DialogState>(null);
   const [ruleToDelete, setRuleToDelete] = useState<CommissionRule | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
 
   const rulesWithUsage = useMemo(
@@ -79,99 +82,104 @@ export function CommissionsPage() {
     lastTriggerRef.current?.focus();
   }
 
-  function saveRule(result: CommissionRuleFormResult) {
+  async function saveRule(result: CommissionRuleFormResult) {
     const currentRule = dialogState?.rule;
     const now = new Date().toISOString();
 
-    if (
-      dialogState?.mode === "edit" &&
-      currentRule &&
-      !currentRule.hasBeenApplied
-    ) {
-      setRules((currentRules) =>
-        currentRules.map((rule) =>
-          rule.id === currentRule.id
-            ? {
-                ...rule,
-                operationType: result.operationType,
-                minAmountCents: result.minAmountCents,
-                maxAmountCents: result.maxAmountCents,
-                fixedAmountCents: result.fixedAmountCents,
-                status: result.status,
-                updatedBy: "Owner",
-                validFrom: rule.validFrom,
-              }
-            : rule,
-        ),
-      );
-      closeDialog();
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      if (
+        dialogState?.mode === "edit" &&
+        currentRule &&
+        !currentRule.hasBeenApplied
+      ) {
+        const res = await fetch(`/api/commissions/${currentRule.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationType: result.operationType,
+            minAmountCents: result.minAmountCents,
+            maxAmountCents: result.maxAmountCents,
+            fixedAmountCents: result.fixedAmountCents,
+            status: result.status,
+            updatedBy: "Owner"
+          })
+        });
+        if (!res.ok) throw new Error("Error al actualizar la regla");
+        showSuccess("Regla de comisión actualizada exitosamente");
+      } else {
+        const baseRule = currentRule;
+        const version =
+          baseRule && (dialogState?.mode === "replace" || baseRule.hasBeenApplied)
+            ? baseRule.version + 1
+            : Math.max(
+              ...rules
+                .filter((rule) => rule.operationType === result.operationType)
+                .map((rule) => rule.version),
+              0,
+            ) + 1;
 
-    const baseRule = currentRule;
-    const version =
-      baseRule && (dialogState?.mode === "replace" || baseRule.hasBeenApplied)
-        ? baseRule.version + 1
-        : Math.max(
-            ...rules
-              .filter((rule) => rule.operationType === result.operationType)
-              .map((rule) => rule.version),
-            0,
-          ) + 1;
-    const newRuleId = `${result.operationType}-commission-v${version}-${Date.now()}`;
-    const newRule: CommissionRule = {
-      id: newRuleId,
-      operationType: result.operationType,
-      minAmountCents: result.minAmountCents,
-      maxAmountCents: result.maxAmountCents,
-      calculationType: "fixed",
-      fixedAmountCents: result.fixedAmountCents,
-      status: result.status,
-      version,
-      validFrom: now,
-      createdBy: "Owner",
-      updatedBy: "Owner",
-      hasBeenApplied: false,
-    };
-
-    setRules((currentRules) => {
-      const closedRules =
-        baseRule && (dialogState?.mode === "replace" || baseRule.hasBeenApplied)
-          ? currentRules.map((rule) =>
-              rule.id === baseRule.id
-                ? {
-                    ...rule,
-                    status: "inactive" as const,
-                    validTo: now,
-                    updatedBy: "Owner",
-                    replacedByRuleId: newRuleId,
-                  }
-                : rule,
-            )
-          : currentRules;
-
-      return [...closedRules, newRule];
-    });
-
-    closeDialog();
-  }
-
-  function deactivateRule(ruleToDeactivate: CommissionRule) {
-    setRules((currentRules) =>
-      currentRules.map((rule) =>
-        rule.id === ruleToDeactivate.id
-          ? {
-              ...rule,
+        // Si hay una regla base que se reemplazará, la marcamos inactiva (sincrono o secuencial)
+        if (baseRule && (dialogState?.mode === "replace" || baseRule.hasBeenApplied)) {
+          await fetch(`/api/commissions/${baseRule.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
               status: "inactive",
-              validTo: new Date().toISOString(),
-              updatedBy: "Owner",
-            }
-          : rule,
-      ),
-    );
+              validTo: now,
+              updatedBy: "Owner" // ReplacedByRuleId lo omitimos por complejidad de IDs del lado del front, o se manda null 
+            })
+          });
+        }
+
+        const res = await fetch(`/api/commissions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operationType: result.operationType,
+            minAmountCents: result.minAmountCents,
+            maxAmountCents: result.maxAmountCents,
+            fixedAmountCents: result.fixedAmountCents,
+            status: result.status,
+            version,
+            validFrom: now,
+            createdBy: "Owner",
+            hasBeenApplied: false,
+          })
+        });
+        if (!res.ok) throw new Error("Error al crear la nueva regla");
+        showSuccess("Nueva regla creada correctamente");
+      }
+
+      await refreshRules();
+      closeDialog();
+    } catch (error) {
+      showError("Ocurrió un error al guardar la comisión");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function activateRule(ruleToActivate: CommissionRule) {
+  async function deactivateRule(ruleToDeactivate: CommissionRule) {
+    try {
+      const res = await fetch(`/api/commissions/${ruleToDeactivate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "inactive",
+          validTo: new Date().toISOString(),
+          updatedBy: "Owner"
+        })
+      });
+      if (!res.ok) throw new Error();
+      await refreshRules();
+      showSuccess("Regla desactivada exitosamente");
+    } catch (e) {
+      showError("No se pudo desactivar la regla");
+    }
+  }
+
+  async function activateRule(ruleToActivate: CommissionRule) {
     const validationResult = validateCommissionRuleCandidate(
       {
         id: ruleToActivate.id,
@@ -186,36 +194,43 @@ export function CommissionsPage() {
     );
 
     if (validationResult.errors.length > 0) {
+      showError("Conflictos en los límites impiden la activación");
       return;
     }
 
-    setRules((currentRules) =>
-      currentRules.map((rule) =>
-        rule.id === ruleToActivate.id
-          ? {
-              ...rule,
-              status: "active",
-              validTo: undefined,
-              updatedBy: "Owner",
-            }
-          : rule,
-      ),
-    );
+    try {
+      const res = await fetch(`/api/commissions/${ruleToActivate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "active",
+          validTo: null,
+          updatedBy: "Owner"
+        })
+      });
+      if (!res.ok) throw new Error();
+      await refreshRules();
+      showSuccess("Regla activada de vuelta");
+    } catch (e) {
+      showError("No se pudo activar la regla");
+    }
   }
 
-  function confirmDeleteRule() {
-    if (
-      !ruleToDelete ||
-      ruleToDelete.hasBeenApplied ||
-      ruleToDelete.replacedByRuleId
-    ) {
+  async function confirmDeleteRule() {
+    if (!ruleToDelete || ruleToDelete.hasBeenApplied || ruleToDelete.replacedByRuleId) {
       return;
     }
 
-    setRules((currentRules) =>
-      currentRules.filter((rule) => rule.id !== ruleToDelete.id),
-    );
-    closeDeleteDialog();
+    try {
+      const res = await fetch(`/api/commissions/${ruleToDelete.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      await refreshRules();
+      showSuccess("Regla eliminada exitosamente");
+    } catch (e) {
+      showError("No se pudo eliminar la regla");
+    } finally {
+      closeDeleteDialog();
+    }
   }
 
   return (
@@ -236,7 +251,10 @@ export function CommissionsPage() {
       />
 
       <div className="space-y-6">
-        <CommissionCoverageAlert />
+        <CommissionCoverageAlert
+          warnings={validation.warnings}
+          currentOperationType={operationType}
+        />
 
         <CommissionTabs value={operationType} onChange={setOperationType} />
 
