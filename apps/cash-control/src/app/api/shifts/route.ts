@@ -79,15 +79,30 @@ export async function POST(request: Request) {
         const body = await request.json();
 
         // Extraemos para armar un Snapshot según las interfaces
+        const ob = body.openingBalances || {};
+
+        // Smart payload extraction to support both nested Context and flattened view models
+        const cashPhysical = ob.cash?.physicalBalance ?? ob.cashPhysical ?? 0;
+        const cashReserved = ob.cash?.reservedOperations?.reduce((sum: number, res: any) => sum + res.amount, 0) ?? ob.cashReserved ?? 0;
+        const bankBalances = ob.banks ? (
+            Array.isArray(ob.banks) && ob.banks.length > 0 && 'bankName' in ob.banks[0]
+                ? ob.banks.map((b: any) => ({
+                    bankId: b.id || b.bankId,
+                    bankName: b.bankName,
+                    balance: b.realBalance ?? b.balance
+                }))
+                : []
+        ) : [];
+
         const insertPayload = {
             folio: body.folio,
             status: "open",
             opened_at: body.openedAt || new Date().toISOString(),
             responsible_user_id: body.responsibleUserId,
             responsible_user_name: body.responsibleUserName,
-            opening_cash_physical: body.openingBalances?.cashPhysical || 0,
-            opening_cash_reserved: body.openingBalances?.cashReserved || 0,
-            opening_bank_balances: body.openingBalances?.banks || []
+            opening_cash_physical: cashPhysical,
+            opening_cash_reserved: cashReserved,
+            opening_bank_balances: bankBalances
         };
 
         const { data, error } = await supabaseServer

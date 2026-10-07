@@ -25,7 +25,7 @@ type ModalState =
   | null;
 
 export function BalancesPage() {
-  const { cash, banks, refreshBanks } = useBusinessFunds();
+  const { cash, banks, refreshFinancialData } = useBusinessFunds();
   const { currentShift } = useShift();
   const [modalState, setModalState] = useState<ModalState>(null);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
@@ -67,7 +67,7 @@ export function BalancesPage() {
         throw new Error(data.error || "No se pudo eliminar la cuenta.");
       }
       showSuccess("Cuenta bancaria eliminada correctamente.");
-      await refreshBanks();
+      await refreshFinancialData();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Error al conectarse con el servidor");
     } finally {
@@ -123,7 +123,7 @@ export function BalancesPage() {
               });
               if (!res.ok) throw new Error();
               showSuccess(`Estado cambiado a ${newStatus === "active" ? "Activo" : "Inactivo"}`);
-              await refreshBanks();
+              await refreshFinancialData();
             } catch (e) {
               showError("No se pudo cambiar el estado de la cuenta");
             }

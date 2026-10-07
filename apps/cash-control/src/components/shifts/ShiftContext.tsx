@@ -126,7 +126,15 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
           responsibleUserId: responsible.userId,
           responsibleUserName: responsible.userName,
           responsibleUserRole: latest.current.authenticatedUser?.userId === responsible.userId ? latest.current.authenticatedUser?.systemRole : "employee",
-          openingBalances: input
+          openingBalances: {
+            cashPhysical: input.cash.physicalBalance,
+            cashReserved: input.cash.reservedOperations.reduce((sum, res) => sum + res.amount, 0),
+            banks: input.banks.map(b => ({
+              bankId: b.id,
+              bankName: b.bankName,
+              balance: b.realBalance
+            }))
+          }
         })
       });
       const data = await res.json();

@@ -89,13 +89,13 @@ export function CashClosingPage() {
     () =>
       closingShift
         ? buildCashClosingStory({
-            shiftId: closingShift.id,
-            openingBalances: closingShift.openingBalances,
-            cash,
-            banks,
-            operations,
-            administrativeMovements,
-          })
+          shiftId: closingShift.id,
+          openingBalances: closingShift.openingBalances,
+          cash,
+          banks,
+          operations,
+          administrativeMovements,
+        })
         : null,
     [cash, banks, operations, administrativeMovements, closingShift],
   );
@@ -128,7 +128,7 @@ export function CashClosingPage() {
     state.countedReservedCash === "" ? NaN : Number(state.countedReservedCash);
   const countedNumeric =
     Number.isNaN(countedAvailableNumeric) ||
-    Number.isNaN(countedReservedNumeric)
+      Number.isNaN(countedReservedNumeric)
       ? NaN
       : countedAvailableNumeric + countedReservedNumeric;
   const hasCountedValue =
@@ -196,10 +196,16 @@ export function CashClosingPage() {
     });
   }
 
-  function handleConfirm(observations: string) {
+  async function handleConfirm(observations: string) {
     if (!canCloseCurrentShift() || state.isDone || !state.isCounting) return;
     if (!story || !closingShift) return;
-    if (!hasCountedValue || !hasAllBankValues) return;
+
+    if (!hasCountedValue || !hasAllBankValues) {
+      setCloseError("Por favor, ingresa el conteo para todos los fondos (efectivo y todos los bancos).");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     const hasAnyDifference =
       Math.round(availableDifference * 100) !== 0 ||
       Math.round(reservedDifference * 100) !== 0 ||
@@ -220,9 +226,10 @@ export function CashClosingPage() {
     const validationError = validateReconciliation(reconciliation);
     if (validationError) {
       setCloseError(validationError);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    const result = closeCurrentShift({
+    const result = await closeCurrentShift({
       shiftId: closingShift.id,
       expectedCashPhysical: story.expectedCash,
       countedCashPhysical: countedNumeric,
@@ -239,8 +246,9 @@ export function CashClosingPage() {
     if (!result.success || !result.shift?.closing) {
       setCloseError(
         result.error ??
-          "No se pudo cerrar el turno. Revisa los datos e inténtalo de nuevo.",
+        "No se pudo cerrar el turno. Revisa los datos e inténtalo de nuevo.",
       );
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     const reconciled = reconcileAfterShiftClosing(reconciliation);
@@ -248,6 +256,7 @@ export function CashClosingPage() {
       setCloseError(
         reconciled.error ?? "No se pudieron reconciliar los saldos del corte.",
       );
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     setCloseError(null);
@@ -1425,9 +1434,8 @@ function SplitRow({
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="text-slate-600">{label}</span>
       <span
-        className={`tabular-nums ${
-          strong ? "font-bold text-slate-950" : "font-semibold text-slate-800"
-        }`}
+        className={`tabular-nums ${strong ? "font-bold text-slate-950" : "font-semibold text-slate-800"
+          }`}
       >
         {formatCurrency(value)}
       </span>
@@ -1494,7 +1502,7 @@ function getTimelineEventMainAmount(event: FinancialTimelineEvent): string {
   const largestImpact = event.impacts.reduce<FinancialTimelineImpact | null>(
     (currentLargest, impact) =>
       !currentLargest ||
-      Math.abs(impact.amount) > Math.abs(currentLargest.amount)
+        Math.abs(impact.amount) > Math.abs(currentLargest.amount)
         ? impact
         : currentLargest,
     null,

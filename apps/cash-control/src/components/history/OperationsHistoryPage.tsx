@@ -72,8 +72,8 @@ export function OperationsHistoryPage() {
   const canCorrectOperation = (operation: Operation) =>
     Boolean(
       currentShift?.status === "open" &&
-        operation.shiftId === currentShift.id &&
-        canCorrectRecord(operation, correctionActor),
+      operation.shiftId === currentShift.id &&
+      canCorrectRecord(operation, correctionActor),
     );
 
   const {
@@ -102,8 +102,8 @@ export function OperationsHistoryPage() {
     () =>
       selectedOperationId
         ? (operations.find(
-            (operation) => operation.id === selectedOperationId,
-          ) ?? null)
+          (operation) => operation.id === selectedOperationId,
+        ) ?? null)
         : null,
     [operations, selectedOperationId],
   );
@@ -129,7 +129,7 @@ export function OperationsHistoryPage() {
     setCorrectionError(null);
   }
 
-  function saveCorrection(input: {
+  async function saveCorrection(input: {
     amount: number;
     bankResourceId: string;
     bankFolio?: string;
@@ -141,7 +141,7 @@ export function OperationsHistoryPage() {
     if (!operationToCorrect || isSavingCorrection) return;
 
     setIsSavingCorrection(true);
-    const result = correctClientOperation({
+    const result = await correctClientOperation({
       operationId: operationToCorrect.id,
       amount: input.amount,
       bankResourceId: input.bankResourceId,
@@ -174,7 +174,7 @@ export function OperationsHistoryPage() {
     setClarificationFormError(null);
   }
 
-  function saveClarification() {
+  async function saveClarification() {
     if (!operationToClarify || isSavingClarification) return;
 
     const nextErrors: ClarificationErrors = {};
@@ -200,7 +200,7 @@ export function OperationsHistoryPage() {
     }
 
     setIsSavingClarification(true);
-    const result = addOperationClarification({
+    const result = await addOperationClarification({
       operationId: operationToClarify.id,
       reason: clarificationReason,
       note: clarificationNote,

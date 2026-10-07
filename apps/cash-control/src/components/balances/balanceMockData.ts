@@ -1,6 +1,8 @@
 import type { BankAccountBalance, CashBalance } from "@/types/balance";
 
 export const cashBalance: CashBalance = {
+  id: "00000000-0000-0000-0000-000000000000",
+  name: "Caja física",
   physicalBalance: 0,
   lowBalanceThreshold: 3000,
   criticalBalanceThreshold: 1000,
@@ -24,6 +26,8 @@ export const bankAccounts: BankAccountBalance[] = [
     movementWarningThreshold: 0.8,
     lowBalanceThreshold: 5000,
     criticalBalanceThreshold: 2000,
+    rawAccountName: "Cuenta principal",
+    rawAccountLastDigits: "0000",
   },
   {
     id: "bank-bbva",
@@ -34,6 +38,8 @@ export const bankAccounts: BankAccountBalance[] = [
     status: "available",
     lowBalanceThreshold: 3000,
     criticalBalanceThreshold: 1000,
+    rawAccountName: "Cuenta principal",
+    rawAccountLastDigits: "0000",
   },
   {
     id: "mercado-pago",
@@ -42,6 +48,8 @@ export const bankAccounts: BankAccountBalance[] = [
     realBalance: 0,
     reservedOperations: [],
     status: "available",
+    rawAccountName: "Cuenta principal",
+    rawAccountLastDigits: "0000",
   },
 ];
 

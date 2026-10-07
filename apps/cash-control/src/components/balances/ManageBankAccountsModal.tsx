@@ -25,7 +25,7 @@ export function BankAccountFormModal({
     accountToEdit,
 }: BankAccountFormModalProps) {
     const { showSuccess, showError } = useNotification();
-    const { refreshBanks } = useBusinessFunds();
+    const { refreshFinancialData } = useBusinessFunds();
 
     // Form state
     const [accountName, setAccountName] = useState("");
@@ -85,7 +85,7 @@ export function BankAccountFormModal({
             }
 
             showSuccess(`Cuenta ${accountToEdit ? "actualizada" : "registrada"} con éxito.`);
-            await refreshBanks();
+            await refreshFinancialData();
             onClose();
         } catch (error) {
             showError(error instanceof Error ? error.message : "Error al conectar con el servidor.");

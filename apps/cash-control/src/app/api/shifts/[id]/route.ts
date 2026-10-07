@@ -16,11 +16,11 @@ export async function PATCH(
                 status: "closed",
                 closed_at: closing.closedAt || new Date().toISOString(),
                 closing_status: closing.status,
-                closing_expected_cash: closing.expectedCashPhysical,
-                closing_counted_cash: closing.countedCashPhysical,
-                closing_expected_reserved: closing.expectedReservedCash,
-                closing_counted_reserved: closing.countedReservedCash,
-                closing_total_difference: closing.totalDifference,
+                closing_expected_cash: typeof closing.expectedCashPhysical === 'number' ? closing.expectedCashPhysical : null,
+                closing_counted_cash: typeof closing.countedCashPhysical === 'number' ? closing.countedCashPhysical : null,
+                closing_expected_reserved: typeof closing.expectedReservedCash === 'number' ? closing.expectedReservedCash : null,
+                closing_counted_reserved: typeof closing.countedReservedCash === 'number' ? closing.countedReservedCash : null,
+                closing_total_difference: typeof closing.totalDifference === 'number' ? closing.totalDifference : null,
                 closing_bank_balances: closing.banks || [],
                 closing_observations: closing.observations || null
             };
@@ -33,6 +33,40 @@ export async function PATCH(
                 .single();
 
             if (error) throw new Error(error.message);
+
+            // ------ APLICAR ARQUEO FÍSICO A TABLAS MAESTRAS ------
+
+            // 1. Forzar real_balance de Caja Física
+            if (typeof closing.countedCashPhysical === 'number') {
+                const { data: cashBoxes } = await supabaseServer.from("cash_boxes").select("id").limit(1);
+                if (cashBoxes && cashBoxes.length > 0) {
+                    const { error } = await supabaseServer
+                        .from("cash_boxes")
+                        .update({ real_balance: closing.countedCashPhysical })
+                        .eq("id", cashBoxes[0].id);
+
+                    if (error) {
+                        throw new Error(`No se pudo actualizar el saldo de caja física: ${error.message}`);
+                    }
+                }
+            }
+
+            // 2. Forzar real_balance de todos los Bancos contados
+            if (Array.isArray(closing.banks)) {
+                for (const bankCount of closing.banks) {
+                    if (bankCount.bankId && typeof bankCount.countedBalance === 'number') {
+                        const { error } = await supabaseServer
+                            .from("bank_accounts")
+                            .update({ real_balance: bankCount.countedBalance })
+                            .eq("id", bankCount.bankId);
+
+                        if (error) {
+                            throw new Error(`No se pudo actualizar el saldo bancario: ${error.message}`);
+                        }
+                    }
+                }
+            }
+            // -----------------------------------------------------
 
             // Regresamos el objeto en la misma estructura del View Model
             const shiftResponse = {

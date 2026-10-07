@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useCommissionRules } from "@/components/commissions/CommissionRulesContext";
 import { AmountField } from "@/components/shared/AmountField";
 import { BankSelect } from "@/components/shared/BankSelect";
@@ -18,6 +19,7 @@ import {
 import { normalizeWithdrawalBankReference } from "@/lib/finance";
 import { formatCurrency } from "@/lib/formatters";
 import { focusFirstInvalidField } from "@/lib/formValidationFocus";
+import type { BankAccountBalance } from "@/types/balance";
 import type { Operation } from "@/types/operation";
 
 const correctionReasons = [
@@ -78,6 +80,7 @@ export function OperationCorrectionModal({
   onClose,
   onConfirm,
 }: OperationCorrectionModalProps) {
+  const { banks } = useBusinessFunds();
   const { rules } = useCommissionRules();
   const [amount, setAmount] = useState("");
   const [bankResourceId, setBankResourceId] = useState("");
@@ -130,6 +133,7 @@ export function OperationCorrectionModal({
       ? ["bankFolio", "amount", "bankResourceId", "receiverName", "reason"]
       : ["bankFolio", "amount", "bankResourceId", "reason"];
   const changePreview = getChangePreview({
+    banks,
     operation: currentOperation,
     amount: amountValue,
     bankResourceId,
@@ -358,8 +362,8 @@ export function OperationCorrectionModal({
                 value={
                   operation.withdrawalCommissionMode
                     ? withdrawalCommissionModeLabels[
-                        operation.withdrawalCommissionMode
-                      ]
+                    operation.withdrawalCommissionMode
+                    ]
                     : "No disponible"
                 }
               />
@@ -372,8 +376,8 @@ export function OperationCorrectionModal({
                 value={
                   commissionPreview
                     ? formatCurrency(
-                        centsToPesos(commissionPreview.commissionAmountCents),
-                      )
+                      centsToPesos(commissionPreview.commissionAmountCents),
+                    )
                     : "Sin regla disponible"
                 }
               />
@@ -554,6 +558,7 @@ function getChangePreview({
   destinationAccountLast4,
   receiverName,
   nextCommission,
+  banks,
 }: {
   operation: Operation;
   amount: number;
@@ -562,6 +567,7 @@ function getChangePreview({
   destinationAccountLast4: string;
   receiverName: string;
   nextCommission: number;
+  banks: BankAccountBalance[];
 }): ChangePreview[] {
   const changes: ChangePreview[] = [];
 
@@ -571,7 +577,7 @@ function getChangePreview({
     "Banco",
     operation.bankResourceId ?? "",
     bankResourceId,
-    getBankLabel,
+    (val) => getBankLabel(banks, val),
   );
   addChange(
     changes,
