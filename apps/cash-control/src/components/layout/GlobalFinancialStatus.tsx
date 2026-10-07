@@ -28,7 +28,7 @@ export function GlobalFinancialStatus() {
     severity: alert.severity,
     icon:
       alert.type === "movement_limit_reached" ||
-      alert.type === "movement_limit_warning"
+        alert.type === "movement_limit_warning"
         ? "movement"
         : "balance",
   }));
@@ -184,18 +184,19 @@ const STATUS_STYLES: Record<
 > = {
   normal: {
     labelClass: "text-slate-500",
-    valueClass: "text-slate-800",
-    dotClass: "bg-slate-300",
+    valueClass: "text-slate-950",
+    dotClass: "bg-emerald-400",
+    bgClass: "bg-emerald-50/70",
   },
   warning: {
-    labelClass: "text-amber-700",
-    valueClass: "text-amber-800",
+    labelClass: "text-slate-600",
+    valueClass: "text-slate-950",
     dotClass: "bg-amber-500",
     bgClass: "bg-amber-50/70",
   },
   critical: {
-    labelClass: "text-red-700",
-    valueClass: "text-red-800",
+    labelClass: "text-slate-600",
+    valueClass: "text-slate-950",
     dotClass: "bg-red-500",
     bgClass: "bg-red-50/70",
   },

@@ -267,7 +267,7 @@ export function BusinessFundsPage() {
     setConfirming(true);
   }
 
-  function submitMovement() {
+  async function submitMovement() {
     if (
       currentShift?.status !== "open" ||
       isSubmitting ||
@@ -307,7 +307,7 @@ export function BusinessFundsPage() {
     };
     const result =
       form.mode === "create"
-        ? registerMovement({
+        ? await registerMovement({
           movementType: form.movementType,
           resourceId: form.resourceId,
           amountCents: parsedAmountCents,
@@ -315,7 +315,7 @@ export function BusinessFundsPage() {
           createdByUserId: actor.userId,
           createdByUserName: actor.userName,
         })
-        : correctMovement({
+        : await correctMovement({
           movementId: form.movementId ?? "",
           movementType: form.movementType,
           resourceId: form.resourceId,
@@ -843,8 +843,8 @@ function MovementForm({
                 type="button"
                 aria-pressed={isSelected}
                 className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${isSelected
-                    ? "cc-segmented-option-selected"
-                    : "cc-segmented-option-unselected"
+                  ? "cc-segmented-option-selected"
+                  : "cc-segmented-option-unselected"
                   }`}
                 onClick={() =>
                   onChange({
@@ -967,8 +967,8 @@ function MovementForm({
                 type="button"
                 aria-pressed={isSelected}
                 className={`min-h-11 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 ${isSelected
-                    ? "cc-segmented-option-selected"
-                    : "cc-segmented-option-unselected"
+                  ? "cc-segmented-option-selected"
+                  : "cc-segmented-option-unselected"
                   }`}
                 onClick={() =>
                   onChange({
@@ -1054,8 +1054,8 @@ function MovementTypeBadge({ type }: { type: AdministrativeMovementType }) {
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${type === "income"
-          ? "bg-[#EFF6FF] text-[#2563EB]"
-          : "bg-slate-100 text-slate-700"
+        ? "bg-[#EFF6FF] text-[#2563EB]"
+        : "bg-slate-100 text-slate-700"
         }`}
     >
       {getMovementTypeLabel(type)}
@@ -1067,8 +1067,8 @@ function StatusBadge({ movement }: { movement: AdministrativeMovement }) {
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${movement.status === "corrected"
-          ? "bg-amber-50 text-amber-700"
-          : "bg-slate-100 text-slate-700"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-slate-100 text-slate-700"
         }`}
     >
       {movement.status === "corrected" ? "Corregido" : "Registrado"}

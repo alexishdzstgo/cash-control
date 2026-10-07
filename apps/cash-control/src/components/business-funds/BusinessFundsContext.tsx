@@ -100,11 +100,11 @@ type BusinessFundsContextValue = {
   movements: AdministrativeMovement[];
   resetVersion: number;
   resources: ReturnType<typeof getAdministrativeResources>;
-  registerClientOperation: (operation: Operation) => {
+  registerClientOperation: (operation: Operation) => Promise<{
     success: boolean;
     operation?: Operation;
     error?: string;
-  };
+  }>;
   canDeliverPendingWithdrawal: () => boolean;
   deliverPendingWithdrawal: (input: {
     operationId: string;
@@ -114,35 +114,35 @@ type BusinessFundsContextValue = {
     customerCashReceived?: number;
     bankMovementAmount?: number;
     appliedCommissionSnapshot?: AppliedCommissionSnapshot;
-  }) => {
+  }) => Promise<{
     success: boolean;
     operation?: Operation;
     error?: string;
-  };
-  addOperationClarification: (input: AddOperationClarificationInput) => {
+  }>;
+  addOperationClarification: (input: AddOperationClarificationInput) => Promise<{
     success: boolean;
     operation?: Operation;
     error?: string;
-  };
-  correctClientOperation: (input: CorrectClientOperationInput) => {
+  }>;
+  correctClientOperation: (input: CorrectClientOperationInput) => Promise<{
     success: boolean;
     operation?: Operation;
     correction?: OperationCorrection;
     error?: string;
-  };
-  registerMovement: (input: RegisterAdministrativeMovementInput) => {
+  }>;
+  registerMovement: (input: RegisterAdministrativeMovementInput) => Promise<{
     success: boolean;
     movement?: AdministrativeMovement;
     error?: string;
-  };
-  correctMovement: (input: CorrectAdministrativeMovementInput) => {
+  }>;
+  correctMovement: (input: CorrectAdministrativeMovementInput) => Promise<{
     success: boolean;
     movement?: AdministrativeMovement;
     error?: string;
-  };
+  }>;
   resetFinancialState: () => void;
   validateReconciliation: (input: ShiftReconciliationInput) => string | null;
-  refreshBanks: () => Promise<void>;
+  refreshFinancialData: () => Promise<void>;
 
   reconcileAfterShiftClosing: (input: ShiftReconciliationInput) => {
     success: boolean;
@@ -161,9 +161,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   const { rules: commissionRules } = useCommissionRules();
   const [cash, setCash] = useState<CashBalance>(() => buildInitialZeroCash());
   const [banks, setBanks] = useState<BankAccountBalance[]>([]);
-  const [movements, setMovements] = useState<AdministrativeMovement[]>(
-    initialAdministrativeMovements,
-  );
+  const [movements, setMovements] = useState<AdministrativeMovement[]>([]);
   const [operations, setOperations] = useState<Operation[]>([]);
   const [resetVersion, setResetVersion] = useState(0);
 
@@ -173,15 +171,20 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
   const deliverySession = useRef({ authenticatedUser, participants });
   deliverySession.current = { authenticatedUser, participants };
 
-  async function refreshBanks() {
+  async function refreshFinancialData() {
     try {
-      const res = await fetch(`/api/banks?t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [banksRes, movesRes, opsRes, cashRes] = await Promise.all([
+        fetch(`/api/banks?t=${Date.now()}`),
+        fetch(`/api/movements?t=${Date.now()}`),
+        fetch(`/api/operations?t=${Date.now()}`),
+        fetch(`/api/cash-boxes?t=${Date.now()}`)
+      ]);
+
+      if (banksRes.ok) {
+        const data = await banksRes.json();
         if (data.ok && data.accounts) {
           setBanks((currentBanks) => {
             return data.accounts.map((acc: any) => {
-              // Preserve existing operations if possible
               const existingIdx = currentBanks.findIndex((b) => b.id === acc.id);
               const reservedOps = existingIdx >= 0 ? currentBanks[existingIdx].reservedOperations : [];
               return {
@@ -198,13 +201,43 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
           });
         }
       }
+
+      if (movesRes.ok) {
+        const movesData = await movesRes.json();
+        if (movesData.ok) {
+          setMovements(movesData.movements);
+        }
+      }
+
+      if (opsRes.ok) {
+        const opsData = await opsRes.json();
+        if (opsData.ok) {
+          setOperations(opsData.operations);
+        }
+      }
+
+      if (cashRes.ok) {
+        const cashData = await cashRes.json();
+        if (cashData.ok && cashData.cashBoxes && cashData.cashBoxes.length > 0) {
+          const box = cashData.cashBoxes[0];
+          setCash((current) => ({
+            ...current,
+            id: box.id,
+            name: box.name,
+            physicalBalance: box.realBalance,
+            lowBalanceThreshold: box.lowBalanceThreshold,
+            criticalBalanceThreshold: box.criticalBalanceThreshold
+          }));
+        }
+      }
     } catch (e) {
-      console.error("Failed to refresh banks", e);
+      console.error("Failed to refresh financial data", e);
     }
   }
 
+
   useEffect(() => {
-    refreshBanks();
+    refreshFinancialData();
   }, []);
 
   const resources = useMemo(
@@ -212,11 +245,11 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     [cash, banks],
   );
 
-  function registerMovement(input: RegisterAdministrativeMovementInput): {
+  async function registerMovement(input: RegisterAdministrativeMovementInput): Promise<{
     success: boolean;
     movement?: AdministrativeMovement;
     error?: string;
-  } {
+  }> {
     const currentShift = getCurrentShift();
     if (!currentShift)
       return { success: false, error: "No hay un turno abierto." };
@@ -236,8 +269,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         ? input.amountCents
         : -input.amountCents);
 
-    const movement: AdministrativeMovement = {
-      id: `adm-mov-${Date.now()}`,
+    const payload = {
       movementType: input.movementType,
       resourceType: resource.type,
       resourceId: resource.id,
@@ -248,46 +280,65 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       explanation: input.explanation?.trim() || undefined,
       createdByUserId: input.createdByUserId,
       createdByUserName: input.createdByUserName,
-      createdAt: new Date().toISOString(),
       shiftId: currentShift.id,
       status: "active",
       isEdited: false,
     };
 
-    const nextBalances = applyAdministrativeMovement({ cash, banks, movement });
-    setCash(nextBalances.cash);
-    setBanks(nextBalances.banks);
-    setMovements((current) => [movement, ...current]);
-    return { success: true, movement };
+    try {
+      const resp = await fetch("/api/movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        return { success: false, error: data.error || "Falla en conexión." };
+      }
+
+      const movement = data.movement as AdministrativeMovement;
+      await refreshFinancialData();
+      return { success: true, movement };
+    } catch (err) {
+      return { success: false, error: "Falla de conectividad de red." };
+    }
   }
 
-  function registerClientOperation(input: Operation): {
+  async function registerClientOperation(input: Operation): Promise<{
     success: boolean;
     operation?: Operation;
     error?: string;
-  } {
+  }> {
     const currentShift = getCurrentShift();
     if (!currentShift)
       return { success: false, error: "No hay un turno abierto." };
-    const operation: Operation = { ...input, shiftId: currentShift.id };
+    const operationInput: Operation = { ...input, shiftId: currentShift.id, id: "" };
+
+    // We pass operationInput without ID just to calculate validity
     const validation = validateOperationFinancialImpact({
       cash,
       banks,
-      operation,
+      operation: operationInput,
     });
     if (validation) return { success: false, error: validation };
 
-    const nextBalances = applyOperationFinancialImpact({
-      cash,
-      banks,
-      operation,
-    });
+    try {
+      const resp = await fetch("/api/operations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(operationInput),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) return { success: false, error: data.error };
 
-    setCash(nextBalances.cash);
-    setBanks(nextBalances.banks);
-    setOperations((current) => [operation, ...current]);
+      const operation = data.operation as Operation;
+      await refreshFinancialData();
+      setOperations((current) => [operation, ...current]);
 
-    return { success: true, operation };
+      return { success: true, operation };
+    } catch (err) {
+      return { success: false, error: "Falla de red en backend." };
+    }
   }
 
   function canDeliverPendingWithdrawal() {
@@ -303,7 +354,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function deliverPendingWithdrawal(input: {
+  async function deliverPendingWithdrawal(input: {
     operationId: string;
     receiverName: string;
     commissionMode?: WithdrawalCommissionMode;
@@ -311,7 +362,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     customerCashReceived?: number;
     bankMovementAmount?: number;
     appliedCommissionSnapshot?: AppliedCommissionSnapshot;
-  }): { success: boolean; operation?: Operation; error?: string } {
+  }): Promise<{ success: boolean; operation?: Operation; error?: string }> {
     const currentShift = getCurrentShift();
     if (!currentShift)
       return { success: false, error: "No hay un turno abierto." };
@@ -372,8 +423,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "Banco receptor no disponible." };
     }
 
-    const deliveredOperation: Operation = {
-      ...original,
+    const payload = {
       status: "entregado",
       receiverName,
       commission: input.commissionAmount,
@@ -395,38 +445,37 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       },
     };
 
-    setCash((currentCash) => ({
-      ...currentCash,
-      physicalBalance:
-        currentCash.physicalBalance - amountToDeliver + cashCommission,
-      reservedOperations: currentCash.reservedOperations.filter(
-        (operation) => operation.id !== original.id,
-      ),
-      updatedAt: new Date().toISOString(),
-    }));
-    if (bankCommission > 0) {
-      setBanks((currentBanks) =>
-        currentBanks.map((bank) =>
-          bank.id === original.bankResourceId
-            ? { ...bank, realBalance: bank.realBalance + bankCommission }
-            : bank,
+    try {
+      const resp = await fetch(`/api/operations/${original.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        return { success: false, error: data.error };
+      }
+
+      const deliveredOperation = data.operation as Operation;
+      await refreshFinancialData();
+      setOperations((currentOperations) =>
+        currentOperations.map((operation) =>
+          operation.id === original.id ? deliveredOperation : operation,
         ),
       );
-    }
-    setOperations((currentOperations) =>
-      currentOperations.map((operation) =>
-        operation.id === original.id ? deliveredOperation : operation,
-      ),
-    );
 
-    return { success: true, operation: deliveredOperation };
+      return { success: true, operation: deliveredOperation };
+    } catch (e) {
+      return { success: false, error: "Error de conexión." };
+    }
   }
 
-  function addOperationClarification(input: AddOperationClarificationInput): {
+  async function addOperationClarification(input: AddOperationClarificationInput): Promise<{
     success: boolean;
     operation?: Operation;
     error?: string;
-  } {
+  }> {
     const reason = input.reason.trim();
     const note = input.note.trim();
     const reference = input.reference?.trim();
@@ -460,18 +509,31 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       createdBy,
     };
 
-    const clarifiedOperation: Operation = {
-      ...original,
+    const payload = {
       clarifications: [clarification, ...(original.clarifications ?? [])],
     };
 
-    setOperations((currentOperations) =>
-      currentOperations.map((operation) =>
-        operation.id === original.id ? clarifiedOperation : operation,
-      ),
-    );
+    try {
+      const resp = await fetch(`/api/operations/${original.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    return { success: true, operation: clarifiedOperation };
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) return { success: false, error: data.error };
+
+      const clarifiedOperation = data.operation as Operation;
+      setOperations((currentOperations) =>
+        currentOperations.map((operation) =>
+          operation.id === original.id ? clarifiedOperation : operation,
+        ),
+      );
+
+      return { success: true, operation: clarifiedOperation };
+    } catch (e) {
+      return { success: false, error: "Error de red al registrar aclaración." };
+    }
   }
 
   function calculateOperationCommission({
@@ -512,12 +574,12 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     };
   }
 
-  function correctClientOperation(input: CorrectClientOperationInput): {
+  async function correctClientOperation(input: CorrectClientOperationInput): Promise<{
     success: boolean;
     operation?: Operation;
     correction?: OperationCorrection;
     error?: string;
-  } {
+  }> {
     const original = operations.find(
       (operation) => operation.id === input.operationId,
     );
@@ -602,7 +664,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         ...corrected,
         bankResourceId,
         bankFrom: "Caja fisica",
-        bankTo: getBankLabel(bankResourceId),
+        bankTo: getBankLabel(latestBanks.current, bankResourceId),
         destinationAccountLast4,
         destinationReference: `**** ${destinationAccountLast4}`,
         receiverName,
@@ -654,7 +716,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         ...corrected,
         bankFolio,
         bankResourceId,
-        bankFrom: getBankLabel(bankResourceId),
+        bankFrom: getBankLabel(latestBanks.current, bankResourceId),
         bankTo: "Caja fisica",
       };
 
@@ -760,26 +822,39 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       corrections: [correction, ...(original.corrections ?? [])],
     };
 
-    setCash(nextBalances.cash);
-    setBanks(nextBalances.banks);
-    setOperations((currentOperations) =>
-      currentOperations.map((operation) =>
-        operation.id === original.id ? correctedOperation : operation,
-      ),
-    );
+    try {
+      const resp = await fetch(`/api/operations/${original.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(correctedOperation),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) return { success: false, error: data.error };
 
-    return {
-      success: true,
-      operation: correctedOperation,
-      correction,
-    };
+      const validatedOperation = data.operation as Operation;
+      setCash(nextBalances.cash);
+      setBanks(nextBalances.banks);
+      setOperations((currentOperations) =>
+        currentOperations.map((operation) =>
+          operation.id === original.id ? validatedOperation : operation,
+        ),
+      );
+
+      return {
+        success: true,
+        operation: validatedOperation,
+        correction,
+      };
+    } catch (e) {
+      return { success: false, error: "Error de red al registrar corrección." };
+    }
   }
 
-  function correctMovement(input: CorrectAdministrativeMovementInput): {
+  async function correctMovement(input: CorrectAdministrativeMovementInput): Promise<{
     success: boolean;
     movement?: AdministrativeMovement;
     error?: string;
-  } {
+  }> {
     if (!input.editReason.trim()) {
       return {
         success: false,
@@ -841,14 +916,26 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
     if (nextBalances.error)
       return { success: false, error: nextBalances.error };
     corrected.correctionBalances = nextBalances.preview;
-    setCash(nextBalances.cash);
-    setBanks(nextBalances.banks);
-    setMovements((current) =>
-      current.map((movement) =>
-        movement.id === original.id ? corrected : movement,
-      ),
-    );
-    return { success: true, movement: corrected };
+    try {
+      const resp = await fetch(`/api/movements/${original.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corrected),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) return { success: false, error: data.error };
+
+      const validatedMovement = data.movement as AdministrativeMovement;
+      await refreshFinancialData();
+      setMovements((current) =>
+        current.map((movement) =>
+          movement.id === original.id ? validatedMovement : movement,
+        ),
+      );
+      return { success: true, movement: validatedMovement };
+    } catch (e) {
+      return { success: false, error: "Error de conexión al corregir." };
+    }
   }
 
   function validateReconciliation(input: ShiftReconciliationInput) {
@@ -911,7 +998,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         resetFinancialState,
         validateReconciliation,
         reconcileAfterShiftClosing,
-        refreshBanks,
+        refreshFinancialData,
       }}
     >
       {children}

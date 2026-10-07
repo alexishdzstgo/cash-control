@@ -42,8 +42,8 @@ export function getAdministrativeResources(
 
   return [
     {
-      id: "cash",
-      name: "Caja física",
+      id: cash.id || "cash",
+      name: cash.name || "Caja física",
       type: "cash",
       realBalanceCents: cashRealCents,
       reservedCents: cashReservedCents,
@@ -281,10 +281,10 @@ export function applyAdministrativeCorrection({
   return {
     cash: cashImpact
       ? {
-          ...cash,
-          physicalBalance: centsToPesos(cashImpact.realBalanceAfterCents),
-          updatedAt: "Ahora",
-        }
+        ...cash,
+        physicalBalance: centsToPesos(cashImpact.realBalanceAfterCents),
+        updatedAt: "Ahora",
+      }
       : cash,
     banks: banks.map((bank) => {
       const impact = preview.find((item) => item.resourceId === bank.id);

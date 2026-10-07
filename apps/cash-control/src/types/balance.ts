@@ -41,6 +41,8 @@ export type BankAccountBalance = {
 };
 
 export type CashBalance = {
+  id: string;
+  name: string;
   physicalBalance: number;
   reservedOperations: ReservedOperation[];
   shiftName: string;
