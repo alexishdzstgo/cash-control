@@ -5,6 +5,7 @@ import { getBankLabel } from "@/config/banks";
 import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
 import { getPendingWithdrawalReasonLabel } from "@/lib/pendingWithdrawalReasons";
+import type { BankAccountBalance } from "@/types/balance";
 import type {
   WithdrawalCommissionMode,
   WithdrawalFormData,
@@ -12,6 +13,7 @@ import type {
 } from "@/types/withdrawal";
 
 type WithdrawalSummaryProps = {
+  banks: BankAccountBalance[];
   mode: WithdrawalMode;
   formData: WithdrawalFormData;
   deliveredBy: string;
@@ -38,6 +40,7 @@ const commissionDestinationLabels: Record<WithdrawalCommissionMode, string> = {
 };
 
 export function WithdrawalSummary({
+  banks,
   mode,
   formData,
   deliveredBy,
@@ -89,7 +92,7 @@ export function WithdrawalSummary({
           <SummaryRow label="Monto" value={formatCurrency(amount)} />
           <SummaryRow
             label="Banco de recepcion"
-            value={getBankLabel(formData.bank)}
+            value={getBankLabel(banks, formData.bank)}
           />
           {!isPendingMode && (
             <SummaryRow
@@ -208,9 +211,8 @@ function SummaryRow({
         {label}
       </p>
       <p
-        className={`mt-1 break-words text-sm font-semibold text-slate-800 ${
-          mono ? "font-mono" : ""
-        }`}
+        className={`mt-1 break-words text-sm font-semibold text-slate-800 ${mono ? "font-mono" : ""
+          }`}
       >
         {value}
       </p>

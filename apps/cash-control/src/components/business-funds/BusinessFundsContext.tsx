@@ -37,6 +37,7 @@ import {
   applyOperationFinancialDelta,
   applyOperationFinancialImpact,
   getOperationCorrectionSnapshot,
+  getWithdrawalCashDeliveryAmount,
   normalizeWithdrawalBankReference,
   validateOperationFinancialImpact,
 } from "@/lib/finance";
@@ -48,7 +49,7 @@ import type {
   AdministrativeMovement,
   AdministrativeMovementType,
 } from "@/types/administrativeMovement";
-import type { BankAccountBalance, CashBalance } from "@/types/balance";
+import type { BankAccountBalance, CashBalance, ReservedOperation } from "@/types/balance";
 import type {
   AppliedCommissionSnapshot,
   CommissionLocation,
@@ -209,10 +210,27 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      let reservedDocs: ReservedOperation[] = [];
+
       if (opsRes.ok) {
         const opsData = await opsRes.json();
         if (opsData.ok) {
           setOperations(opsData.operations);
+
+          opsData.operations.forEach((op: Operation) => {
+            if (op.status === "pendiente" && op.type === "retiro") {
+              reservedDocs.push({
+                id: op.id,
+                folio: op.bankFolio,
+                type: "retiro",
+                customerName: op.receiverName || op.bankFolio,
+                amount: getWithdrawalCashDeliveryAmount(op),
+                registeredAt: op.createdAt,
+                registeredBy: op.createdBy,
+                status: "pending",
+              });
+            }
+          });
         }
       }
 
@@ -226,7 +244,8 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
             name: box.name,
             physicalBalance: box.realBalance,
             lowBalanceThreshold: box.lowBalanceThreshold,
-            criticalBalanceThreshold: box.criticalBalanceThreshold
+            criticalBalanceThreshold: box.criticalBalanceThreshold,
+            reservedOperations: reservedDocs
           }));
         }
       }
@@ -333,7 +352,6 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
       const operation = data.operation as Operation;
       await refreshFinancialData();
-      setOperations((current) => [operation, ...current]);
 
       return { success: true, operation };
     } catch (err) {
@@ -459,11 +477,6 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
       const deliveredOperation = data.operation as Operation;
       await refreshFinancialData();
-      setOperations((currentOperations) =>
-        currentOperations.map((operation) =>
-          operation.id === original.id ? deliveredOperation : operation,
-        ),
-      );
 
       return { success: true, operation: deliveredOperation };
     } catch (e) {
@@ -524,11 +537,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       if (!resp.ok || !data.ok) return { success: false, error: data.error };
 
       const clarifiedOperation = data.operation as Operation;
-      setOperations((currentOperations) =>
-        currentOperations.map((operation) =>
-          operation.id === original.id ? clarifiedOperation : operation,
-        ),
-      );
+      await refreshFinancialData();
 
       return { success: true, operation: clarifiedOperation };
     } catch (e) {
@@ -832,13 +841,7 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
       if (!resp.ok || !data.ok) return { success: false, error: data.error };
 
       const validatedOperation = data.operation as Operation;
-      setCash(nextBalances.cash);
-      setBanks(nextBalances.banks);
-      setOperations((currentOperations) =>
-        currentOperations.map((operation) =>
-          operation.id === original.id ? validatedOperation : operation,
-        ),
-      );
+      await refreshFinancialData();
 
       return {
         success: true,
@@ -927,11 +930,6 @@ export function BusinessFundsProvider({ children }: { children: ReactNode }) {
 
       const validatedMovement = data.movement as AdministrativeMovement;
       await refreshFinancialData();
-      setMovements((current) =>
-        current.map((movement) =>
-          movement.id === original.id ? validatedMovement : movement,
-        ),
-      );
       return { success: true, movement: validatedMovement };
     } catch (e) {
       return { success: false, error: "Error de conexión al corregir." };

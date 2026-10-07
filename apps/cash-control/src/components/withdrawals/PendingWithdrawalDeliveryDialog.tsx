@@ -28,22 +28,22 @@ const commissionModeOptions: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    value: "deposited",
-    label: "Comisión depositada por el cliente",
-    description: "La comisión se recibió en el banco de recepción.",
-  },
-  {
-    value: "cash",
-    label: "Comisión pagada en efectivo",
-    description: "La comisión se recibió en caja física.",
-  },
-  {
-    value: "deducted",
-    label: "Comisión descontada del retiro",
-    description: "La comisión se descuenta del efectivo entregado.",
-  },
-];
+    {
+      value: "deposited",
+      label: "Comisión depositada por el cliente",
+      description: "La comisión se recibió en el banco de recepción.",
+    },
+    {
+      value: "cash",
+      label: "Comisión pagada en efectivo",
+      description: "La comisión se recibió en caja física.",
+    },
+    {
+      value: "deducted",
+      label: "Comisión descontada del retiro",
+      description: "La comisión se descuenta del efectivo entregado.",
+    },
+  ];
 
 type DeliveryDialogProps = {
   operation: Operation | null;
@@ -80,7 +80,7 @@ function PendingWithdrawalDeliveryFlow({
   const [deliveryErrors, setDeliveryErrors] = useState<DeliveryErrors>({});
   const [isDelivering, setIsDelivering] = useState(false);
 
-  function confirmDelivery() {
+  async function confirmDelivery() {
     if (busy.current) return;
 
     const errors: DeliveryErrors = {
@@ -137,7 +137,7 @@ function PendingWithdrawalDeliveryFlow({
 
     busy.current = true;
     setIsDelivering(true);
-    const result = deliverPendingWithdrawal({
+    const result = await deliverPendingWithdrawal({
       operationId: operationToDeliver.id,
       receiverName,
       commissionMode: selectedCommissionMode,
@@ -331,11 +331,10 @@ function ConfirmPendingWithdrawalDeliveryDialog({
               return (
                 <label
                   key={option.value}
-                  className={`rounded-xl border p-4 text-sm transition ${
-                    isSelected
+                  className={`rounded-xl border p-4 text-sm transition ${isSelected
                       ? "border-brand-primary bg-blue-50 text-slate-950"
                       : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"

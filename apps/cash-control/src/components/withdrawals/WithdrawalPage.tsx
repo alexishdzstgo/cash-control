@@ -50,7 +50,7 @@ const SIMILAR_WITHDRAWAL_WINDOW_MS = 30 * 60 * 1000;
 export function WithdrawalPage() {
   const router = useRouter();
   const { rules: commissionRules } = useCommissionRules();
-  const { operations, registerClientOperation, resetVersion } =
+  const { banks, operations, registerClientOperation, resetVersion } =
     useBusinessFunds();
   const { authenticatedUser } = useMockSession();
   const [mode, setMode] = useState<WithdrawalMode>("delivered");
@@ -78,10 +78,10 @@ export function WithdrawalPage() {
   const commissionCalculation =
     amountCents > 0
       ? calculateCommission({
-          amountCents,
-          operationType: "retiro",
-          rules: commissionRules,
-        })
+        amountCents,
+        operationType: "retiro",
+        rules: commissionRules,
+      })
       : null;
   const commission =
     commissionCalculation === null
@@ -94,11 +94,11 @@ export function WithdrawalPage() {
       : amount;
   const validationErrors = showValidationErrors
     ? getWithdrawalValidationErrors({
-        formData,
-        amount,
-        hasCommissionRule: commissionCalculation !== null,
-        mode,
-      })
+      formData,
+      amount,
+      hasCommissionRule: commissionCalculation !== null,
+      mode,
+    })
     : {};
 
   useEffect(() => {
@@ -127,7 +127,7 @@ export function WithdrawalPage() {
     setIsPendingConfirmationOpen(false);
   }
 
-  function handleRegister({ skipSimilarityCheck = false } = {}) {
+  async function handleRegister({ skipSimilarityCheck = false } = {}) {
     if (!isShiftOpen() || submitLockRef.current) return;
 
     const errors = getWithdrawalValidationErrors({
@@ -197,10 +197,10 @@ export function WithdrawalPage() {
       return;
     }
 
-    registerWithdrawal("entregado");
+    await registerWithdrawal("entregado");
   }
 
-  function registerWithdrawal(status: "entregado" | "pendiente") {
+  async function registerWithdrawal(status: "entregado" | "pendiente") {
     if (!isShiftOpen() || submitLockRef.current) return;
     const isPendingRegistration = status === "pendiente";
     if (
@@ -221,10 +221,10 @@ export function WithdrawalPage() {
     setSimilarWithdrawal(null);
 
     const now = new Date().toISOString();
-    const bankLabel = getBankLabel(formData.bank);
+    const bankLabel = getBankLabel(banks, formData.bank);
     const commissionMode =
       !isPendingRegistration &&
-      isWithdrawalCommissionMode(formData.commissionMode)
+        isWithdrawalCommissionMode(formData.commissionMode)
         ? formData.commissionMode
         : undefined;
     const appliedCommission =
@@ -249,20 +249,20 @@ export function WithdrawalPage() {
       total: operationTotal,
       appliedCommissionSnapshot:
         isPendingRegistration ||
-        commissionCalculation === null ||
-        !commissionMode
+          commissionCalculation === null ||
+          !commissionMode
           ? undefined
           : {
-              operationAmountCents: amountCents,
-              calculatedCommissionCents:
-                commissionCalculation.commissionAmountCents,
-              finalCommissionCents: commissionCalculation.commissionAmountCents,
-              ruleId: commissionCalculation.ruleId,
-              ruleVersion: commissionCalculation.ruleVersion,
-              calculationType: commissionCalculation.calculationType,
-              location: commissionMode === "deposited" ? "bank" : "cash",
-              appliedAt: now,
-            },
+            operationAmountCents: amountCents,
+            calculatedCommissionCents:
+              commissionCalculation.commissionAmountCents,
+            finalCommissionCents: commissionCalculation.commissionAmountCents,
+            ruleId: commissionCalculation.ruleId,
+            ruleVersion: commissionCalculation.ruleVersion,
+            calculationType: commissionCalculation.calculationType,
+            location: commissionMode === "deposited" ? "bank" : "cash",
+            appliedAt: now,
+          },
       commissionLocation: isPendingRegistration
         ? "pending"
         : commissionMode === "deposited"
@@ -290,7 +290,7 @@ export function WithdrawalPage() {
       isEdited: false,
     };
 
-    const result = registerClientOperation(operation);
+    const result = await registerClientOperation(operation);
     if (!result.success) {
       setOperationError(result.error ?? "No se pudo registrar el retiro.");
       submitLockRef.current = false;
@@ -355,6 +355,7 @@ export function WithdrawalPage() {
           />
 
           <WithdrawalSummary
+            banks={banks}
             mode={mode}
             formData={formData}
             deliveredBy={deliveredBy}
@@ -428,15 +429,15 @@ function getWithdrawalValidationErrors({
       ? { receiverName: "Captura el nombre de quien recibe." }
       : {}),
     ...(mode === "delivered" &&
-    !isWithdrawalCommissionMode(formData.commissionMode)
+      !isWithdrawalCommissionMode(formData.commissionMode)
       ? { commissionMode: "Selecciona cómo se cobrará la comisión." }
       : {}),
     ...(mode === "pending" && formData.pendingReason === ""
       ? { pendingReason: "Selecciona un motivo." }
       : {}),
     ...(mode === "pending" &&
-    formData.pendingReason === "other" &&
-    formData.pendingReasonDetails.trim() === ""
+      formData.pendingReason === "other" &&
+      formData.pendingReasonDetails.trim() === ""
       ? { pendingReasonDetails: "Especifica el motivo." }
       : {}),
   };
@@ -462,7 +463,7 @@ function findExactWithdrawalDuplicate({
         operation.type === "retiro" &&
         operation.bankResourceId === bankId &&
         normalizeWithdrawalBankReference(operation.bankFolio) ===
-          normalizedReference,
+        normalizedReference,
     ) ?? null
   );
 }
