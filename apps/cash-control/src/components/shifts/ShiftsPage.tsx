@@ -5,9 +5,9 @@ import { useBusinessFunds } from "@/components/business-funds/BusinessFundsConte
 import { TransferResponsibilityModal } from "@/components/participation/TransferResponsibilityModal";
 import { useResponsibilityTransfer } from "@/components/participation/useResponsibilityTransfer";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { mockRegisteredUsers } from "@/components/workstation/mockData";
-import type { Participant } from "@/components/workstation/types";
+import type { Participant, RegisteredUser } from "@/components/workstation/types";
 import { getShiftActivity, getShiftActivitySummary } from "@/lib/shiftActivity";
 import type { ShiftParticipant, ShiftViewModel } from "@/types/shift";
 import { ActiveShiftCard } from "./ActiveShiftCard";
@@ -39,13 +39,14 @@ const systemRoleToShiftRole = (role: string): "owner" | "employee" => {
 function participantToShiftParticipant(
   p: Participant,
   getUserAvatar: (userId: string) => ShiftParticipant["avatar"],
+  registeredUsers: RegisteredUser[]
 ): ShiftParticipant {
   return {
     id: p.id,
     userId: p.userId,
     name: p.userName,
     systemRole: systemRoleToShiftRole(
-      mockRegisteredUsers.find((u) => u.userId === p.userId)?.systemRole ??
+      registeredUsers.find((u) => u.userId === p.userId)?.systemRole ??
       "employee",
     ),
     shiftRole:
@@ -65,13 +66,13 @@ function participantToShiftParticipant(
  * Determines which registered users are available to be added as participants.
  * A user is available if they do NOT have an active participation in the context.
  */
-function getAvailableUsers(contextParticipants: Participant[]) {
+function getAvailableUsers(contextParticipants: Participant[], registeredUsers: RegisteredUser[]) {
   const activeUserIds = new Set(
     contextParticipants
       .filter((p) => p.status === "active")
       .map((p) => p.userId),
   );
-  return mockRegisteredUsers
+  return registeredUsers
     .filter((u) => !activeUserIds.has(u.userId))
     .map((u) => ({
       userId: u.userId,
@@ -82,7 +83,9 @@ function getAvailableUsers(contextParticipants: Participant[]) {
 }
 
 export function ShiftsPage() {
-  const { currentShift, shifts, canStartShift } = useShift();
+  const useShiftContextPayload = useShift();
+  const { showSuccess } = useNotification();
+  const { currentShift, shifts, canStartShift } = useShiftContextPayload;
 
   const { cash, banks, operations, movements } = useBusinessFunds();
   const closedShifts = shifts
@@ -111,6 +114,9 @@ export function ShiftsPage() {
     canRemoveParticipant,
     isCurrentUserResponsible,
     getContextResponsibleUserId,
+    transferResponsibility,
+    refreshSessionData,
+    registeredUsers,
   } = useMockSession();
   const {
     transferSummary,
@@ -124,7 +130,12 @@ export function ShiftsPage() {
     handlePinChange,
     handleTransferConfirm,
   } = useResponsibilityTransfer(contextParticipants, async () => {
-    window.location.reload();
+    showSuccess("La responsabilidad del turno ha sido transferida correctamente.");
+
+    // Immediately pull the fresh participation data natively from Supabase
+    await refreshSessionData();
+    // Re-synchronize the Shift context as well so shift.responsibleUserId binds to the new user seamlessly
+    await useShiftContextPayload.refreshShifts();
   });
 
   // ── Context-derived values (single source of truth) ──
@@ -137,9 +148,9 @@ export function ShiftsPage() {
   const displayParticipants = useMemo(
     () =>
       activeContextParticipants.map((participant) =>
-        participantToShiftParticipant(participant, getUserAvatar),
+        participantToShiftParticipant(participant, getUserAvatar, registeredUsers),
       ),
-    [activeContextParticipants, getUserAvatar],
+    [activeContextParticipants, getUserAvatar, registeredUsers],
   );
 
   const contextResponsibleUserId = getContextResponsibleUserId() ?? "";
@@ -148,11 +159,11 @@ export function ShiftsPage() {
 
   const availableUsers = useMemo(
     () =>
-      getAvailableUsers(contextParticipants).map((user) => ({
+      getAvailableUsers(contextParticipants, registeredUsers).map((user) => ({
         ...user,
         avatar: getUserAvatar(user.userId),
       })),
-    [contextParticipants, getUserAvatar],
+    [contextParticipants, getUserAvatar, registeredUsers],
   );
 
   // ── Derived shift for child components ──
@@ -178,17 +189,34 @@ export function ShiftsPage() {
 
   // ── Handlers ──
 
-  const handleAddParticipant = (user: {
+  const handleAddParticipant = async (user: {
     userId: string;
     name: string;
     systemRole: "owner" | "employee";
   }) => {
     if (!canAddParticipant()) return;
 
+    if (derivedShift) {
+      try {
+        await fetch(`/api/shifts/${derivedShift.id}/participants`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.userId,
+            userName: user.name,
+            systemRole: user.systemRole
+          })
+        });
+        await useShiftContextPayload.refreshShifts();
+      } catch (e) {
+        console.error("Error adding participant to DB:", e);
+      }
+    }
+
     addParticipant(user.userId);
   };
 
-  const handleRemoveParticipant = (participantId: string) => {
+  const handleRemoveParticipant = async (participantId: string) => {
     const participant = derivedShift?.participants.find(
       (p) => p.id === participantId,
     );
@@ -196,8 +224,23 @@ export function ShiftsPage() {
 
     if (!canRemoveParticipant(participant.userId)) return;
 
+    if (derivedShift) {
+      try {
+        await fetch(`/api/shifts/${derivedShift.id}/participants`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: participant.userId, status: "left" })
+        });
+        await useShiftContextPayload.refreshShifts();
+      } catch (e) {
+        console.error("Error removing participant from DB:", e);
+      }
+    }
+
     const result = removeParticipant(participant.userId);
     if (!result.success) return;
+
+    showSuccess(`Se retiró exitosamente a ${participant.name} del turno.`);
   };
 
   const handleTransferFromCard = (participant: ShiftParticipant) => {

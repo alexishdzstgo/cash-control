@@ -4,6 +4,7 @@ import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
+import { useRouter } from "next/navigation";
 import type { ShiftViewModel } from "@/types/shift";
 
 interface ActiveShiftCardProps {
@@ -21,6 +22,7 @@ export function ActiveShiftCard({
   onTransferResponsibility,
   canTransferResponsibility,
 }: ActiveShiftCardProps) {
+  const router = useRouter();
   const responsible = shift.participants.find(
     (p) => p.userId === shift.responsibleUserId,
   );
@@ -118,10 +120,14 @@ export function ActiveShiftCard({
         </Button>
       </div>
 
-      <p className="mt-4 text-xs text-slate-500">
-        Las acciones de este módulo son una simulación local y se reinician al
-        recargar.
-      </p>
+      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+        <div className="text-sm text-slate-500">
+          <p>Para cerrar el turno, debes procesar el corte de caja general.</p>
+        </div>
+        <Button variant="default" className="shrink-0" onClick={() => router.push("/cash-closing")}>
+          Ir a corte de caja
+        </Button>
+      </div>
     </div>
   );
 }

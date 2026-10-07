@@ -5,6 +5,8 @@ import {
   type ReactNode,
   useContext,
   useRef,
+  useCallback,
+  useEffect,
   useState,
 } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
@@ -28,16 +30,17 @@ type ShiftContextValue = {
   canCloseCurrentShift: () => boolean;
   canStartShift: () => boolean;
   resetShifts: () => void;
-  startShift: (input: { cash: CashBalance; banks: BankAccountBalance[] }) => {
+  refreshShifts: () => Promise<void>;
+  startShift: (input: { cash: CashBalance; banks: BankAccountBalance[] }) => Promise<{
     success: boolean;
     shift?: Shift;
     error?: string;
-  };
-  closeCurrentShift: (input: CloseShiftInput) => {
+  }>;
+  closeCurrentShift: (input: CloseShiftInput) => Promise<{
     success: boolean;
     shift?: Shift;
     error?: string;
-  };
+  }>;
 };
 
 const ShiftContext = createContext<ShiftContextValue | null>(null);
@@ -46,14 +49,29 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
   const { participants, authenticatedUser } = useMockSession();
   const [storedShifts, setStoredShifts] = useState<Shift[]>([]);
 
+  const refreshShifts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/shifts?t=${Date.now()}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.ok) setStoredShifts(data.shifts);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshShifts();
+  }, [refreshShifts]);
+
   const responsible = getShiftResponsible(participants);
   const shifts = storedShifts.map((shift) =>
     shift.status === "open"
       ? {
-          ...shift,
-          responsibleUserId: responsible?.userId ?? "",
-          responsibleUserName: responsible?.userName ?? "",
-        }
+        ...shift,
+        responsibleUserId: responsible?.userId ?? "",
+        responsibleUserName: responsible?.userName ?? "",
+      }
       : shift,
   );
   const currentShift = shifts.find((shift) => shift.status === "open") ?? null;
@@ -72,17 +90,17 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       !current.currentShift &&
       Boolean(
         current.authenticatedUser &&
-          current.participants.some(
-            (participant) =>
-              participant.userId === current.authenticatedUser?.userId &&
-              participant.status === "active" &&
-              participant.participationType === "responsible",
-          ),
+        current.participants.some(
+          (participant) =>
+            participant.userId === current.authenticatedUser?.userId &&
+            participant.status === "active" &&
+            participant.participationType === "responsible",
+        ),
       )
     );
   }
 
-  function startShift(input: {
+  async function startShift(input: {
     cash: CashBalance;
     banks: BankAccountBalance[];
   }) {
@@ -97,21 +115,28 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
       return { success: false, error: "No hay un responsable activo." };
     const error = validateShiftOpening(input);
     if (error) return { success: false, error };
-    const shift = createInitialShift({
-      ...input,
-      responsible,
-      id: `shift-${crypto.randomUUID()}`,
-      openedAt: new Date().toISOString(),
-      folio: getNextShiftFolio(latest.current.shifts),
-    });
-    // Publish synchronously to prevent duplicate starts and stale domain callbacks.
-    latest.current = {
-      ...latest.current,
-      currentShift: shift,
-      shifts: [...latest.current.shifts, shift],
-    };
-    setStoredShifts((current) => [...current, shift]);
-    return { success: true, shift };
+
+    try {
+      const res = await fetch("/api/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folio: getNextShiftFolio(latest.current.shifts),
+          openedAt: new Date().toISOString(),
+          responsibleUserId: responsible.userId,
+          responsibleUserName: responsible.userName,
+          responsibleUserRole: latest.current.authenticatedUser?.userId === responsible.userId ? latest.current.authenticatedUser?.systemRole : "employee",
+          openingBalances: input
+        })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+
+      await refreshShifts();
+      return { success: true, shift: data.shift };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Error iniciando turno" };
+    }
   }
 
   function resetShifts() {
@@ -124,16 +149,16 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
     const current = latest.current;
     return Boolean(
       current.currentShift &&
-        !closedIds.current.has(current.currentShift.id) &&
-        canCloseShift(
-          current.currentShift,
-          current.authenticatedUser?.userId,
-          current.participants,
-        ),
+      !closedIds.current.has(current.currentShift.id) &&
+      canCloseShift(
+        current.currentShift,
+        current.authenticatedUser?.userId,
+        current.participants,
+      ),
     );
   }
 
-  function closeCurrentShift(input: CloseShiftInput) {
+  async function closeCurrentShift(input: CloseShiftInput) {
     const { currentShift: activeShift, authenticatedUser: actor } =
       latest.current;
     if (
@@ -159,31 +184,28 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         error: "Completa el conteo de todos los bancos del turno.",
       };
     }
+
     const closedAt = new Date().toISOString();
     const result = buildShiftClosing(input, actor, closedAt);
     if (result.error || !result.closing)
       return { success: false, error: result.error };
-    const closedShift: Shift = {
-      ...activeShift,
-      status: "closed",
-      closedAt,
-      closing: result.closing,
-    };
-    // Synchronous lock prevents a second submission before React commits the update.
-    closedIds.current.add(activeShift.id);
-    latest.current = {
-      ...latest.current,
-      currentShift: null,
-      shifts: latest.current.shifts.map((shift) =>
-        shift.id === activeShift.id ? closedShift : shift,
-      ),
-    };
-    setStoredShifts((current) =>
-      current.map((shift) =>
-        shift.id === activeShift.id ? closedShift : shift,
-      ),
-    );
-    return { success: true, shift: closedShift };
+
+    try {
+      const res = await fetch(`/api/shifts/${activeShift.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ closing: result.closing })
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+
+      // Cierre local preventivo
+      closedIds.current.add(activeShift.id);
+      await refreshShifts();
+      return { success: true, shift: data.shift };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Error cerrando el turno" };
+    }
   }
 
   return (
@@ -197,6 +219,7 @@ export function ShiftProvider({ children }: { children: ReactNode }) {
         canStartShift,
         startShift,
         resetShifts,
+        refreshShifts,
         canCloseCurrentShift,
         closeCurrentShift,
       }}

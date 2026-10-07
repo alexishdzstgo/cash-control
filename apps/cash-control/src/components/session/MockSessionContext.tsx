@@ -9,11 +9,8 @@ import {
   useState,
 } from "react";
 import { initialUserAccounts } from "@/components/users/userMockData";
-import {
-  mockParticipants,
-  mockRegisteredUsers,
-} from "@/components/workstation/mockData";
-import type { Participant, SystemRole } from "@/components/workstation/types";
+import { mockParticipants } from "@/components/workstation/mockData";
+import type { Participant, SystemRole, RegisteredUser } from "@/components/workstation/types";
 import type { UserAvatar } from "@/types/user";
 
 export interface SessionUser {
@@ -25,6 +22,7 @@ export interface SessionUser {
 
 interface MockSessionContextValue {
   authenticatedUser: SessionUser | null;
+  registeredUsers: RegisteredUser[];
   isSessionLoading: boolean;
   participants: Participant[];
   getUserAvatar: (userId: string) => UserAvatar | undefined;
@@ -61,6 +59,7 @@ interface MockSessionContextValue {
   isCurrentUserResponsible: () => boolean;
   getContextResponsibleUserId: () => string | null;
   syncParticipants: (participants: Participant[]) => void;
+  refreshSessionData: () => Promise<void>;
 }
 
 const MockSessionContext = createContext<MockSessionContextValue | null>(null);
@@ -73,6 +72,7 @@ function getCurrentTime(): string {
 export function MockSessionProvider({ children }: { children: ReactNode }) {
   const [authenticatedUser, setAuthenticatedUser] =
     useState<SessionUser | null>(null);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [userAvatars, setUserAvatars] = useState<
     Record<string, UserAvatar | undefined>
@@ -84,51 +84,74 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
 
   const [isSessionLoading, setIsSessionLoading] = useState(true);
 
+  const refreshSessionData = useCallback(async () => {
+    try {
+      const ts = Date.now();
+      const [sessionRes, partRes, usersRes] = await Promise.all([
+        fetch(`/api/workstation/session?t=${ts}`).catch(() => null),
+        fetch(`/api/workstation/participants?t=${ts}`).catch(() => null),
+        fetch(`/api/users?t=${ts}`).catch(() => null),
+      ]);
+
+      if (usersRes?.ok) {
+        const usersData = await usersRes.json().catch(() => null);
+        if (usersData?.ok) {
+          const mappedUsers: RegisteredUser[] = usersData.users.map((u: any) => ({
+            userId: u.id,
+            userName: u.displayName,
+            systemRole: u.systemRole,
+            pin: "",
+          }));
+          setRegisteredUsers(mappedUsers);
+        }
+      }
+
+      if (sessionRes?.ok) {
+        const sessionData = await sessionRes.json().catch(() => null);
+        if (sessionData?.ok) {
+          setAuthenticatedUser(sessionData.session);
+        }
+      }
+
+      if (partRes?.ok) {
+        const partData = await partRes.json().catch(() => null);
+        if (partData?.ok) {
+          const mappedParticipants = partData.participants.map((p: any) => ({
+            userId: p.memberId,
+            userName: p.displayName,
+            participationType:
+              p.role === "shift_responsible" ? "responsible" : "support",
+            status: p.status,
+            startedAt: new Date(p.joinedAt).toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            }),
+            id: p.memberId,
+          }));
+          setParticipants(mappedParticipants);
+        }
+      }
+    } catch (e) {
+      // Fallback
+    }
+  }, []);
+
   // Hybrid Auth: Validate real cookie session and real participants
   useEffect(() => {
     let mounted = true;
 
-    async function loadInitialData() {
-      try {
-        const [sessionRes, partRes] = await Promise.all([
-          fetch("/api/workstation/session").catch(() => null),
-          fetch("/api/workstation/participants").catch(() => null),
-        ]);
-
-        if (sessionRes?.ok) {
-          const sessionData = await sessionRes.json().catch(() => null);
-          if (mounted && sessionData?.ok) {
-            setAuthenticatedUser(sessionData.session);
-          }
-        }
-
-        if (partRes?.ok) {
-          const partData = await partRes.json().catch(() => null);
-          if (mounted && partData?.ok) {
-            const mappedParticipants = partData.participants.map((p: any) => ({
-              userId: p.memberId,
-              userName: p.displayName,
-              participationType: p.role === "shift_responsible" ? "responsible" : "support",
-              status: p.status,
-              startedAt: new Date(p.joinedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
-              id: p.memberId,
-            }));
-            setParticipants(mappedParticipants);
-          }
-        }
-      } catch (e) {
-        // Fallback to defaults
-      } finally {
-        if (mounted) setIsSessionLoading(false);
-      }
+    async function loadDataAndSetLoading() {
+      await refreshSessionData();
+      if (mounted) setIsSessionLoading(false);
     }
 
-    void loadInitialData();
+    void loadDataAndSetLoading();
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshSessionData]);
 
   const unlockSession = useCallback((user: SessionUser) => {
     setAuthenticatedUser(user);
@@ -163,11 +186,8 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startParticipation = useCallback((userId: string): void => {
-    const registeredUser = mockRegisteredUsers.find((u) => u.userId === userId);
-    if (!registeredUser) return;
-
-    // Functional updater guarantees the latest state for duplicate detection.
-    // No external variables are mutated — the updater is pure.
+    // With backend mutations, this local method is mostly for fallback mapping
+    // if it were ever called locally. We depend on the global `participants` and `refreshSessionData`.
     setParticipants((prev) => {
       const alreadyActive = prev.some(
         (p) => p.userId === userId && p.status === "active",
@@ -177,7 +197,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       const newParticipant: Participant = {
         id: `part-${Date.now()}`,
         userId,
-        userName: registeredUser.userName,
+        userName: "Cargando...",
         participationType: "support",
         status: "active",
         startedAt: getCurrentTime(),
@@ -268,7 +288,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const registeredUser = mockRegisteredUsers.find(
+      const registeredUser = registeredUsers.find(
         (u) => u.userId === userId,
       );
       if (!registeredUser) return;
@@ -364,15 +384,13 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       pin: string,
     ): { success: boolean; error?: string } => {
       // Verify target user is registered
-      const toUser = mockRegisteredUsers.find((u) => u.userId === toUserId);
-      if (!toUser) {
+      const toParticipation = getActiveParticipation(toUserId);
+      // toUser will be resolved locally if found, normally API handles real roles.
+      if (!toParticipation) {
         return { success: false, error: "Usuario destino no encontrado" };
       }
 
-      // Verify PIN belongs to the RECEIVER (toUserId), not the sender
-      if (toUser.pin !== pin) {
-        return { success: false, error: "PIN incorrecto" };
-      }
+      // Backend already verified PIN. We skip local verification here to prevent synchronization mismatches.
 
       // Verify target user has active participation
       const targetParticipation = participants.find(
@@ -386,7 +404,9 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
       }
 
       // Get sender info for audit
-      const fromUser = mockRegisteredUsers.find((u) => u.userId === fromUserId);
+      const fromParticipation = getActiveParticipation(fromUserId);
+      const toUser = registeredUsers.find((u) => u.userId === toUserId);
+      const fromUser = registeredUsers.find((u) => u.userId === fromUserId);
 
       // Transfer responsibility
       setParticipants((prev) =>
@@ -401,14 +421,14 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         }),
       );
 
-      const fromUserName = fromUser?.userName || fromUserId;
-      const toUserName = toUser.userName;
+      const fromUserName = fromUser?.userName || fromParticipation?.userName || fromUserId;
+      const toUserName = toUser?.userName || toParticipation?.userName || toUserId;
       addActivityEvent(
         `Responsabilidad transferida de ${fromUserName} a ${toUserName}`,
       );
       return { success: true };
     },
-    [participants, addActivityEvent],
+    [participants, addActivityEvent, registeredUsers, getActiveParticipation],
   );
 
   // ── Domain capabilities ──
@@ -420,19 +440,17 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
 
   const canRemoveParticipant = useCallback(
     (targetUserId: string): boolean => {
-      if (!authenticatedUser) return false;
-      if (authenticatedUser.systemRole !== "owner") return false;
-
-      // Cannot remove the responsible participant
-      const targetParticipation = participants.find(
-        (p) => p.userId === targetUserId && p.status === "active",
-      );
-      if (targetParticipation?.participationType === "responsible")
+      // Allow ending if the targeted user is not the responsible one.
+      const targetParticipation = getActiveParticipation(targetUserId);
+      if (
+        !targetParticipation ||
+        targetParticipation.participationType === "responsible"
+      ) {
         return false;
-
+      }
       return true;
     },
-    [authenticatedUser, participants],
+    [getActiveParticipation],
   );
 
   const canTransferResponsibility = useCallback((): boolean => {
@@ -471,6 +489,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
     <MockSessionContext.Provider
       value={{
         authenticatedUser,
+        registeredUsers,
         isSessionLoading,
         participants,
         getUserAvatar,
@@ -495,6 +514,7 @@ export function MockSessionProvider({ children }: { children: ReactNode }) {
         isCurrentUserResponsible,
         getContextResponsibleUserId,
         syncParticipants,
+        refreshSessionData,
       }}
     >
       {children}

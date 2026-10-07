@@ -35,11 +35,15 @@ export function StartShiftModal({
 
   const validationError = validateShiftOpening({ cash, banks });
 
-  function confirm() {
-    const result = startShift({ cash, banks });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function confirm() {
+    setIsSubmitting(true);
+    const result = await startShift({ cash, banks });
 
     if (!result.success) {
       setError(result.error ?? "No se pudo iniciar el turno.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -65,9 +69,9 @@ export function StartShiftModal({
             type="button"
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             onClick={confirm}
-            disabled={!canStartShift() || Boolean(validationError)}
+            disabled={!canStartShift() || Boolean(validationError) || isSubmitting}
           >
-            Iniciar {folio}
+            {isSubmitting ? "Iniciando..." : `Iniciar ${folio}`}
           </button>
         </div>
       }

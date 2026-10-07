@@ -36,7 +36,7 @@ export function UserParticipationMenu() {
     addActivityEvent,
     canEndOwnParticipation,
     isCurrentUserResponsible,
-    syncParticipants,
+    refreshSessionData,
   } = useMockSession();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -87,63 +87,13 @@ export function UserParticipationMenu() {
 
 
 
-  const [realParticipants, setRealParticipants] = useState<typeof participants>([]);
-
-  const refreshRealParticipants = useCallback(async () => {
-    try {
-      const response = await fetch("/api/workstation/participants", {
-        cache: "no-store",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        console.error(
-          "No se pudieron actualizar los participantes:",
-          data.error,
-        );
-        return;
-      }
-
-      const mapped = data.participants.map((participant: {
-        memberId: string;
-        username: string;
-        displayName: string;
-        role: string;
-        status: string;
-        joinedAt: string;
-      }) => ({
-        userId: participant.memberId,
-        userName: participant.displayName,
-        participationType:
-          participant.role === "shift_responsible"
-            ? "responsible"
-            : "support",
-        status: participant.status,
-        startedAt: new Date(participant.joinedAt).toLocaleTimeString(
-          "en-GB",
-          { hour: "2-digit", minute: "2-digit", hour12: false },
-        ),
-      }));
-
-      setRealParticipants(mapped);
-      syncParticipants(mapped);
-    } catch (error) {
-      console.error("Error cargando participantes:", error);
-    }
-  }, [syncParticipants]);
-
-  useEffect(() => {
-    void refreshRealParticipants();
-  }, [refreshRealParticipants]);
-
-  const activeParticipants = realParticipants;
+  // We no longer need a dedicated realParticipants state. 
+  // We just rely on MockSessionContext which is the single source of truth.
+  const activeParticipants = participants.filter((p) => p.status === "active");
 
   const activeParticipation = authenticatedUser
-    ? realParticipants.find(
-      (p) =>
-        p.userId === authenticatedUser.userId &&
-        p.status === "active",
+    ? activeParticipants.find(
+      (p) => p.userId === authenticatedUser.userId
     )
     : undefined;
 
@@ -156,9 +106,9 @@ export function UserParticipationMenu() {
     closeAssume,
     handlePinChange: handleAssumePinChange,
     handleAssumeConfirm,
-  } = useAssumeResponsibility(authenticatedUser?.userId || "", refreshRealParticipants);
+  } = useAssumeResponsibility(authenticatedUser?.userId || "", refreshSessionData);
 
-  const hasAnyResponsible = Array.from(realParticipants.values()).some((p) => p.participationType === "responsible");
+  const hasAnyResponsible = participants.some((p) => p.participationType === "responsible" && p.status === "active");
   const noOneIsResponsible = !hasAnyResponsible;
 
   const isResponsible =
@@ -216,7 +166,7 @@ export function UserParticipationMenu() {
         hasActiveParticipation: true,
       });
 
-      await refreshRealParticipants();
+      await refreshSessionData();
       setIsOpen(false);
 
     } catch (error) {
@@ -233,7 +183,7 @@ export function UserParticipationMenu() {
     authenticatedUser,
     isActivating,
     updateAuthenticatedUser,
-    refreshRealParticipants,
+    refreshSessionData,
   ]);
 
   const handleLockSession = useCallback(async () => {
@@ -277,7 +227,7 @@ export function UserParticipationMenu() {
         return;
       }
 
-      await refreshRealParticipants();
+      await refreshSessionData();
 
       setShowEndModal(false);
 
@@ -297,7 +247,7 @@ export function UserParticipationMenu() {
   }, [
     authenticatedUser,
     addActivityEvent,
-    refreshRealParticipants,
+    refreshSessionData,
   ]);
 
   //////////////
