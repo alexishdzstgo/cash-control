@@ -32,44 +32,20 @@ const depositFieldOrder = [
   "destinationAccountLast4",
 ] as const;
 
-function buildDepositFolio(consecutive: number): string {
-  return `DEP-${consecutive.toString().padStart(6, "0")}`;
-}
-
-function getDepositFolioConsecutive(folio: string): number | null {
-  const match = /^DEP-(\d+)$/.exec(folio);
-  if (!match) return null;
-
-  return Number(match[1]);
-}
-
-function getNextDepositFolio(operations: Operation[]): string {
-  // Prototype-only: in PostgreSQL this consecutive must be generated atomically
-  // and protected by backend idempotency/uniqueness, not by frontend state.
-  const maxConsecutive = operations
-    .filter((operation) => operation.type === "deposito")
-    .reduce((max, operation) => {
-      const consecutive = getDepositFolioConsecutive(operation.bankFolio);
-      return consecutive === null ? max : Math.max(max, consecutive);
-    }, 0);
-
-  return buildDepositFolio(maxConsecutive + 1);
-}
-
-function buildInitialForm(operations: Operation[]): DepositFormData {
+function buildInitialForm(): DepositFormData {
   return {
     ...initialDepositFormData,
-    bankFolio: getNextDepositFolio(operations),
+    bankFolio: "Se asignará automáticamente",
   };
 }
 
 export function DepositPage() {
   const { rules: commissionRules } = useCommissionRules();
-  const { operations, registerClientOperation, resetVersion } =
+  const { banks, operations, registerClientOperation, resetVersion } =
     useBusinessFunds();
   const { authenticatedUser } = useMockSession();
   const [formData, setFormData] = useState<DepositFormData>(() =>
-    buildInitialForm(operations),
+    buildInitialForm(),
   );
   const { currentShift, isShiftOpen } = useShift();
   const canOperate = currentShift?.status === "open";
@@ -88,10 +64,10 @@ export function DepositPage() {
   const commissionCalculation =
     amountCents > 0
       ? calculateCommission({
-          amountCents,
-          operationType: "deposito",
-          rules: commissionRules,
-        })
+        amountCents,
+        operationType: "deposito",
+        rules: commissionRules,
+      })
       : null;
   const commission =
     commissionCalculation === null
@@ -107,15 +83,15 @@ export function DepositPage() {
     authenticatedUser !== null;
   const validationErrors = showValidationErrors
     ? getDepositValidationErrors({
-        formData,
-        amount,
-        hasCommissionRule: commissionCalculation !== null,
-      })
+      formData,
+      amount,
+      hasCommissionRule: commissionCalculation !== null,
+    })
     : {};
 
   useEffect(() => {
     if (resetVersion === 0) return;
-    setFormData(buildInitialForm([]));
+    setFormData(buildInitialForm());
     setOperationError(null);
     setShowValidationErrors(false);
     setPossibleDuplicate(null);
@@ -123,17 +99,17 @@ export function DepositPage() {
     submitLockRef.current = false;
   }, [resetVersion]);
 
-  function resetForm(nextOperations: Operation[]) {
-    setFormData(buildInitialForm(nextOperations));
+  function resetForm() {
+    setFormData(buildInitialForm());
     setOperationError(null);
     setShowValidationErrors(false);
   }
 
-  function handleRegister() {
-    registerDeposit();
+  async function handleRegister() {
+    await registerDeposit();
   }
 
-  function registerDeposit({ skipDuplicateCheck = false } = {}) {
+  async function registerDeposit({ skipDuplicateCheck = false } = {}) {
     if (!isShiftOpen() || submitLockRef.current) return;
 
     if (!isReadyToRegister || commissionCalculation === null) {
@@ -158,10 +134,10 @@ export function DepositPage() {
     const duplicate = skipDuplicateCheck
       ? null
       : findPossibleDuplicateDeposit({
-          operations,
-          formData,
-          amount,
-        });
+        operations,
+        formData,
+        amount,
+      });
 
     if (duplicate) {
       setPossibleDuplicate(duplicate);
@@ -173,14 +149,13 @@ export function DepositPage() {
     setPossibleDuplicate(null);
 
     const now = new Date().toISOString();
-    const bankLabel = getBankLabel(formData.emissionBank);
+    const bankLabel = getBankLabel(banks, formData.emissionBank);
     const commissionAmount = commission ?? 0;
-    const generatedFolio = getNextDepositFolio(operations);
     const operation: Operation = {
       id: `operation-deposit-${Date.now()}`,
       type: "deposito",
       status: "completado",
-      bankFolio: generatedFolio,
+      bankFolio: "Se asignará automáticamente",
       amount,
       commission: commissionAmount,
       total: amount + commissionAmount,
@@ -210,7 +185,7 @@ export function DepositPage() {
       isEdited: false,
     };
 
-    const result = registerClientOperation(operation);
+    const result = await registerClientOperation(operation);
     if (!result.success) {
       setOperationError(result.error ?? "No se pudo registrar el deposito.");
       submitLockRef.current = false;
@@ -218,8 +193,9 @@ export function DepositPage() {
       return;
     }
 
-    showSuccess("Depósito registrado correctamente.");
-    resetForm([operation, ...operations]);
+    const returnedFolio = result.operation?.bankFolio || operation.bankFolio;
+    showSuccess(`Depósito registrado correctamente (Folio: ${returnedFolio}).`);
+    resetForm();
     submitLockRef.current = false;
     setIsSubmitting(false);
   }
@@ -243,6 +219,7 @@ export function DepositPage() {
           />
 
           <DepositSummary
+            banks={banks}
             formData={formData}
             receivedBy={receivedBy}
             amount={amount}
@@ -285,8 +262,8 @@ function getDepositValidationErrors({
       : {}),
     ...(!/^\d{4}$/.test(formData.destinationAccountLast4)
       ? {
-          destinationAccountLast4: "Captura exactamente los ultimos 4 digitos.",
-        }
+        destinationAccountLast4: "Captura exactamente los ultimos 4 digitos.",
+      }
       : {}),
   };
 }

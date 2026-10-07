@@ -3,25 +3,26 @@ export type BankOption = {
   label: string;
 };
 
-export const bankOptions: BankOption[] = [
-  { value: "bank-azteca", label: "Banco Azteca" },
-  { value: "bank-bbva", label: "BBVA" },
-  { value: "mercado-pago", label: "Mercado Pago" },
-  { value: "banamex", label: "Banamex" },
-  { value: "banorte", label: "Banorte" },
-  { value: "santander", label: "Santander" },
-  { value: "otro", label: "Otro banco" },
-];
-
-export function getBankLabel(value: string): string {
+export function getBankLabel(
+  banks: { id: string; bankName: string }[],
+  value: string,
+): string {
   const legacyLabels: Record<string, string> = {
     "banco-azteca": "Banco Azteca",
     bbva: "BBVA",
+    "bank-azteca": "Banco Azteca",
+    "bank-bbva": "BBVA",
+    "mercado-pago": "Mercado Pago",
+    banamex: "Banamex",
+    banorte: "Banorte",
+    santander: "Santander",
+    otro: "Otro banco",
   };
 
-  return (
-    bankOptions.find((bank) => bank.value === value)?.label ??
-    legacyLabels[value] ??
-    "Sin seleccionar"
-  );
+  const dbBank = banks.find((bank) => bank.id === value);
+  if (dbBank) {
+    return dbBank.bankName;
+  }
+
+  return legacyLabels[value] ?? "Sin seleccionar";
 }

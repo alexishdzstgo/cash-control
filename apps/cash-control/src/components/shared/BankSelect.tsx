@@ -1,6 +1,6 @@
 "use client";
 
-import { bankOptions } from "@/config/banks";
+import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 
 type BankSelectProps = {
   id: string;
@@ -27,6 +27,8 @@ export function BankSelect({
   className = "",
   error,
 }: BankSelectProps) {
+  const { banks } = useBusinessFunds();
+
   return (
     <div className={className}>
       <label
@@ -49,9 +51,9 @@ export function BankSelect({
       >
         <option value="">{placeholder}</option>
 
-        {bankOptions.map((bank) => (
-          <option key={bank.value} value={bank.value}>
-            {bank.label}
+        {banks.map((bank) => (
+          <option key={bank.id} value={bank.id}>
+            {bank.bankName}
           </option>
         ))}
       </select>

@@ -4,9 +4,11 @@ import { CheckCircle2 } from "lucide-react";
 import { getBankLabel } from "@/config/banks";
 import { NO_COMMISSION_RULE_MESSAGE } from "@/lib/commission";
 import { formatCurrency } from "@/lib/formatters";
+import type { BankAccountBalance } from "@/types/balance";
 import type { DepositFormData } from "@/types/deposit";
 
 type DepositSummaryProps = {
+  banks: BankAccountBalance[];
   formData: DepositFormData;
   receivedBy: string;
   amount: number;
@@ -19,6 +21,7 @@ type DepositSummaryProps = {
 };
 
 export function DepositSummary({
+  banks,
   formData,
   receivedBy,
   amount,
@@ -59,7 +62,7 @@ export function DepositSummary({
           />
           <SummaryRow
             label="Banco de emision"
-            value={getBankLabel(formData.emissionBank)}
+            value={getBankLabel(banks, formData.emissionBank)}
           />
           <SummaryRow
             label="Ultimos 4 digitos"
@@ -150,9 +153,8 @@ function SummaryRow({
         {label}
       </p>
       <p
-        className={`mt-1 break-words text-sm font-semibold text-slate-800 ${
-          mono ? "font-mono" : ""
-        }`}
+        className={`mt-1 break-words text-sm font-semibold text-slate-800 ${mono ? "font-mono" : ""
+          }`}
       >
         {value}
       </p>
