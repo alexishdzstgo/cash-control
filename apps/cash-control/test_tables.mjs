@@ -1,0 +1,1 @@
+import dotenv from 'dotenv'; dotenv.config({path: '.env.local'}); async function run() { const url = process.env.NEXT_PUBLIC_SUPABASE_URL + '/rest/v1/?apikey=' + process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; const res = await fetch(url); const data = await res.json(); console.dir(Object.keys(data.paths), {maxArrayLength: null}); } run();  

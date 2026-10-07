@@ -1,0 +1,1990 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "",
+    "title": "standard public schema",
+    "version": "14.5"
+  },
+  "host": "lnzhxntfzjvblnmangzp.supabase.co:443",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "produces": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "produces": [
+          "application/openapi+json",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "OpenAPI description (this document)",
+        "tags": [
+          "Introspection"
+        ]
+      }
+    },
+    "/profiles": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.first_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.last_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.display_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.avatar"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/profiles"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.first_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.last_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.display_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.avatar"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.profiles.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.first_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.last_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.display_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.avatar"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.profiles.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.profiles"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
+    "/businesses": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.businesses.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.slug"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.updated_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/businesses"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "businesses"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.businesses"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "businesses"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.businesses.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.slug"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.updated_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "businesses"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.businesses.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.slug"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.businesses.updated_at"
+          },
+          {
+            "$ref": "#/parameters/body.businesses"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "businesses"
+        ]
+      }
+    },
+    "/business_members": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.business_members.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.business_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.username"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.internal_notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.updated_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.last_login_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/business_members"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "business_members"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.business_members"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "business_members"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.business_members.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.business_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.username"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.internal_notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.updated_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.last_login_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "business_members"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.business_members.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.business_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.username"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.internal_notes"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.updated_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.business_members.last_login_at"
+          },
+          {
+            "$ref": "#/parameters/body.business_members"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "business_members"
+        ]
+      }
+    },
+    "/rpc/admin_add_shift_participant": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash",
+                "p_member_id"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_add_shift_participant"
+        ]
+      }
+    },
+    "/rpc/admin_assign_participation_responsibility_with_pin": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_new_responsible_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_receiver_pin": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash",
+                "p_new_responsible_member_id",
+                "p_receiver_pin"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_assign_participation_responsibility_with_pin"
+        ]
+      }
+    },
+    "/rpc/admin_resolve_workstation_member": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_workstation_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_workstation_token_hash",
+                "p_member_id"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_resolve_workstation_member"
+        ]
+      }
+    },
+    "/rpc/admin_revoke_workstation_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_revoke_workstation_session"
+        ]
+      }
+    },
+    "/rpc/admin_transfer_shift_responsibility_with_pin": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_new_responsible_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_receiver_pin": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash",
+                "p_new_responsible_member_id",
+                "p_receiver_pin"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_transfer_shift_responsibility_with_pin"
+        ]
+      }
+    },
+    "/rpc/admin_transfer_shift_responsibility": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_new_responsible_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash",
+                "p_new_responsible_member_id"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_transfer_shift_responsibility"
+        ]
+      }
+    },
+    "/rpc/admin_activate_workstation_member": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_workstation_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_workstation_token_hash",
+                "p_member_id"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_activate_workstation_member"
+        ]
+      }
+    },
+    "/rpc/admin_set_member_pin": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_pin": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_member_id",
+                "p_pin"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_set_member_pin"
+        ]
+      }
+    },
+    "/rpc/admin_list_shift_participants": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_list_shift_participants"
+        ]
+      }
+    },
+    "/rpc/admin_list_workstation_members": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_workstation_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_workstation_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_list_workstation_members"
+        ]
+      }
+    },
+    "/rpc/admin_resolve_operator_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_resolve_operator_session"
+        ]
+      }
+    },
+    "/rpc/admin_revoke_operator_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_revoke_operator_session"
+        ]
+      }
+    },
+    "/rpc/admin_create_workstation_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_business_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_created_by_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_expires_at": {
+                  "format": "timestamp with time zone",
+                  "type": "string"
+                },
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_business_id",
+                "p_created_by_member_id",
+                "p_token_hash",
+                "p_expires_at"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_create_workstation_session"
+        ]
+      }
+    },
+    "/rpc/admin_issue_operator_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_expires_at": {
+                  "format": "timestamp with time zone",
+                  "type": "string"
+                },
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_workstation_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_workstation_token_hash",
+                "p_member_id",
+                "p_token_hash",
+                "p_expires_at"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_issue_operator_session"
+        ]
+      }
+    },
+    "/rpc/admin_provision_member": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_avatar": {
+                  "format": "jsonb"
+                },
+                "p_business_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_display_name": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_first_name": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_internal_notes": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_last_name": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_pin": {
+                  "format": "text",
+                  "type": "string"
+                },
+                "p_role": {
+                  "format": "public.member_role",
+                  "type": "string"
+                },
+                "p_user_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_username": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_business_id",
+                "p_user_id",
+                "p_first_name",
+                "p_last_name",
+                "p_display_name",
+                "p_avatar",
+                "p_username",
+                "p_role",
+                "p_internal_notes",
+                "p_pin"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_provision_member"
+        ]
+      }
+    },
+    "/rpc/admin_resolve_open_shift": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_resolve_open_shift"
+        ]
+      }
+    },
+    "/rpc/admin_start_participation": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_start_participation"
+        ]
+      }
+    },
+    "/rpc/admin_leave_shift": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_leave_shift"
+        ]
+      }
+    },
+    "/rpc/admin_find_member_by_username": {
+      "get": {
+        "parameters": [
+          {
+            "format": "uuid",
+            "in": "query",
+            "name": "p_business_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "format": "text",
+            "in": "query",
+            "name": "p_username",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_find_member_by_username"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_business_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_username": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_business_id",
+                "p_username"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_find_member_by_username"
+        ]
+      }
+    },
+    "/rpc/admin_verify_member_pin": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_member_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "p_pin": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_member_id",
+                "p_pin"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_verify_member_pin"
+        ]
+      }
+    },
+    "/rpc/admin_resolve_workstation_session": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_resolve_workstation_session"
+        ]
+      }
+    },
+    "/rpc/admin_open_shift": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "properties": {
+                "p_operator_token_hash": {
+                  "format": "text",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "p_operator_token_hash"
+              ],
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) admin_open_shift"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "profiles": {
+      "required": [
+        "id",
+        "first_name",
+        "last_name",
+        "display_name",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "first_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "last_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "display_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "avatar": {
+          "format": "jsonb"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "businesses": {
+      "required": [
+        "id",
+        "name",
+        "slug",
+        "status",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "name": {
+          "format": "text",
+          "type": "string"
+        },
+        "slug": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "suspended"
+          ],
+          "format": "public.business_status",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "business_members": {
+      "required": [
+        "id",
+        "business_id",
+        "user_id",
+        "username",
+        "role",
+        "status",
+        "internal_notes",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "default": "gen_random_uuid()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "business_id": {
+          "description": "Note:\nThis is a Foreign Key to `businesses.id`.<fk table='businesses' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `profiles.id`.<fk table='profiles' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "username": {
+          "format": "text",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "owner",
+            "employee"
+          ],
+          "format": "public.member_role",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "suspended"
+          ],
+          "format": "public.member_status",
+          "type": "string"
+        },
+        "internal_notes": {
+          "default": "",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "updated_at": {
+          "default": "now()",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "last_login_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "parameters": {
+    "preferParams": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "preferReturn": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferCount": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "count=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferPost": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none",
+        "resolution=ignore-duplicates",
+        "resolution=merge-duplicates"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "select": {
+      "name": "select",
+      "description": "Filtering Columns",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "on_conflict": {
+      "name": "on_conflict",
+      "description": "On Conflict",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "order": {
+      "name": "order",
+      "description": "Ordering",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "range": {
+      "name": "Range",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "rangeUnit": {
+      "name": "Range-Unit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "default": "items",
+      "in": "header",
+      "type": "string"
+    },
+    "offset": {
+      "name": "offset",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "limit": {
+      "name": "limit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.profiles": {
+      "name": "profiles",
+      "description": "profiles",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/profiles"
+      }
+    },
+    "rowFilter.profiles.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.first_name": {
+      "name": "first_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.last_name": {
+      "name": "last_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.display_name": {
+      "name": "display_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.avatar": {
+      "name": "avatar",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.profiles.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.businesses": {
+      "name": "businesses",
+      "description": "businesses",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/businesses"
+      }
+    },
+    "rowFilter.businesses.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.businesses.name": {
+      "name": "name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.businesses.slug": {
+      "name": "slug",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.businesses.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.businesses.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.businesses.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.business_members": {
+      "name": "business_members",
+      "description": "business_members",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/business_members"
+      }
+    },
+    "rowFilter.business_members.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.business_id": {
+      "name": "business_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.username": {
+      "name": "username",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.role": {
+      "name": "role",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.internal_notes": {
+      "name": "internal_notes",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.updated_at": {
+      "name": "updated_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.business_members.last_login_at": {
+      "name": "last_login_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    }
+  },
+  "externalDocs": {
+    "description": "PostgREST Documentation",
+    "url": "https://postgrest.org/en/v14/references/api.html"
+  }
+}
