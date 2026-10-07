@@ -1,0 +1,4 @@
+-- Phase 1 intentionally has no seed data.
+-- Create the first Owner through Supabase Auth Admin in Phase 2, then use
+-- the returned auth.users.id to provision profiles and business_members.
+-- Never invent auth user UUIDs, seed passwords, or store plaintext PINs.

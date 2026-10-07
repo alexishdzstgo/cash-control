@@ -67,8 +67,8 @@ export function AddParticipantModal({
 
   return (
     <ModalShell
-      title="Agregar participante"
-      description="Selecciona un usuario para agregarlo al turno como operador."
+      title="Agregar usuario al turno"
+      description="Selecciona un usuario registrado para incorporarlo como apoyo."
       onClose={onClose}
       maxWidth="md"
       footer={

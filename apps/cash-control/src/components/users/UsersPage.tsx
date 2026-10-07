@@ -2,24 +2,20 @@
 
 import {
   Eye,
+  KeyRound,
   Pencil,
   Plus,
   RotateCcw,
   ShieldCheck,
-  User,
-  UserCheck,
-  UserCog,
   UserMinus,
   UserX,
-  Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useBusinessFunds } from "@/components/business-funds/BusinessFundsContext";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ModalShell } from "@/components/shared/ModalShell";
-import { useNotification } from "@/components/shared/NotificationProvider";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import {
@@ -28,6 +24,8 @@ import {
 } from "@/lib/formValidationFocus";
 import {
   filterUsers,
+  generateTemporaryPassword,
+  getLastLoginLabel,
   getUserActivityEvents,
   getUserParticipation,
   getUserRoleLabel,
@@ -37,12 +35,14 @@ import {
   wouldRemoveLastActiveOwner,
 } from "@/lib/users";
 import type { UserAccount, UserFilter } from "@/types/user";
+import { useUsers } from "./UsersContext";
 
-type FormMode = "create" | "edit";
 type DetailTab = "info" | "access" | "activity" | "stats";
+type FormMode = "create" | "edit";
 type ConfirmState =
   | { type: "suspend"; user: UserAccount }
   | { type: "reactivate"; user: UserAccount }
+  | { type: "reset-password"; user: UserAccount }
   | null;
 
 type UserFormState = {
@@ -51,7 +51,7 @@ type UserFormState = {
   username: string;
   systemRole: UserAccount["systemRole"];
   status: UserAccount["status"];
-  pin: string;
+  temporaryPassword: string;
   internalNotes: string;
 };
 
@@ -65,7 +65,7 @@ const emptyForm: UserFormState = {
   username: "",
   systemRole: "employee",
   status: "active",
-  pin: "",
+  temporaryPassword: "",
   internalNotes: "",
 };
 
@@ -80,74 +80,31 @@ const filters: Array<{ value: UserFilter; label: string }> = [
 ];
 
 export function UsersPage() {
-  const { getUserAvatar, participants, authenticatedUser } = useMockSession();
-  const { showSuccess, showError } = useNotification();
+  const { getUserAvatar, participants } = useMockSession();
   const { operations } = useBusinessFunds();
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
-  const [usersError, setUsersError] = useState<string | null>(null);
-
+  const { users, createUser, updateUser, suspendUser, reactivateUser } =
+    useUsers();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<UserFilter>("all");
-
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(
+    users[0]?.id ?? null,
+  );
   const [detailTab, setDetailTab] = useState<DetailTab>("info");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>("create");
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [form, setForm] = useState<UserFormState>(emptyForm);
+  const [form, setForm] = useState<UserFormState>({
+    ...emptyForm,
+    temporaryPassword: generateTemporaryPassword(),
+  });
   const [formErrors, setFormErrors] = useState<UserFormErrors>({});
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
   const [domainMessage, setDomainMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUsers() {
-      try {
-        setIsLoadingUsers(true);
-        setUsersError(null);
-
-        const response = await fetch("/api/users");
-
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los usuarios.");
-        }
-
-        const data: { ok: boolean; users?: UserAccount[]; error?: string } =
-          await response.json();
-
-        if (!data.ok || !data.users) {
-          throw new Error(data.error ?? "Respuesta inválida del servidor.");
-        }
-
-        if (!cancelled) {
-          setUsers(data.users);
-          setSelectedUserId(data.users[0]?.id ?? null);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setUsersError(
-            error instanceof Error
-              ? error.message
-              : "No se pudieron cargar los usuarios.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingUsers(false);
-        }
-      }
-    }
-
-    void loadUsers();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [passwordResult, setPasswordResult] = useState<{
+    user: UserAccount;
+    password: string;
+  } | null>(null);
 
   const summary = useMemo(() => getUserSummary(users), [users]);
   const filteredUsers = useMemo(
@@ -164,7 +121,7 @@ export function UsersPage() {
     setFormMode("create");
     setFormStep(1);
     setEditingUserId(null);
-    setForm({ ...emptyForm, pin: "" });
+    setForm({ ...emptyForm, temporaryPassword: generateTemporaryPassword() });
     setFormErrors({});
     setIsFormOpen(true);
   }
@@ -181,144 +138,82 @@ export function UsersPage() {
       username: user.username,
       systemRole: user.systemRole,
       status: user.status,
-      pin: "", // Reset PIN field when editing
+      temporaryPassword: user.temporaryPassword,
       internalNotes: user.internalNotes,
     });
     setIsFormOpen(true);
   }
 
-
-  async function submitForm() {
+  function submitForm() {
     const errors = getUserFormErrors(form);
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       setDomainMessage(null);
-
       if (errors.firstName || errors.lastName) {
         setFormStep(1);
       }
-
       focusFirstInvalidField({
         errors,
         fieldOrder: userFormFieldOrder,
       });
-
       return;
     }
 
-    setFormErrors({});
-
-    // CREAR USUARIO REAL EN SUPABASE
-    if (formMode === "create") {
-      if (!/^\d{4}$/.test(form.pin)) {
-        setDomainMessage("El PIN debe contener exactamente 4 dígitos.");
-        return;
-      }
-
-      try {
-        setDomainMessage(null);
-
-        const response = await fetch("/api/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-            username: form.username.trim().toLowerCase(),
-            systemRole: form.systemRole,
-            status: form.status,
-            pin: form.pin,
-            internalNotes: form.internalNotes.trim(),
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || !result.ok) {
-          throw new Error(
-            result.error ?? "No se pudo crear el usuario.",
-          );
-        }
-
-        const usersResponse = await fetch("/api/users");
-        const usersResult = await usersResponse.json();
-
-        if (!usersResponse.ok || !usersResult.ok) {
-          throw new Error(
-            "El usuario se registró, pero no se pudo actualizar la lista.",
-          );
-        }
-
-        setUsers(usersResult.users);
-        setSelectedUserId(result.memberId);
-        setIsFormOpen(false);
-        setFormErrors({});
-        setDomainMessage(null);
-        return;
-      } catch (error) {
-        setDomainMessage(
-          error instanceof Error
-            ? error.message
-            : "No se pudo crear el usuario.",
-        );
-        return;
-      }
-    }
-
-    // EDITAR USUARIO
     if (formMode === "edit" && editingUserId) {
-      try {
-        setDomainMessage(null);
+      const nextUser: Partial<UserAccount> = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        displayName: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        username: form.username.trim(),
+        systemRole: form.systemRole,
+        status: form.status,
+        internalNotes: form.internalNotes.trim(),
+      };
 
-        const response = await fetch("/api/users/update", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            memberId: editingUserId,
-            firstName: form.firstName.trim(),
-            lastName: form.lastName.trim(),
-            username: form.username.trim(),
-            systemRole: form.systemRole,
-            status: form.status,
-            internalNotes: form.internalNotes.trim(),
-          }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || !result.ok) {
-          throw new Error(result.error ?? "No se pudo actualizar el usuario.");
-        }
-
-        // Refetch de la lista real desde el backend
-        const usersResponse = await fetch("/api/users");
-        const usersResult = await usersResponse.json();
-
-        if (!usersResponse.ok || !usersResult.ok) {
-          throw new Error(
-            "El usuario se actualizó, pero no se pudo recuperar la lista actualizada.",
-          );
-        }
-
-        setUsers(usersResult.users);
-        setSelectedUserId(editingUserId);
-        setIsFormOpen(false);
-        setFormErrors({});
-        setDomainMessage(null);
-        return;
-      } catch (error) {
+      if (wouldRemoveLastActiveOwner(users, editingUserId, nextUser)) {
         setDomainMessage(
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error de red al contactar con el servidor.",
+          "Debe existir al menos un dueño activo en el sistema.",
         );
         return;
       }
+
+      const result = updateUser(editingUserId, nextUser);
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
+      }
+      setSelectedUserId(editingUserId);
+    } else {
+      const id = form.username.trim().toLowerCase().replaceAll(".", "-");
+      const newUser: Omit<UserAccount, "pin"> = {
+        id: `${id}-${Date.now()}`,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        displayName: `${form.firstName.trim()} ${form.lastName.trim()}`,
+        username: form.username.trim(),
+        systemRole: form.systemRole,
+        status: form.status,
+        avatar: undefined,
+        createdAt: new Date().toISOString(),
+        lastLogin: "never",
+        temporaryPassword: form.temporaryPassword,
+        internalNotes: form.internalNotes.trim(),
+        authUserId: undefined,
+        profileId: undefined,
+        passwordRecoveryStatus: "not_configured",
+        sessionsReady: false,
+      };
+      const result = createUser(newUser);
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
+      }
+      setPasswordResult({
+        user: result.user,
+        password: result.user.temporaryPassword,
+      });
+      setSelectedUserId(newUser.id);
     }
 
     setIsFormOpen(false);
@@ -343,37 +238,18 @@ export function UsersPage() {
     }
 
     setFormErrors({});
-
     setFormStep(2);
   }
 
   function requestStatusChange(user: UserAccount) {
     setDomainMessage(null);
     if (user.status === "active") {
-      if (authenticatedUser?.systemRole !== "owner") {
-        showError("Solo los dueños pueden suspender usuarios.");
-        return;
-      }
-
-      if (user.id === authenticatedUser?.userId) {
-        showError("No puedes suspender tu propia cuenta.");
-        return;
-      }
-
-      const activeParticipation = participants.find(
-        (p) => p.userId === user.id && p.status === "active"
-      );
-      if (activeParticipation) {
-        showError("No se puede suspender a un usuario con participación activa.");
-        return;
-      }
-
       if (
         wouldRemoveLastActiveOwner(users, user.id, {
           status: "suspended",
         })
       ) {
-        showError(
+        setDomainMessage(
           "Debe existir al menos un dueño activo en el sistema.",
         );
         return;
@@ -381,64 +257,32 @@ export function UsersPage() {
       setConfirmState({ type: "suspend", user });
       return;
     }
-
-    if (authenticatedUser?.systemRole !== "owner") {
-      showError("Solo los dueños pueden reactivar usuarios.");
-      return;
-    }
     setConfirmState({ type: "reactivate", user });
   }
 
-  async function confirmAction() {
+  function confirmAction() {
     if (!confirmState) return;
 
-    const nextStatus = confirmState.type === "suspend" ? "suspended" : "active";
-    const userToUpdate = confirmState.user;
-
-    try {
-      setDomainMessage(null);
-
-      const response = await fetch("/api/users/update", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          memberId: userToUpdate.id,
-          firstName: userToUpdate.firstName,
-          lastName: userToUpdate.lastName,
-          username: userToUpdate.username,
-          systemRole: userToUpdate.systemRole,
-          status: nextStatus,
-          internalNotes: userToUpdate.internalNotes,
-        }),
+    if (confirmState.type === "reset-password") {
+      const password = generateTemporaryPassword();
+      const result = updateUser(confirmState.user.id, {
+        temporaryPassword: password,
       });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.ok) {
-        throw new Error(
-          result.error ?? "No se pudo actualizar el estado del usuario.",
-        );
+      if (!result.success) {
+        setDomainMessage(result.error);
+        return;
       }
-
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === userToUpdate.id
-            ? { ...user, status: nextStatus }
-            : user,
-        ),
-      );
-      showSuccess(`Usuario ${nextStatus === "active" ? "reactivado" : "suspendido"} correctamente.`);
-    } catch (error) {
-      showError(
-        error instanceof Error
-          ? error.message
-          : "Ocurrió un error al contactar con el servidor.",
-      );
-    } finally {
+      setPasswordResult({ user: confirmState.user, password });
       setConfirmState(null);
+      return;
     }
+
+    const result =
+      confirmState.type === "suspend"
+        ? suspendUser(confirmState.user.id)
+        : reactivateUser(confirmState.user.id);
+    if (!result.success) setDomainMessage(result.error);
+    setConfirmState(null);
   }
 
   return (
@@ -459,17 +303,6 @@ export function UsersPage() {
       />
 
       <div className="space-y-6">
-        {isLoadingUsers && (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
-            Cargando usuarios...
-          </div>
-        )}
-
-        {usersError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-sm">
-            {usersError}
-          </div>
-        )}
         <UserSummaryCards summary={summary} />
 
         {domainMessage && (
@@ -492,10 +325,11 @@ export function UsersPage() {
                   key={item.value}
                   type="button"
                   onClick={() => setFilter(item.value)}
-                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${filter === item.value
-                    ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
+                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    filter === item.value
+                      ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
                 >
                   {item.label}
                 </button>
@@ -515,6 +349,9 @@ export function UsersPage() {
             }}
             onEdit={openEditForm}
             onStatusChange={requestStatusChange}
+            onResetPassword={(user) =>
+              setConfirmState({ type: "reset-password", user })
+            }
           />
 
           <UserDetails
@@ -525,6 +362,9 @@ export function UsersPage() {
             getUserAvatar={getUserAvatar}
             onEdit={openEditForm}
             onStatusChange={requestStatusChange}
+            onResetPassword={(user) =>
+              setConfirmState({ type: "reset-password", user })
+            }
             operations={operations}
           />
         </div>
@@ -564,6 +404,14 @@ export function UsersPage() {
         onConfirm={confirmAction}
         onCancel={() => setConfirmState(null)}
       />
+
+      {passwordResult && (
+        <PasswordResultDialog
+          user={passwordResult.user}
+          password={passwordResult.password}
+          onClose={() => setPasswordResult(null)}
+        />
+      )}
     </div>
   );
 }
@@ -574,32 +422,23 @@ function UserSummaryCards({
   summary: ReturnType<typeof getUserSummary>;
 }) {
   const cards = [
-    { label: "Activos", value: summary.active, icon: UserCheck },
-    { label: "Registrados", value: summary.total, icon: Users },
-    { label: "Dueños", value: summary.owners, icon: UserCog },
-    { label: "Empleados", value: summary.employees, icon: User },
-    { label: "Suspendidos", value: summary.suspended, icon: UserX },
+    { label: "Usuarios registrados", value: summary.total },
+    { label: "Dueños", value: summary.owners },
+    { label: "Empleados", value: summary.employees },
+    { label: "Suspendidos", value: summary.suspended },
   ];
 
   return (
-    <section className="grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
-      {cards.map((card) => {
-        const Icon = card.icon;
-        return (
-          <div
-            key={card.label}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md"
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-600">{card.label}</p>
-              <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600 shadow-sm">
-                <Icon className="h-5 w-5" strokeWidth={2.5} />
-              </div>
-            </div>
-            <p className="mt-4 text-3xl font-bold text-slate-950">{card.value}</p>
-          </div>
-        );
-      })}
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+        >
+          <p className="text-sm font-medium text-slate-500">{card.label}</p>
+          <p className="mt-2 text-3xl font-bold text-slate-950">{card.value}</p>
+        </div>
+      ))}
     </section>
   );
 }
@@ -611,6 +450,7 @@ function UsersList({
   onSelect,
   onEdit,
   onStatusChange,
+  onResetPassword,
 }: {
   users: UserAccount[];
   selectedUserId: string | null;
@@ -618,6 +458,7 @@ function UsersList({
   onSelect: (user: UserAccount) => void;
   onEdit: (user: UserAccount) => void;
   onStatusChange: (user: UserAccount) => void;
+  onResetPassword: (user: UserAccount) => void;
 }) {
   if (users.length === 0) {
     return (
@@ -646,9 +487,9 @@ function UsersList({
             {users.map((user) => (
               <tr
                 key={user.id}
-                onClick={() => onSelect(user)}
-                className={`transition-colors cursor-pointer ${selectedUserId === user.id ? "bg-blue-50/50" : "bg-white hover:bg-slate-50"
-                  }`}
+                className={
+                  selectedUserId === user.id ? "bg-blue-50/50" : "bg-white"
+                }
               >
                 <td className="px-4 py-4">
                   <UserAvatar
@@ -669,13 +510,15 @@ function UsersList({
                   <StatusBadge status={user.status} />
                 </td>
                 <td className="px-4 py-4 text-slate-600">
-                  {formatMexicanLastLogin((user as any).lastLogin)}
+                  {getLastLoginLabel(user.lastLogin)}
                 </td>
                 <td className="px-4 py-4">
                   <ActionButtons
                     user={user}
+                    onView={() => onSelect(user)}
                     onEdit={() => onEdit(user)}
                     onStatusChange={() => onStatusChange(user)}
+                    onResetPassword={() => onResetPassword(user)}
                   />
                 </td>
               </tr>
@@ -686,12 +529,7 @@ function UsersList({
 
       <div className="divide-y divide-slate-100 lg:hidden">
         {users.map((user) => (
-          <div
-            key={user.id}
-            className={`p-4 transition-colors cursor-pointer ${selectedUserId === user.id ? "bg-blue-50/50" : "bg-white hover:bg-slate-50"
-              }`}
-            onClick={() => onSelect(user)}
-          >
+          <div key={user.id} className="p-4">
             <div className="flex items-start gap-3">
               <UserAvatar
                 name={user.displayName}
@@ -713,8 +551,10 @@ function UsersList({
             <div className="mt-3">
               <ActionButtons
                 user={user}
+                onView={() => onSelect(user)}
                 onEdit={() => onEdit(user)}
                 onStatusChange={() => onStatusChange(user)}
+                onResetPassword={() => onResetPassword(user)}
               />
             </div>
           </div>
@@ -732,6 +572,7 @@ function UserDetails({
   getUserAvatar,
   onEdit,
   onStatusChange,
+  onResetPassword,
   operations,
 }: {
   user: UserAccount | null;
@@ -741,6 +582,7 @@ function UserDetails({
   getUserAvatar: ReturnType<typeof useMockSession>["getUserAvatar"];
   onEdit: (user: UserAccount) => void;
   onStatusChange: (user: UserAccount) => void;
+  onResetPassword: (user: UserAccount) => void;
   operations: ReturnType<typeof useBusinessFunds>["operations"];
 }) {
   if (!user) {
@@ -800,6 +642,14 @@ function UserDetails({
             )}
             {user.status === "active" ? "Suspender" : "Reactivar"}
           </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => onResetPassword(user)}
+          >
+            <KeyRound className="h-4 w-4" />
+            Restablecer
+          </button>
         </div>
       </div>
 
@@ -814,10 +664,11 @@ function UserDetails({
             key={item.value}
             type="button"
             onClick={() => onTabChange(item.value as DetailTab)}
-            className={`border-b-2 px-3 py-3 text-sm font-semibold transition ${tab === item.value
-              ? "border-[#2563EB] text-[#2563EB]"
-              : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+            className={`border-b-2 px-3 py-3 text-sm font-semibold transition ${
+              tab === item.value
+                ? "border-[#2563EB] text-[#2563EB]"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
           >
             {item.label}
           </button>
@@ -846,13 +697,22 @@ function UserDetails({
         {tab === "access" && (
           <div className="space-y-4">
             <InfoRow label="Contraseña" value="••••••••" />
+            <InfoRow label="PIN de acceso" value={user.pin} />
             <InfoRow label="Último cambio" value="Pendiente" />
             <InfoRow
               label="Último acceso"
-              value={formatMexicanLastLogin((user as any).lastLogin)}
+              value={getLastLoginLabel(user.lastLogin)}
             />
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => onResetPassword(user)}
+            >
+              <KeyRound className="h-4 w-4" />
+              Restablecer contraseña
+            </button>
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-              Preparado para PIN, 2FA, sesiones, recuperación de contraseña e
+              Preparado para 2FA, sesiones, recuperación de contraseña e
               historial de acceso cuando se conecte Supabase Auth.
             </div>
           </div>
@@ -1018,18 +878,12 @@ function UserFormPanel({
             validationField="username"
           />
           <TextField
-            id="user-pin"
-            label="PIN de acceso (4 dígitos)"
-            value={form.pin}
-            onChange={(pin) => onChange({ pin })}
+            id="user-temporary-password"
+            label="Contrasena temporal"
+            value={form.temporaryPassword}
+            onChange={(temporaryPassword) => onChange({ temporaryPassword })}
             disabled={mode === "edit"}
           />
-
-          {mode === "create" && (
-            <p className="text-xs text-slate-500">
-              El usuario utilizará este PIN para ingresar a Cash Control.
-            </p>
-          )}
           <SelectField
             label="Estado"
             value={form.status}
@@ -1061,17 +915,27 @@ function UserFormPanel({
 }
 function ActionButtons({
   user,
+  onView,
   onEdit,
   onStatusChange,
+  onResetPassword,
 }: {
   user: UserAccount;
+  onView: () => void;
   onEdit: () => void;
   onStatusChange: () => void;
+  onResetPassword: () => void;
 }) {
   return (
     <div className="flex flex-wrap justify-end gap-2">
+      <IconButton label="Ver" onClick={onView}>
+        <Eye className="h-4 w-4" />
+      </IconButton>
       <IconButton label="Editar" onClick={onEdit}>
         <Pencil className="h-4 w-4" />
+      </IconButton>
+      <IconButton label="Restablecer contraseña" onClick={onResetPassword}>
+        <KeyRound className="h-4 w-4" />
       </IconButton>
       <IconButton
         label={user.status === "active" ? "Suspender" : "Reactivar"}
@@ -1088,29 +952,14 @@ function ActionButtons({
   );
 }
 
-function formatMexicanLastLogin(lastLoginValue: unknown): string {
-  if (!lastLoginValue || lastLoginValue === "never") return "Nunca";
-
-  const date = new Date(lastLoginValue as string);
-  if (isNaN(date.getTime())) return "Nunca";
-
-  return date.toLocaleString("es-MX", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
 function RoleBadge({ role }: { role: UserAccount["systemRole"] }) {
   const isOwner = role === "owner";
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isOwner ? "bg-[#EFF6FF] text-[#2563EB]" : "bg-slate-100 text-slate-700"
-        }`}
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isOwner ? "bg-[#EFF6FF] text-[#2563EB]" : "bg-slate-100 text-slate-700"
+      }`}
     >
       {isOwner && <ShieldCheck className="h-3.5 w-3.5" />}
       {getUserRoleLabel(role)}
@@ -1121,10 +970,11 @@ function RoleBadge({ role }: { role: UserAccount["systemRole"] }) {
 function StatusBadge({ status }: { status: UserAccount["status"] }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${status === "active"
-        ? "bg-emerald-50 text-emerald-700"
-        : "bg-slate-100 text-slate-600"
-        }`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+        status === "active"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-600"
+      }`}
     >
       {getUserStatusLabel(status)}
     </span>
@@ -1148,10 +998,11 @@ function IconButton({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className={`rounded-lg border p-2 transition ${danger
-        ? "border-red-200 text-red-600 hover:bg-red-50"
-        : "border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-        }`}
+      className={`rounded-lg border p-2 transition ${
+        danger
+          ? "border-red-200 text-red-600 hover:bg-red-50"
+          : "border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+      }`}
     >
       {children}
     </button>
@@ -1272,17 +1123,55 @@ function StepButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${active
-        ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
-        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-        }`}
+      className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+        active
+          ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+      }`}
     >
       {children}
     </button>
   );
 }
 
+function PasswordResultDialog({
+  user,
+  password,
+  onClose,
+}: {
+  user: UserAccount;
+  password: string;
+  onClose: () => void;
+}) {
+  if (!password) return null;
 
+  return (
+    <ModalShell
+      title="Contrasena temporal generada"
+      description="Copia esta contrasena y entregala al usuario."
+      onClose={onClose}
+      maxWidth="sm"
+      zIndex="high"
+      footer={
+        <div className="flex justify-end">
+          <button type="button" className="btn-primary" onClick={onClose}>
+            Entendido
+          </button>
+        </div>
+      }
+    >
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-sm font-medium text-slate-600">{user.displayName}</p>
+        <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-lg font-bold text-slate-950">
+          {password}
+        </p>
+        <div className="mt-3">
+          <InfoRow label="PIN de acceso" value={user.pin} />
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
 
 function getUserFormErrors(form: UserFormState): UserFormErrors {
   return {
@@ -1300,12 +1189,16 @@ function getUserFormErrors(form: UserFormState): UserFormErrors {
 
 function getConfirmTitle(confirmState: ConfirmState): string {
   if (!confirmState) return "";
+  if (confirmState.type === "reset-password") return "Restablecer contraseña";
   if (confirmState.type === "suspend") return "Suspender usuario";
   return "Reactivar usuario";
 }
 
 function getConfirmDescription(confirmState: ConfirmState): string {
   if (!confirmState) return "";
+  if (confirmState.type === "reset-password") {
+    return `Se generará una contraseña temporal mock para ${confirmState.user.displayName}.`;
+  }
   if (confirmState.type === "suspend") {
     return `La cuenta de ${confirmState.user.displayName} quedará suspendida. Su historial no se eliminará.`;
   }
@@ -1314,6 +1207,7 @@ function getConfirmDescription(confirmState: ConfirmState): string {
 
 function getConfirmLabel(confirmState: ConfirmState): string {
   if (!confirmState) return "Confirmar";
+  if (confirmState.type === "reset-password") return "Restablecer";
   if (confirmState.type === "suspend") return "Suspender";
   return "Reactivar";
 }

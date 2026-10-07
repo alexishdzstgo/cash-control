@@ -26,6 +26,7 @@ export type UserAccount = {
   createdAt: string;
   lastLogin: UserLastLoginLabel;
   temporaryPassword: string;
+  pin: string;
   internalNotes: string;
   authUserId?: string;
   profileId?: string;

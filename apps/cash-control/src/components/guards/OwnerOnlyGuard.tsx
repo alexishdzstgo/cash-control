@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { type ReactNode, useEffect } from "react";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
 
 type OwnerOnlyGuardProps = {
   children: ReactNode;
@@ -10,17 +10,16 @@ type OwnerOnlyGuardProps = {
 
 export function OwnerOnlyGuard({ children }: OwnerOnlyGuardProps) {
   const router = useRouter();
-  const { authenticatedUser } = useMockSession();
+  const { state, operator } = useRealAppSession();
+  const isOwner = state === "ACTIVE" && operator?.identity.role === "owner";
 
   useEffect(() => {
-    if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
+    if (state === "ACTIVE" && operator && operator.identity.role !== "owner") {
       router.replace("/");
     }
-  }, [authenticatedUser, router]);
+  }, [operator, router, state]);
 
-  if (!authenticatedUser || authenticatedUser.systemRole !== "owner") {
-    return null;
-  }
+  if (!isOwner) return null;
 
   return <>{children}</>;
 }

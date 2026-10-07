@@ -7,7 +7,7 @@ import type { RegisteredUser } from "./types";
 import { UserPinStep } from "./UserPinStep";
 import { UserSelectionStep } from "./UserSelectionStep";
 
-type ModalStep = "selection" | "pin"; 
+type ModalStep = "selection" | "pin";
 
 interface WorkstationAccessModalProps {
   open: boolean;
@@ -129,13 +129,14 @@ export function WorkstationAccessModal({
         />
       ) : (
         selectedUser && (
-         <UserPinStep
-  selectedUserId={selectedUser.userId}
-  selectedUserName={selectedUser.userName}
-  selectedUserAvatar={getUserAvatar(selectedUser.userId)}
-  onBack={handleBack}
-  onConfirm={handleConfirm}
-/>
+          <UserPinStep
+            key={selectedUser.userId}
+            selectedUserId={selectedUser.userId}
+            selectedUserName={selectedUser.userName}
+            selectedUserAvatar={getUserAvatar(selectedUser.userId)}
+            onBack={handleBack}
+            onConfirm={handleConfirm}
+          />
         )
       )}
     </ModalShell>

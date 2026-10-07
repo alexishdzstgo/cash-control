@@ -4,25 +4,19 @@ import { UserAvatar } from "@/components/shared/UserAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
-import { useRouter } from "next/navigation";
 import type { ShiftViewModel } from "@/types/shift";
 
 interface ActiveShiftCardProps {
   shift: ShiftViewModel;
   onViewDetails: () => void;
   onManageParticipants: () => void;
-  onTransferResponsibility: () => void;
-  canTransferResponsibility: boolean;
 }
 
 export function ActiveShiftCard({
   shift,
   onViewDetails,
   onManageParticipants,
-  onTransferResponsibility,
-  canTransferResponsibility,
 }: ActiveShiftCardProps) {
-  const router = useRouter();
   const responsible = shift.participants.find(
     (p) => p.userId === shift.responsibleUserId,
   );
@@ -111,23 +105,12 @@ export function ActiveShiftCard({
         <Button variant="outline" onClick={onManageParticipants}>
           Administrar participantes
         </Button>
-        <Button
-          variant="outline"
-          onClick={onTransferResponsibility}
-          disabled={!canTransferResponsibility}
-        >
-          Transferir responsabilidad
-        </Button>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-        <div className="text-sm text-slate-500">
-          <p>Para cerrar el turno, debes procesar el corte de caja general.</p>
-        </div>
-        <Button variant="default" className="shrink-0" onClick={() => router.push("/cash-closing")}>
-          Ir a corte de caja
-        </Button>
-      </div>
+      <p className="mt-4 text-xs text-slate-500">
+        El turno y sus participantes se consultan desde la sesión real y el
+        backend persistido.
+      </p>
     </div>
   );
 }

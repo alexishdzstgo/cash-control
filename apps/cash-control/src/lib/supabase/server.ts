@@ -1,17 +1,24 @@
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { requirePublicSupabaseConfig } from "./config";
 
-if (!supabaseUrl) {
-  throw new Error("Falta NEXT_PUBLIC_SUPABASE_URL");
+export async function createClient() {
+  const { url, key } = requirePublicSupabaseConfig();
+  const cookieStore = await cookies();
+  return createServerClient(url, key, {
+    cookies: {
+      getAll: () => cookieStore.getAll(),
+      setAll(cookiesToSet) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Server Components cannot write cookies. The proxy refreshes them.
+        }
+      },
+    },
+  });
 }
-
-if (!supabaseSecretKey) {
-  throw new Error("Falta SUPABASE_SECRET_KEY");
-}
-
-export const supabaseServer = createClient(
-  supabaseUrl,
-  supabaseSecretKey,
-);

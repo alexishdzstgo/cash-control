@@ -3,7 +3,7 @@
 import {
   ChevronDown,
   Circle,
-  LogOut,
+  Lock,
   ShieldCheck,
   UserCheck,
   UserPlus,
@@ -13,17 +13,19 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
 import { UserAvatar } from "@/components/shared/UserAvatar";
 import { EndParticipationModal } from "./EndParticipationModal";
 import { TransferResponsibilityModal } from "./TransferResponsibilityModal";
-import { AssumeResponsibilityModal } from "./AssumeResponsibilityModal";
 import { useResponsibilityTransfer } from "./useResponsibilityTransfer";
-import { useAssumeResponsibility } from "./useAssumeResponsibility";
-import { useShift } from "@/components/shifts/ShiftContext";
 
 export function UserParticipationMenu() {
   const router = useRouter();
-  const { isShiftOpen } = useShift();
+  const {
+    state: realSessionState,
+    operator: realOperator,
+    lock: lockRealSession,
+  } = useRealAppSession();
   const {
     authenticatedUser,
     getUserAvatar,
@@ -36,7 +38,6 @@ export function UserParticipationMenu() {
     addActivityEvent,
     canEndOwnParticipation,
     isCurrentUserResponsible,
-    refreshSessionData,
   } = useMockSession();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -83,37 +84,19 @@ export function UserParticipationMenu() {
     };
   }, [isOpen]);
 
-
-
-
-
-  // We no longer need a dedicated realParticipants state. 
-  // We just rely on MockSessionContext which is the single source of truth.
-  const activeParticipants = participants.filter((p) => p.status === "active");
-
+  // Derived state - handle null user safely
   const activeParticipation = authenticatedUser
-    ? activeParticipants.find(
-      (p) => p.userId === authenticatedUser.userId
-    )
+    ? participants.find(
+        (p) => p.userId === authenticatedUser.userId && p.status === "active",
+      )
     : undefined;
+  const hasRealSession = realSessionState === "ACTIVE" && realOperator !== null;
+  const displayName =
+    realOperator?.identity.displayName ?? authenticatedUser?.userName;
+  const displayUsername = realOperator?.identity.username;
 
-  const {
-    showAssumeModal,
-    assumePin,
-    assumeError,
-    isAssuming,
-    openAssume,
-    closeAssume,
-    handlePinChange: handleAssumePinChange,
-    handleAssumeConfirm,
-  } = useAssumeResponsibility(authenticatedUser?.userId || "", refreshSessionData);
-
-  const hasAnyResponsible = participants.some((p) => p.participationType === "responsible" && p.status === "active");
-  const noOneIsResponsible = !hasAnyResponsible;
-
-  const isResponsible =
-    activeParticipation?.participationType === "responsible";
-
+  const isResponsible = isCurrentUserResponsible();
+  const activeParticipants = getActiveParticipants();
   const otherActiveParticipants = activeParticipants.filter(
     (p) => p.userId !== authenticatedUser?.userId,
   );
@@ -123,12 +106,14 @@ export function UserParticipationMenu() {
     : null;
 
   const getStatusText = () => {
+    if (hasRealSession) return "Operador actual";
     if (!activeParticipation) return "Sin participación";
     if (isResponsible) return "Responsable del turno";
     return "Participación activa";
   };
 
   const getStatusIcon = () => {
+    if (hasRealSession) return UserCheck;
     if (!activeParticipation) return UserX;
     if (isResponsible) return ShieldCheck;
     return UserCheck;
@@ -137,65 +122,28 @@ export function UserParticipationMenu() {
   const StatusIcon = getStatusIcon();
   const currentUserAvatar = getUserAvatar(authenticatedUser?.userId ?? "");
 
-  const [isActivating, setIsActivating] = useState(false);
-
-  const handleStartParticipation = useCallback(async () => {
-    if (!authenticatedUser || isActivating) return;
-
-    setIsActivating(true);
-
-    try {
-      const response = await fetch("/api/workstation/activate-participation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        alert(
-          data.error ??
-          "No se pudo activar la participación.",
-        );
-        return;
-      }
-
-      updateAuthenticatedUser({
-        hasActiveParticipation: true,
-      });
-
-      await refreshSessionData();
+  const handleStartParticipation = useCallback(() => {
+    if (authenticatedUser) {
+      startParticipation(authenticatedUser.userId);
+      updateAuthenticatedUser({ hasActiveParticipation: true });
       setIsOpen(false);
-
-    } catch (error) {
-      console.error(
-        "Error activando participación:",
-        error,
-      );
-
-      alert("No se pudo activar la participación.");
-    } finally {
-      setIsActivating(false);
     }
-  }, [
-    authenticatedUser,
-    isActivating,
-    updateAuthenticatedUser,
-    refreshSessionData,
-  ]);
+  }, [authenticatedUser, startParticipation, updateAuthenticatedUser]);
 
   const handleLockSession = useCallback(async () => {
     setIsOpen(false);
     setShowEndModal(false);
     closeTransfer();
-    try {
-      await fetch("/api/workstation/lock-session", { method: "POST" });
-    } catch { }
+
+    if (hasRealSession) {
+      const ok = await lockRealSession();
+      if (ok) router.replace("/workstation");
+      return;
+    }
+
     lockSession();
     router.push("/workstation");
-  }, [lockSession, router, closeTransfer]);
+  }, [closeTransfer, hasRealSession, lockRealSession, lockSession, router]);
 
   const handleProfileNavigation = useCallback(
     (href: string) => {
@@ -204,53 +152,34 @@ export function UserParticipationMenu() {
     },
     [router],
   );
-  ////////////
+
   const handleEndParticipation = useCallback(async () => {
     if (!authenticatedUser) return;
 
     setIsEnding(true);
+    const result = endParticipation(authenticatedUser.userId);
 
-    try {
-      const response = await fetch("/api/workstation/end-participation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.ok) {
-        alert(
-          result.error ?? "No se pudo finalizar la participación.",
-        );
-        return;
-      }
-
-      await refreshSessionData();
-
+    if (result.success) {
       setShowEndModal(false);
-
       addActivityEvent(
         `${authenticatedUser.userName} finalizó su participación`,
       );
-
       setIsOpen(false);
-
-    } catch (error) {
-      console.error("Error finalizando participación:", error);
-
-      alert("No se pudo finalizar la participación.");
-    } finally {
-      setIsEnding(false);
+    } else if (result.isResponsible) {
+      setShowEndModal(false);
+      if (result.isOnlyParticipant) {
+        alert(
+          "No puedes finalizar tu participación siendo el único participante activo. Debes iniciar a otro participante o cerrar la estación.",
+        );
+      } else {
+        alert(
+          "No puedes finalizar tu participación mientras seas responsable. Primero debes transferir la responsabilidad a otro participante activo.",
+        );
+      }
     }
-  }, [
-    authenticatedUser,
-    addActivityEvent,
-    refreshSessionData,
-  ]);
 
-  //////////////
+    setIsEnding(false);
+  }, [authenticatedUser, endParticipation, addActivityEvent]);
 
   const handleTransferClick = useCallback(
     (userId: string) => {
@@ -292,8 +221,9 @@ export function UserParticipationMenu() {
     return "text-emerald-600";
   };
 
-  // Only render if authenticated
-  if (!authenticatedUser) {
+  // Real session is the authority for identity. MockSession remains limited to
+  // pilot participation controls and is intentionally not synchronized here.
+  if (!displayName) {
     return null;
   }
 
@@ -302,13 +232,14 @@ export function UserParticipationMenu() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 ${activeParticipation ? "border-emerald-200" : "border-slate-200"
-          }`}
+        className={`inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 ${
+          activeParticipation ? "border-emerald-200" : "border-slate-200"
+        }`}
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
         <UserAvatar
-          name={authenticatedUser.userName}
+          name={displayName}
           avatar={currentUserAvatar}
           size="sm"
           className={
@@ -319,15 +250,21 @@ export function UserParticipationMenu() {
         />
 
         <div
-          className={`flex h-7 w-7 items-center justify-center rounded-full ${activeParticipation
-            ? "bg-emerald-100 text-emerald-700"
-            : "bg-brand-primary-soft text-brand-primary"
-            }`}
+          className={`flex h-7 w-7 items-center justify-center rounded-full ${
+            activeParticipation
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-brand-primary-soft text-brand-primary"
+          }`}
         >
           <UserRound className="h-4 w-4" />
         </div>
 
-        <span className="hidden md:inline">{authenticatedUser.userName}</span>
+        <span className="hidden md:inline">{displayName}</span>
+        {displayUsername && (
+          <span className="hidden xl:inline text-xs text-slate-500">
+            @{displayUsername}
+          </span>
+        )}
         {activeParticipation && (
           <span className="hidden lg:inline-flex items-center gap-1.5">
             <Circle className="h-2 w-2 fill-emerald-500 text-emerald-500" />
@@ -356,14 +293,19 @@ export function UserParticipationMenu() {
           <div className="border-b border-slate-100 px-4 py-3">
             <div className="flex items-center gap-3">
               <UserAvatar
-                name={authenticatedUser.userName}
+                name={displayName}
                 avatar={currentUserAvatar}
                 size="md"
               />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 truncate">
-                  {authenticatedUser.userName}
+                  {displayName}
                 </p>
+                {displayUsername && (
+                  <p className="truncate text-xs text-slate-500">
+                    @{displayUsername} · Operador actual
+                  </p>
+                )}
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {activeParticipation ? (
                     <Circle
@@ -412,45 +354,22 @@ export function UserParticipationMenu() {
 
           {/* Actions */}
           <div className="p-2">
-            {!activeParticipation ? (
+            {!authenticatedUser ? (
+              <p className="px-3 py-2 text-xs text-slate-600">
+                La participación del piloto financiero permanece separada de la
+                sesión real.
+              </p>
+            ) : !activeParticipation ? (
               <button
                 type="button"
                 onClick={handleStartParticipation}
-                disabled={isActivating}
-                className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 transition hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed animate-pulse-subtle"
+                className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 transition hover:bg-emerald-100 animate-pulse-subtle"
                 role="menuitem"
               >
                 <UserCheck className="h-4 w-4 text-emerald-600" />
-                {isActivating ? "Activando..." : "Activar participación"}
+                Activar participación
               </button>
-            ) : noOneIsResponsible ? (
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    openAssume();
-                  }}
-                  className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-brand-primary bg-brand-primary-soft transition hover:bg-brand-primary/20"
-                  role="menuitem"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Asumir responsabilidad
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeTransfer();
-                    setShowEndModal(true);
-                  }}
-                  className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-                  role="menuitem"
-                >
-                  <UserX className="h-4 w-4 text-red-600" />
-                  Finalizar participación
-                </button>
-              </div>
-            ) : canEndOwnParticipation() || (isResponsible && !isShiftOpen()) ? (
+            ) : canEndOwnParticipation() ? (
               <button
                 type="button"
                 onClick={() => {
@@ -519,8 +438,8 @@ export function UserParticipationMenu() {
               className="w-full inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
               role="menuitem"
             >
-              <LogOut className="h-4 w-4" />
-              Cerrar sesión
+              <Lock className="h-4 w-4" />
+              Bloquear sesión
             </button>
           </div>
         </div>
@@ -544,18 +463,6 @@ export function UserParticipationMenu() {
           onClose={closeTransfer}
           onPinChange={handlePinChange}
           onConfirm={handleTransferConfirm}
-        />
-      )}
-
-      {showAssumeModal && (
-        <AssumeResponsibilityModal
-          isAssuming={isAssuming}
-          assumePin={assumePin}
-          assumeError={assumeError}
-          onClose={closeAssume}
-          onPinChange={handleAssumePinChange}
-          onConfirm={handleAssumeConfirm}
-          userName={authenticatedUser?.userName || ""}
         />
       )}
     </div>

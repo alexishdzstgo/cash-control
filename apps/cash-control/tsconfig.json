@@ -28,7 +28,10 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "src/lib/users/server/**/*.mjs",
+    "src/lib/workstation/server/**/*.mjs",
+    "scripts/bootstrap-first-owner.mjs"
   ],
   "exclude": ["node_modules"]
 }

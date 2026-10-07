@@ -1,21 +1,22 @@
 "use client";
 
-import { useMockSession } from "@/components/session/MockSessionContext";
+import { useRealAppSession } from "@/components/session/RealAppSessionProvider";
 
 function getFirstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
 }
 
 export function OwnerGreeting() {
-  const { authenticatedUser } = useMockSession();
+  const { operator } = useRealAppSession();
+
   const now = new Date();
   const hour = now.getHours();
 
   const greeting =
     hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
 
-  const firstName = authenticatedUser
-    ? getFirstName(authenticatedUser.userName)
+  const firstName = operator
+    ? getFirstName(operator.identity.displayName)
     : "";
 
   return (

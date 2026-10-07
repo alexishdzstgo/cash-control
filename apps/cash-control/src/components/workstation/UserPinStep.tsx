@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ModalSection } from "@/components/shared/ModalShell";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { useUsers } from "@/components/users/UsersContext";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
-
-//const VALID_PIN = "1234"; 
 
 interface UserPinStepProps {
   selectedUserId: string;
@@ -22,9 +21,9 @@ export function UserPinStep({
   onBack,
   onConfirm,
 }: UserPinStepProps) {
+  const { validatePin } = useUsers();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,56 +31,22 @@ export function UserPinStep({
   }, []);
 
   const handlePinChange = (value: string) => {
-    if (/^\d*$/.test(value) && value.length <= 4) {
+    if (/^\d*$/.test(value) && value.length <= 6) {
       setPin(value);
       if (error) setError(null);
     }
   };
 
-const handleConfirm = async () => {
-  if (pin.length !== 4 || verifying) return;
-
-  setVerifying(true);
-  setError(null);
-
-  try {
-    const response = await fetch("/api/workstation/verify-pin", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        memberId: selectedUserId,
-        pin,
-      }),
-    });
-
-    const data: {
-      ok: boolean;
-      valid?: boolean;
-      error?: string;
-    } = await response.json();
-
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error ?? "No se pudo verificar el PIN.");
-    }
-
-    if (!data.valid) {
+  const handleConfirm = () => {
+    if (!validatePin(selectedUserId, pin)) {
       setError("PIN incorrecto. Intenta de nuevo.");
       return;
     }
-
     onConfirm();
-  } catch (error) {
-    console.error("Error verificando PIN:", error);
-    setError("No se pudo verificar el PIN. Intenta de nuevo.");
-  } finally {
-    setVerifying(false);
-  }
-};
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && pin.length === 4) {
+    if (e.key === "Enter" && /^\d{4,6}$/.test(pin)) {
       handleConfirm();
     }
   };
@@ -107,13 +72,13 @@ const handleConfirm = async () => {
           htmlFor="user-pin"
           className="cc-form-label mb-2 block text-sm font-semibold"
         >
-          Ingresa tu PIN de 4 digitos
+          Ingresa tu PIN de 4 a 6 dígitos
         </label>
         <input
           id="user-pin"
           type="password"
           inputMode="numeric"
-          maxLength={4}
+          maxLength={6}
           ref={pinInputRef}
           value={pin}
           onChange={(e) => handlePinChange(e.target.value)}
@@ -144,19 +109,17 @@ const handleConfirm = async () => {
           No soy {selectedUserName}
         </button>
         <div className="flex gap-3">
-
           <button type="button" className="btn-secondary" onClick={onBack}>
             Volver
           </button>
           <button
-  type="button"
-  className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-  onClick={handleConfirm}
-  disabled={pin.length !== 4 || verifying}
->
-  {verifying ? "Verificando..." : "Confirmar"}
-</button>
-
+            type="button"
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleConfirm}
+            disabled={!/^\d{4,6}$/.test(pin)}
+          >
+            Confirmar
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import {
   createContext,
   type ReactNode,
@@ -11,22 +11,16 @@ import {
   useState,
 } from "react";
 
-type NotificationType = "success" | "error";
-type Notification = { id: number; type: NotificationType; message: string; visible: boolean };
+type Notification = { id: number; message: string; visible: boolean };
 const NotificationContext = createContext<{
   showSuccess: (message: string) => void;
-  showError: (message: string) => void;
 } | null>(null);
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notification, setNotification] = useState<Notification | null>(null);
   const sequence = useRef(0);
   const showSuccess = useCallback((message: string) => {
-    setNotification({ id: ++sequence.current, type: "success", message, visible: true });
-  }, []);
-
-  const showError = useCallback((message: string) => {
-    setNotification({ id: ++sequence.current, type: "error", message, visible: true });
+    setNotification({ id: ++sequence.current, message, visible: true });
   }, []);
   const notificationId = notification?.id;
   useEffect(() => {
@@ -53,7 +47,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [notificationId]);
   return (
-    <NotificationContext.Provider value={{ showSuccess, showError }}>
+    <NotificationContext.Provider value={{ showSuccess }}>
       {children}
       <div
         aria-live="polite"
@@ -62,22 +56,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       >
         {notification && (
           <div
-            className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm transition-all duration-300 motion-reduce:transition-none ${notification.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900 font-medium"
-                : "border-red-200 bg-red-50 text-red-900 font-medium"
-              } ${notification.visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
+            className={`flex items-start gap-3 rounded-xl border border-[#334155] bg-[#0F172A] px-4 py-3 text-sm text-white shadow-md transition-all duration-300 motion-reduce:transition-none ${notification.visible ? "translate-y-0 opacity-100" : "-translate-y-1 opacity-0"}`}
           >
-            {notification.type === "success" ? (
-              <CheckCircle2
-                aria-hidden="true"
-                className="h-5 w-5 shrink-0 text-emerald-600"
-              />
-            ) : (
-              <AlertCircle
-                aria-hidden="true"
-                className="h-5 w-5 shrink-0 text-red-600"
-              />
-            )}
+            <CheckCircle2
+              aria-hidden="true"
+              className="h-5 w-5 shrink-0 text-emerald-600"
+            />
             <p>{notification.message}</p>
           </div>
         )}
