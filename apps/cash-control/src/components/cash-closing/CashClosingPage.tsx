@@ -248,6 +248,7 @@ export function CashClosingPage() {
         result.error ??
         "No se pudo cerrar el turno. Revisa los datos e inténtalo de nuevo.",
       );
+      setState((s) => ({ ...s, isConfirming: false }));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -256,6 +257,7 @@ export function CashClosingPage() {
       setCloseError(
         reconciled.error ?? "No se pudieron reconciliar los saldos del corte.",
       );
+      setState((s) => ({ ...s, isConfirming: false }));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }

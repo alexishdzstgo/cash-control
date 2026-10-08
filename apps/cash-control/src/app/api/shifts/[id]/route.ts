@@ -16,11 +16,11 @@ export async function PATCH(
                 status: "closed",
                 closed_at: closing.closedAt || new Date().toISOString(),
                 closing_status: closing.status,
-                closing_expected_cash: typeof closing.expectedCashPhysical === 'number' ? closing.expectedCashPhysical : null,
-                closing_counted_cash: typeof closing.countedCashPhysical === 'number' ? closing.countedCashPhysical : null,
-                closing_expected_reserved: typeof closing.expectedReservedCash === 'number' ? closing.expectedReservedCash : null,
-                closing_counted_reserved: typeof closing.countedReservedCash === 'number' ? closing.countedReservedCash : null,
-                closing_total_difference: typeof closing.totalDifference === 'number' ? closing.totalDifference : null,
+                closing_expected_cash: typeof closing.expectedCashPhysical === 'number' ? Math.round(closing.expectedCashPhysical * 100) : null,
+                closing_counted_cash: typeof closing.countedCashPhysical === 'number' ? Math.round(closing.countedCashPhysical * 100) : null,
+                closing_expected_reserved: typeof closing.expectedReservedCash === 'number' ? Math.round(closing.expectedReservedCash * 100) : null,
+                closing_counted_reserved: typeof closing.countedReservedCash === 'number' ? Math.round(closing.countedReservedCash * 100) : null,
+                closing_total_difference: typeof closing.totalDifference === 'number' ? Math.round(closing.totalDifference * 100) : null,
                 closing_bank_balances: closing.banks || [],
                 closing_observations: closing.observations || null
             };
