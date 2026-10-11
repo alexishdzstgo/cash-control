@@ -3,7 +3,6 @@
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { CurrentStatusCard } from "@/components/dashboard/CurrentStatusCard";
 import { AuditSummary } from "./AuditSummary";
-import { EmployeePerformanceSummary } from "./EmployeePerformanceSummary";
 import { FinancialResourcesPanel } from "./FinancialResourcesPanel";
 import { OperationalConfigurationSummary } from "./OperationalConfigurationSummary";
 import { OwnerAttentionPanel } from "./OwnerAttentionPanel";
@@ -41,10 +40,7 @@ export function OwnerControlCenter() {
         <AuditSummary />
       </div>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-        <EmployeePerformanceSummary />
-        <OperationalConfigurationSummary />
-      </div>
+      <OperationalConfigurationSummary />
 
       <ActivityFeed />
     </div>

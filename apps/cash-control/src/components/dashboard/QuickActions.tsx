@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMockSession } from "@/components/session/MockSessionContext";
+import { ACTION_BUTTON_CARD_CLASSES } from "@/components/shared/actionButtonStyles";
 import { useShift } from "@/components/shifts/ShiftContext";
 
 const quickActions = [
@@ -76,7 +77,7 @@ export function QuickActions() {
             (!userHasActiveParticipation || currentShift?.status !== "open");
           const content = (
             <>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-[#EFF6FF] group-hover:text-[#2563EB]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition-colors group-hover:bg-primary-blue-soft group-hover:text-primary-blue">
                 <Icon className="h-4 w-4" />
               </div>
 
@@ -97,7 +98,7 @@ export function QuickActions() {
             <div
               key={action.href}
               aria-disabled="true"
-              className="flex cursor-not-allowed items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5 opacity-60"
+              className={ACTION_BUTTON_CARD_CLASSES.disabled}
             >
               {content}
             </div>
@@ -105,8 +106,12 @@ export function QuickActions() {
             <Link
               key={action.href}
               href={action.href}
-              className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md"
+              className={ACTION_BUTTON_CARD_CLASSES.interactive}
             >
+              <span
+                className={ACTION_BUTTON_CARD_CLASSES.leftIndicator}
+                aria-hidden="true"
+              />
               {content}
             </Link>
           );
