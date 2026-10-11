@@ -29,22 +29,22 @@ const commissionModeOptions: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    value: "deposited",
-    label: "Comision depositada por el cliente",
-    description: "La comision se recibio en el banco de recepcion.",
-  },
-  {
-    value: "cash",
-    label: "Comision pagada en efectivo",
-    description: "La comision se recibio en caja fisica.",
-  },
-  {
-    value: "deducted",
-    label: "Comision descontada del retiro",
-    description: "La comision se descuenta del efectivo entregado.",
-  },
-];
+    {
+      value: "deposited",
+      label: "Comision depositada por el cliente",
+      description: "La comision se recibio en el banco de recepcion.",
+    },
+    {
+      value: "cash",
+      label: "Comision pagada en efectivo",
+      description: "La comision se recibio en caja fisica.",
+    },
+    {
+      value: "deducted",
+      label: "Comision descontada del retiro",
+      description: "La comision se descuenta del efectivo entregado.",
+    },
+  ];
 
 export function WithdrawalForm({
   mode,
@@ -64,11 +64,10 @@ export function WithdrawalForm({
 
   return (
     <section
-      className={`rounded-2xl border p-6 shadow-sm ${
-        mode === "pending"
+      className={`rounded-2xl border p-6 shadow-sm ${mode === "pending"
           ? "border-violet-200 bg-violet-50"
           : "border-slate-200 bg-white"
-      }`}
+        }`}
     >
       <div className="mb-6">
         <p className="text-sm font-semibold text-slate-500">
@@ -83,6 +82,19 @@ export function WithdrawalForm({
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
+        <AmountField
+          id="withdrawal-amount"
+          value={formData.amount}
+          onChange={(value) => updateField("amount", value)}
+          label="Monto a retirar"
+          placeholder="0.00"
+          required
+          min={0}
+          step={0.01}
+          colorVariant="withdrawal"
+          error={errors.amount}
+        />
+
         <div>
           <label htmlFor="withdrawal-bank-folio" className={labelClass}>
             Folio o referencia bancaria
@@ -112,19 +124,6 @@ export function WithdrawalForm({
             Ingresa el identificador generado por la aplicación bancaria.
           </p>
         </div>
-
-        <AmountField
-          id="withdrawal-amount"
-          value={formData.amount}
-          onChange={(value) => updateField("amount", value)}
-          label="Monto a retirar"
-          placeholder="0.00"
-          required
-          min={0}
-          step={0.01}
-          colorVariant="withdrawal"
-          error={errors.amount}
-        />
 
         <BankSelect
           id="withdrawal-bank"
@@ -170,11 +169,10 @@ export function WithdrawalForm({
                 return (
                   <label
                     key={option.value}
-                    className={`rounded-xl border p-4 text-sm transition ${
-                      isSelected
+                    className={`rounded-xl border p-4 text-sm transition ${isSelected
                         ? "border-brand-primary bg-blue-50 text-slate-950"
                         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
                     <input
                       type="radio"
