@@ -974,7 +974,7 @@ BEGIN
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
-        SELECT op.type, op.origin, op.status
+        SELECT op.type, op.origin, op.status, op.amount_cents, op.commission_cents, op.total_cents
         INTO v_op
         FROM public.operations op
         WHERE op.id = v_journal.source_id AND op.business_id = v_journal.business_id;
@@ -985,18 +985,70 @@ BEGIN
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
+        -- Validar op.status
+        IF v_op.status IN ('cancelled', 'corrected') THEN
+            RAISE EXCEPTION 'Violación semántica: La operación de cliente está en estado % y no admite nuevos asientos directos.',
+                v_op.status
+                USING ERRCODE = 'integrity_constraint_violation';
+        ELSIF v_op.status NOT IN ('completed', 'pending_cash_delivery') THEN
+            RAISE EXCEPTION 'Violación semántica: Estado de operación de cliente no reconocido o no operativo: %.',
+                v_op.status
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
+
+        -- Validar op.type y op.origin
+        IF v_op.type NOT IN ('deposit', 'withdrawal') THEN
+            RAISE EXCEPTION 'Violación semántica: Tipo de operación de cliente no reconocido: %.',
+                v_op.type
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
+
+        IF v_op.origin NOT IN ('NORMAL', 'AUDIT_ADJUSTMENT', 'AUDIT_RECLASSIFICATION') THEN
+            RAISE EXCEPTION 'Violación semántica: Origen de operación no reconocido: %.',
+                v_op.origin
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
+
         IF v_op.origin = 'AUDIT_RECLASSIFICATION' THEN
-            -- Única excepción legítima puramente económica: El dinero ya estaba en el saldo anterior
+            -- Excepción legítima puramente económica: Efectivo ya contado previamente
             IF v_fin_count != 0 THEN
                 RAISE EXCEPTION 'Violación semántica: Las operaciones AUDIT_RECLASSIFICATION no deben tener líneas de tesorería (N=0 obligatorio, detectadas: %). El efectivo ya fue arqueado previamente.',
                     v_fin_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-            IF v_econ_count < 2 THEN
-                RAISE EXCEPTION 'Violación semántica: Las operaciones AUDIT_RECLASSIFICATION requieren al menos 2 líneas económicas (M >= 2) para cancelar el suspenso y reconocer el ingreso.',
+            IF v_econ_count != 2 THEN
+                RAISE EXCEPTION 'Violación semántica: Las operaciones AUDIT_RECLASSIFICATION requieren exactamente 2 líneas económicas (M=2, detectadas: %).',
                     v_econ_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
+
+            -- Cuentas concretas, signos e importes
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
+                  AND el.direction = 'DEBIT'
+                  AND el.amount_cents = v_op.total_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige DEBIT a CUSTODY_DISCREPANCY_SUSPENSE por el importe total (% céntimos).',
+                    v_op.total_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code = 'REV_COMMISSIONS'
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_op.total_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige CREDIT a REV_COMMISSIONS por el importe total (% céntimos).',
+                    v_op.total_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
         ELSE
             -- Operaciones ordinarias (NORMAL, AUDIT_ADJUSTMENT): Exigen obligatoriamente líneas en ambos libros
             IF v_fin_count < 1 THEN
@@ -1019,7 +1071,7 @@ BEGIN
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
-        SELECT adm.category
+        SELECT adm.category, adm.amount_cents, adm.origin_resource_id, adm.destination_resource_id
         INTO v_adm
         FROM public.administrative_movements adm
         WHERE adm.id = v_journal.source_id AND adm.business_id = v_journal.business_id;
@@ -1031,37 +1083,141 @@ BEGIN
         END IF;
 
         IF v_adm.category = 'transfer_internal' THEN
-            -- Traslado interno entre recursos propios: puramente financiero
+            -- Exige al menos dos líneas financieras y cero líneas económicas
+            IF v_econ_count != 0 THEN
+                RAISE EXCEPTION 'Violación semántica: Los traslados internos (transfer_internal) son puramente financieros y no deben tener líneas económicas (M=0 obligatorio, detectadas: %).',
+                    v_econ_count
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
             IF v_fin_count < 2 THEN
-                RAISE EXCEPTION 'Violación semántica: Los traslados internos (transfer_internal) requieren al menos 2 líneas de tesorería (origen y destino).',
+                RAISE EXCEPTION 'Violación semántica: Los traslados internos (transfer_internal) requieren al menos dos líneas financieras (detectadas: %).',
                     v_fin_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-        ELSE
-            -- Gastos, fondeos, aportaciones y retiros: exigen tesorería y contrapartida económica/patrimonial
+
+            -- Recursos distintos válidos del mismo negocio
+            IF v_adm.origin_resource_id IS NULL OR v_adm.destination_resource_id IS NULL THEN
+                RAISE EXCEPTION 'Violación semántica: Los traslados internos requieren recurso de origen y de destino obligatorios.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_adm.origin_resource_id = v_adm.destination_resource_id THEN
+                RAISE EXCEPTION 'Violación semántica: Los traslados internos requieren que el recurso de origen y destino sean distintos.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Salida e ingreso por el mismo importe
+            DECLARE
+                v_out_amount pg_catalog.int8;
+                v_in_amount pg_catalog.int8;
+            BEGIN
+                SELECT fl.amount_cents INTO v_out_amount
+                FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id 
+                  AND fl.resource_id = v_adm.origin_resource_id 
+                  AND fl.direction = 'OUTFLOW';
+
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'Violación semántica: El traslado interno carece de la línea de salida (OUTFLOW) del recurso origen %.',
+                        v_adm.origin_resource_id
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+
+                SELECT fl.amount_cents INTO v_in_amount
+                FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id 
+                  AND fl.resource_id = v_adm.destination_resource_id 
+                  AND fl.direction = 'INFLOW';
+
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'Violación semántica: El traslado interno carece de la línea de entrada (INFLOW) al recurso destino %.',
+                        v_adm.destination_resource_id
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+
+                IF v_out_amount != v_in_amount OR v_out_amount != v_adm.amount_cents THEN
+                    RAISE EXCEPTION 'Violación semántica: En un traslado interno la salida (% céntimos) y la entrada (% céntimos) deben ser idénticas y coincidir con el monto declarado (% céntimos).',
+                        v_out_amount, v_in_amount, v_adm.amount_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+            END;
+
+        ELSIF v_adm.category IN ('funding_in', 'owner_capital_injection') THEN
             IF v_fin_count < 1 OR v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Los movimientos administrativos de categoría % requieren obligatoriamente tesorería (N >= 1) y contrapartida económica/patrimonial (M >= 1).',
+                RAISE EXCEPTION 'Violación semántica: Los movimientos de categoría % requieren tesorería (N >= 1) y contrapartida económica/patrimonial (M >= 1).',
                     v_adm.category
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
+        ELSIF v_adm.category IN ('expense_out', 'owner_drawing_withdrawal') THEN
+            IF v_fin_count < 1 OR v_econ_count < 1 THEN
+                RAISE EXCEPTION 'Violación semántica: Los movimientos de categoría % requieren salida de tesorería (N >= 1) y cuenta de gasto/retiro (M >= 1).',
+                    v_adm.category
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+        ELSIF v_adm.category = 'reconciliation_adjustment' THEN
+            IF v_fin_count < 1 OR v_econ_count < 1 THEN
+                RAISE EXCEPTION 'Violación semántica: Los ajustes de conciliación administrativa requieren N >= 1 y M >= 1.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+        ELSE
+            RAISE EXCEPTION 'Violación semántica: Categoría administrativa no reconocida: %.',
+                v_adm.category
+                USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
     -- 4.3 Cortes y Conciliaciones (cut_reconciliation)
     ELSIF v_journal.entry_type = 'cut_reconciliation' THEN
-        IF v_fin_count < 1 OR v_econ_count < 1 THEN
-            RAISE EXCEPTION 'Violación semántica: Los cortes (cut_reconciliation) requieren obligatoriamente ajustar un recurso de tesorería (N >= 1) contra la cuenta de suspenso (M >= 1).'
-                USING ERRCODE = 'integrity_constraint_violation';
-        END IF;
-
-    -- 4.4 Resoluciones de Incidencia (incidence_resolution)
-    ELSIF v_journal.entry_type = 'incidence_resolution' THEN
-        IF v_journal.source_entity != 'incidence_resolutions' THEN
-            RAISE EXCEPTION 'Violación semántica: Los asientos incidence_resolution deben referenciar a incidence_resolutions.',
+        IF v_journal.source_entity != 'cuts' THEN
+            RAISE EXCEPTION 'Violación semántica: Los asientos cut_reconciliation deben referenciar a cuts (source_entity actual: %).',
                 v_journal.source_entity
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
-        SELECT res.event_type
+        DECLARE
+            v_cut RECORD;
+        BEGIN
+            SELECT c.status
+            INTO v_cut
+            FROM public.cuts c
+            WHERE c.id = v_journal.source_id AND c.business_id = v_journal.business_id;
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Violación de integridad: El corte origen (ID %) no existe o pertenece a otro negocio.',
+                    v_journal.source_id
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF v_cut.status NOT IN ('completed', 'completed_with_issues') THEN
+                RAISE EXCEPTION 'Violación semántica: Solo se permite emitir reconciliación para cortes con estado completed o completed_with_issues (estado actual: %).',
+                    v_cut.status
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF v_fin_count < 1 OR v_econ_count < 1 THEN
+                RAISE EXCEPTION 'Violación semántica: Los cortes (cut_reconciliation) requieren obligatoriamente ajustar un recurso de tesorería (N >= 1) contra la cuenta de suspenso (M >= 1).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Todas las líneas económicas deben imputarse a CUSTODY_DISCREPANCY_SUSPENSE
+            IF EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code != 'CUSTODY_DISCREPANCY_SUSPENSE'
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: En cut_reconciliation todas las líneas económicas deben registrarse exclusivamente en la cuenta CUSTODY_DISCREPANCY_SUSPENSE.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+        END;
+
+    -- 4.4 Resoluciones de Incidencia (incidence_resolution)
+    ELSIF v_journal.entry_type = 'incidence_resolution' THEN
+        IF v_journal.source_entity != 'incidence_resolutions' THEN
+            RAISE EXCEPTION 'Violación semántica: Los asientos incidence_resolution deben referenciar a incidence_resolutions (source_entity actual: %).',
+                v_journal.source_entity
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
+
+        SELECT res.event_type, res.amount_resolved_cents, res.incidence_id
         INTO v_res
         FROM public.incidence_resolutions res
         WHERE res.id = v_journal.source_id AND res.business_id = v_journal.business_id;
@@ -1072,25 +1228,228 @@ BEGIN
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
-        IF v_res.event_type IN ('confirmed_loss', 'confirmed_surplus') THEN
-            -- Pérdida o sobrante definitivo sin flujo de efectivo: puramente económico
+        IF v_res.event_type = 'confirmed_loss' THEN
             IF v_fin_count != 0 THEN
-                RAISE EXCEPTION 'Violación semántica: Las resoluciones por pérdida/sobrante confirmado no deben mover tesorería (N=0 obligatorio). El ajuste físico ya ocurrió en el corte.',
+                RAISE EXCEPTION 'Violación semántica: confirmed_loss no debe mover tesorería (N=0 obligatorio, detectadas: %).',
                     v_fin_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-            IF v_econ_count < 2 THEN
-                RAISE EXCEPTION 'Violación semántica: Las resoluciones por pérdida/sobrante confirmado requieren al menos 2 líneas económicas (M >= 2).',
+            IF v_econ_count != 2 THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_loss requiere exactamente 2 líneas económicas (M=2, detectadas: %).',
                     v_econ_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-        ELSIF v_res.event_type IN ('reintegration_partial', 'reintegration_final') THEN
-            -- Reintegro de dinero: entrada en tesorería y disminución de suspenso
-            IF v_fin_count < 1 OR v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Los reintegros de faltantes requieren ingreso a tesorería (N >= 1) y contrapartida en cuenta transitoria (M >= 1).'
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND (coa.code = 'EXP_CONFIRMED_LOSS' OR coa.type = 'expense')
+                  AND el.direction = 'DEBIT'
+                  AND el.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_loss exige DEBIT a cuenta de gasto por % céntimos.',
+                    v_res.amount_resolved_cents
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_loss exige CREDIT a CUSTODY_DISCREPANCY_SUSPENSE por % céntimos.',
+                    v_res.amount_resolved_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_res.event_type = 'confirmed_surplus' THEN
+            IF v_fin_count != 0 THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_surplus no debe mover tesorería (N=0 obligatorio, detectadas: %).',
+                    v_fin_count
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_econ_count != 2 THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_surplus requiere exactamente 2 líneas económicas (M=2, detectadas: %).',
+                    v_econ_count
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
+                  AND el.direction = 'DEBIT'
+                  AND el.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_surplus exige DEBIT a CUSTODY_DISCREPANCY_SUSPENSE por % céntimos.',
+                    v_res.amount_resolved_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.type = 'revenue'
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: confirmed_surplus exige CREDIT a cuenta de ingreso por % céntimos.',
+                    v_res.amount_resolved_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_res.event_type IN ('reintegration_partial', 'reintegration_final') THEN
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: Los reintegros de faltantes requieren exactamente 1 línea de tesorería (N=1) y 1 línea económica (M=1).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.direction = 'INFLOW'
+                  AND fl.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: El reintegro exige INFLOW en tesorería por % céntimos.',
+                    v_res.amount_resolved_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_res.amount_resolved_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: El reintegro exige CREDIT a CUSTODY_DISCREPANCY_SUSPENSE por % céntimos.',
+                    v_res.amount_resolved_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_res.event_type = 'explained_by_operation' THEN
+            RAISE EXCEPTION 'Violación semántica: Las resoluciones explained_by_operation no emiten asiento propio (el hecho contable corresponde a la operación explicativa).'
+                USING ERRCODE = 'integrity_constraint_violation';
+        ELSE
+            RAISE EXCEPTION 'Violación semántica: Tipo de resolución de incidencia desconocido: %.',
+                v_res.event_type
+                USING ERRCODE = 'integrity_constraint_violation';
         END IF;
+
+    -- 4.5 Correcciones de Operación (operation_correction)
+    ELSIF v_journal.entry_type = 'operation_correction' THEN
+        IF v_journal.source_entity != 'operation_corrections' THEN
+            RAISE EXCEPTION 'Violación semántica: Los asientos operation_correction deben referenciar a operation_corrections (source_entity actual: %).',
+                v_journal.source_entity
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
+
+        DECLARE
+            v_corr RECORD;
+            v_orig_journal RECORD;
+            v_mismatch_count pg_catalog.int8;
+            v_orig_fin_count pg_catalog.int8;
+            v_orig_econ_count pg_catalog.int8;
+        BEGIN
+            SELECT corr.original_operation_id, corr.reversal_operation_id, corr.replacement_operation_id
+            INTO v_corr
+            FROM public.operation_corrections corr
+            WHERE corr.id = v_journal.source_id AND corr.business_id = v_journal.business_id;
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Violación de integridad: El registro de corrección origen (ID %) no existe o pertenece a otro negocio.',
+                    v_journal.source_id
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Localizar el asiento original
+            SELECT j.id, j.entry_number, j.entry_type
+            INTO v_orig_journal
+            FROM public.journal_entries j
+            WHERE j.source_entity = 'operations' 
+              AND j.source_id = v_corr.original_operation_id 
+              AND j.business_id = v_journal.business_id;
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Violación de integridad: No se encontró el asiento de diario original correspondiente a la operación %.',
+                    v_corr.original_operation_id
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Impedir revertir dos veces el mismo asiento original
+            SELECT pg_catalog.count(j.id)
+            INTO v_mismatch_count
+            FROM public.journal_entries j
+            JOIN public.operation_corrections oc ON oc.id = j.source_id
+            WHERE j.entry_type = 'operation_correction'
+              AND j.business_id = v_journal.business_id
+              AND oc.original_operation_id = v_corr.original_operation_id
+              AND j.id != v_journal.id;
+
+            IF v_mismatch_count > 0 THEN
+                RAISE EXCEPTION 'Violación de integridad: El asiento original (Operación %) ya fue revertido por otro asiento. No se permite doble reversión.',
+                    v_corr.original_operation_id
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Reversión fiel: misma cardinalidad
+            SELECT pg_catalog.count(fl.id) INTO v_orig_fin_count FROM public.financial_ledger_entries fl WHERE fl.journal_entry_id = v_orig_journal.id;
+            SELECT pg_catalog.count(el.id) INTO v_orig_econ_count FROM public.economic_ledger_entries el WHERE el.journal_entry_id = v_orig_journal.id;
+
+            IF v_fin_count != v_orig_fin_count OR v_econ_count != v_orig_econ_count THEN
+                RAISE EXCEPTION 'Violación semántica: La reversión no es fiel. Cardinalidad original (Fin: %, Econ: %) difiere de reversión (Fin: %, Econ: %).',
+                    v_orig_fin_count, v_orig_econ_count, v_fin_count, v_econ_count
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Reversión fiel: cada línea financiera original con dirección invertida
+            SELECT pg_catalog.count(*)
+            INTO v_mismatch_count
+            FROM public.financial_ledger_entries orig_fl
+            WHERE orig_fl.journal_entry_id = v_orig_journal.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM public.financial_ledger_entries rev_fl
+                  WHERE rev_fl.journal_entry_id = v_journal.id
+                    AND rev_fl.resource_id = orig_fl.resource_id
+                    AND rev_fl.amount_cents = orig_fl.amount_cents
+                    AND rev_fl.direction = CASE WHEN orig_fl.direction = 'INFLOW' THEN 'OUTFLOW'::public.financial_direction ELSE 'INFLOW'::public.financial_direction END
+              );
+
+            IF v_mismatch_count > 0 THEN
+                RAISE EXCEPTION 'Violación semántica: La reversión financiera no es espejo exacto del asiento original (líneas o direcciones no coinciden).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Reversión fiel: cada línea económica original con dirección invertida
+            SELECT pg_catalog.count(*)
+            INTO v_mismatch_count
+            FROM public.economic_ledger_entries orig_el
+            WHERE orig_el.journal_entry_id = v_orig_journal.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM public.economic_ledger_entries rev_el
+                  WHERE rev_el.journal_entry_id = v_journal.id
+                    AND rev_el.account_id = orig_el.account_id
+                    AND rev_el.amount_cents = orig_el.amount_cents
+                    AND rev_el.direction = CASE WHEN orig_el.direction = 'DEBIT' THEN 'CREDIT'::public.economic_direction ELSE 'DEBIT'::public.economic_direction END
+              );
+
+            IF v_mismatch_count > 0 THEN
+                RAISE EXCEPTION 'Violación semántica: La reversión económica no es espejo exacto del asiento original (cuentas o direcciones no coinciden).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+        END;
+
+    ELSE
+        RAISE EXCEPTION 'Violación semántica: Tipo de asiento no reconocido: %.',
+            v_journal.entry_type
+            USING ERRCODE = 'integrity_constraint_violation';
     END IF;
 
     -- 5. Invariante Universal de Conservación: SUM(financial) + SUM(economic) = 0
@@ -1104,7 +1463,7 @@ BEGIN
     RETURN true;
 END;
 $$;
-COMMENT ON FUNCTION public.fn_validate_journal_balance(pg_catalog.uuid) IS 'Valida atómicamente la existencia, subtipo, cardinalidad y balance neto cero SUM(fin)+SUM(econ)=0 del asiento.';
+COMMENT ON FUNCTION public.fn_validate_journal_balance(pg_catalog.uuid) IS 'Valida atómicamente la existencia, subtipo, cardinalidad, cuentas contables y balance neto cero SUM(fin)+SUM(econ)=0 del asiento.';
 
 -- Función disparadora para constraint triggers diferidos
 CREATE OR REPLACE FUNCTION public.fn_trigger_validate_journal_balance()

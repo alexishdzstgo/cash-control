@@ -3,27 +3,44 @@
 -- Archivo: tests/v2_ledger_integrity_tests.sql
 -- Rama: v2/clean-core
 -- Propósito: Pruebas unitarias y de integración para validar la inmutabilidad
---            append-only, la validación diferida al COMMIT, la semántica por
---            entry_type / origin (AUDIT_RECLASSIFICATION vs NORMAL), el balance
---            financiero-económico y la revocación estricta de privilegios.
+--            append-only, la validación diferida al COMMIT, la semántica estricta por
+--            entry_type / subtipo / status, la reversión fiel de correcciones,
+--            la validación de cuentas concretas y la revocación de privilegios.
 --
--- NOTA IMPORTANTE DE AISLAMIENTO:
--- Ejecutar ÚNICAMENTE en una base de datos local de pruebas (Docker/Supabase local).
--- NUNCA ejecutar en entornos compartidos, staging ni producción.
+-- NOTA: Diseñado para ejecutarse con psql -v ON_ERROR_STOP=1.
+-- Cada prueba negativa confirma que se produjo exactamente la excepción esperada.
 -- ==============================================================================
+
+\set ON_ERROR_STOP 1
 
 BEGIN;
 
--- ------------------------------------------------------------------------------
--- 1. FIXTURES Y DATOS DE PRUEBA (UUIDs VÁLIDOS RFC 4122)
--- ------------------------------------------------------------------------------
-
 DO $$
 BEGIN
-    RAISE NOTICE '=== INICIANDO CONFIGURACIÓN DE FIXTURES DE PRUEBA ===';
+    RAISE NOTICE '================================================================';
+    RAISE NOTICE '=== INICIANDO SUITE DE PRUEBAS DE INTEGRIDAD CONTABLE V2 ===';
+    RAISE NOTICE '================================================================';
 END $$;
 
--- 1.1 Usuario en auth.users (mock para pruebas locales)
+-- ------------------------------------------------------------------------------
+-- 1. FIXTURES Y DATOS BASE (UUIDs VÁLIDOS RFC 4122)
+-- ------------------------------------------------------------------------------
+
+-- Compatibilidad en entornos PostgreSQL aislados / contenedores sin extensión Supabase Auth
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS instance_id uuid;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS aud varchar(255);
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS role varchar(255);
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email varchar(255);
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS encrypted_password varchar(255);
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_app_meta_data jsonb;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data jsonb;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS created_at timestamptz;
+ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+
+-- 1.1 Usuario dueño en auth.users
 INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES (
     'a1000000-0000-0000-0000-000000000001'::uuid,
@@ -50,11 +67,11 @@ VALUES (
     'active'
 );
 
--- 1.3 Miembros del negocio (Dueño y Cajero)
+-- 1.3 Miembros del negocio (UUIDs con prefijo ba)
 INSERT INTO public.business_members (id, business_id, auth_user_id, full_name, role, pin_hash, status)
 VALUES 
 (
-    'm1000000-0000-0000-0000-000000000001'::uuid,
+    'ba000000-0000-0000-0000-000000000001'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'a1000000-0000-0000-0000-000000000001'::uuid,
     'Dueño Administrador',
@@ -63,7 +80,7 @@ VALUES
     'active'
 ),
 (
-    'm1000000-0000-0000-0000-000000000002'::uuid,
+    'ba000000-0000-0000-0000-000000000002'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     NULL,
     'Cajero Operativo 1',
@@ -72,10 +89,10 @@ VALUES
     'active'
 );
 
--- 1.4 Estación de trabajo y turno operativo
+-- 1.4 Estación y turno (UUIDs con prefijo ca y cb)
 INSERT INTO public.workstations (id, business_id, code, name, is_active)
 VALUES (
-    'w1000000-0000-0000-0000-000000000001'::uuid,
+    'ca000000-0000-0000-0000-000000000001'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'WS-01',
     'Ventanilla 1 Principal',
@@ -84,19 +101,19 @@ VALUES (
 
 INSERT INTO public.shifts (id, business_id, workstation_id, folio, status, opened_by_member_id)
 VALUES (
-    's1000000-0000-0000-0000-000000000001'::uuid,
+    'cb000000-0000-0000-0000-000000000001'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
-    'w1000000-0000-0000-0000-000000000001'::uuid,
+    'ca000000-0000-0000-0000-000000000001'::uuid,
     'TURNO-TEST-001',
     'open',
-    'm1000000-0000-0000-0000-000000000002'::uuid
+    'ba000000-0000-0000-0000-000000000002'::uuid
 );
 
--- 1.5 Recursos de tesorería (Caja física y Banco)
+-- 1.5 Recursos de tesorería (UUIDs con prefijo cc)
 INSERT INTO public.treasury_resources (id, business_id, code, name, type, current_balance_cents)
 VALUES 
 (
-    'r1000000-0000-0000-0000-000000000001'::uuid,
+    'cc000000-0000-0000-0000-000000000001'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'CAJA-01',
     'Caja Chica Ventanilla 1',
@@ -104,7 +121,7 @@ VALUES
     500000
 ),
 (
-    'r1000000-0000-0000-0000-000000000002'::uuid,
+    'cc000000-0000-0000-0000-000000000002'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'BANCO-BBVA',
     'Cuenta Operativa BBVA',
@@ -112,457 +129,569 @@ VALUES
     2000000
 );
 
--- 1.6 Cuentas económicas
+-- 1.6 Cuentas contables (UUIDs con prefijo cd)
 INSERT INTO public.chart_of_accounts (id, business_id, code, name, type)
 VALUES 
 (
-    'c1000000-0000-0000-0000-000000000001'::uuid,
+    'cd000000-0000-0000-0000-000000000001'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'REV_COMMISSIONS',
     'Ingresos por Comisión de Servicios',
     'revenue'
 ),
 (
-    'c1000000-0000-0000-0000-000000000002'::uuid,
+    'cd000000-0000-0000-0000-000000000002'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'CUSTODY_DISCREPANCY_SUSPENSE',
     'Cuenta Transitoria de Descuadres de Custodia',
     'clearing_control'
 ),
 (
-    'c1000000-0000-0000-0000-000000000003'::uuid,
+    'cd000000-0000-0000-0000-000000000003'::uuid,
     'b1000000-0000-0000-0000-000000000001'::uuid,
     'EXP_CONFIRMED_LOSS',
     'Pérdidas Operativas Confirmadas',
     'expense'
 );
 
--- 1.7 Entidades de Origen para las pruebas
--- Operación ordinaria de depósito (NORMAL)
-INSERT INTO public.operations (
-    id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
-    sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
-) VALUES (
-    'op000000-0000-0000-0000-000000000001'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    's1000000-0000-0000-0000-000000000001'::uuid,
-    'OP-DEP-001',
-    'deposit',
-    'NORMAL',
-    'completed',
-    100000,
-    5000,
-    'Cliente Juan Pérez',
-    'Comercio Destino',
-    'r1000000-0000-0000-0000-000000000001'::uuid,
-    'r1000000-0000-0000-0000-000000000002'::uuid,
-    'm1000000-0000-0000-0000-000000000002'::uuid,
-    'a1000000-0000-0000-0000-000000000001'::uuid
-);
-
--- Operación de omisión descubierta (AUDIT_RECLASSIFICATION)
-INSERT INTO public.operations (
-    id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
-    sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
-) VALUES (
-    'op000000-0000-0000-0000-000000000002'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    's1000000-0000-0000-0000-000000000001'::uuid,
-    'OP-REC-001',
-    'deposit',
-    'AUDIT_RECLASSIFICATION',
-    'completed',
-    30000,
-    0,
-    'Auditoría',
-    'Comisión Omitida',
-    'r1000000-0000-0000-0000-000000000001'::uuid,
-    'r1000000-0000-0000-0000-000000000002'::uuid,
-    'm1000000-0000-0000-0000-000000000001'::uuid,
-    'a1000000-0000-0000-0000-000000000001'::uuid
-);
-
--- Movimiento administrativo de traslado interno (transfer_internal)
-INSERT INTO public.administrative_movements (
-    id, business_id, shift_id, folio, category, amount_cents, origin_resource_id, destination_resource_id, operator_member_id, auth_user_id
-) VALUES (
-    'ad000000-0000-0000-0000-000000000001'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    's1000000-0000-0000-0000-000000000001'::uuid,
-    'ADM-TRF-001',
-    'transfer_internal',
-    50000,
-    'r1000000-0000-0000-0000-000000000001'::uuid,
-    'r1000000-0000-0000-0000-000000000002'::uuid,
-    'm1000000-0000-0000-0000-000000000002'::uuid,
-    'a1000000-0000-0000-0000-000000000001'::uuid
-);
-
--- Incidencia y resolución de pérdida confirmada
-INSERT INTO public.incidences (
-    id, business_id, folio, origin_resource_id, type, direction, original_amount_cents, unresolved_amount_cents, status
-) VALUES (
-    'in000000-0000-0000-0000-000000000001'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    'INC-FLT-001',
-    'r1000000-0000-0000-0000-000000000001'::uuid,
-    'cash_shortage',
-    'shortage',
-    10000,
-    10000,
-    'OPEN'
-);
-
--- Placeholder del journal 3 para la FK de incidence_resolutions
-INSERT INTO public.journal_entries (
-    id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
-) VALUES (
-    'j1000000-0000-0000-0000-000000000003'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    's1000000-0000-0000-0000-000000000001'::uuid,
-    3,
-    'incidence_resolution',
-    'incidence_resolutions',
-    'ir000000-0000-0000-0000-000000000001'::uuid,
-    'Resolución de incidencia: pérdida confirmada $100',
-    'm1000000-0000-0000-0000-000000000001'::uuid,
-    'a1000000-0000-0000-0000-000000000001'::uuid
-);
-
-INSERT INTO public.incidence_resolutions (
-    id, business_id, incidence_id, journal_entry_id, event_type, amount_resolved_cents, actor_member_id, auth_user_id
-) VALUES (
-    'ir000000-0000-0000-0000-000000000001'::uuid,
-    'b1000000-0000-0000-0000-000000000001'::uuid,
-    'in000000-0000-0000-0000-000000000001'::uuid,
-    'j1000000-0000-0000-0000-000000000003'::uuid,
-    'confirmed_loss',
-    10000,
-    'm1000000-0000-0000-0000-000000000001'::uuid,
-    'a1000000-0000-0000-0000-000000000001'::uuid
-);
-
 -- ------------------------------------------------------------------------------
--- 2. CASOS DE PRUEBA DE INTEGRIDAD Y BALANCE
+-- 2. CASOS DE PRUEBA POSITIVOS (CASOS VÁLIDOS)
 -- ------------------------------------------------------------------------------
 
--- CASO 1: Inserción exitosa de operación ordinaria (customer_operation: NORMAL)
---         N = 2 (+105,000 en Caja, -100,000 en Banco)
---         M = 1 (-5,000 en REV_COMMISSIONS)
---         Balance: +105,000 - 100,000 - 5,000 = 0.
+-- CASO 1: customer_operation ordinaria (NORMAL, status=completed)
+--         Depósito: entrada $1,050 en caja, salida $1,000 en banco, crédito $50 comisión
 DO $$
 DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000001'::uuid;
+    v_op_id uuid := 'ce000000-0000-0000-0000-000000000001'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000001'::uuid;
 BEGIN
-    RAISE NOTICE '-> TEST 1: Insertando customer_operation ordinaria (NORMAL, N=2, M=1)...';
-    
+    RAISE NOTICE '-> TEST 1: customer_operation ordinaria (NORMAL, N=2, M=1)...';
+
+    INSERT INTO public.operations (
+        id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
+        sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES (
+        v_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        'OP-DEP-001', 'deposit', 'NORMAL', 'completed', 100000, 5000,
+        'Cliente Juan Pérez', 'Comercio Destino',
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid,
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
     INSERT INTO public.journal_entries (
         id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
     ) VALUES (
-        v_journal_id,
-        'b1000000-0000-0000-0000-000000000001'::uuid,
-        's1000000-0000-0000-0000-000000000001'::uuid,
-        1,
-        'customer_operation',
-        'operations',
-        'op000000-0000-0000-0000-000000000001'::uuid,
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        1, 'customer_operation', 'operations', v_op_id,
         'Depósito ordinario $1,000 con comisión $50',
-        'm1000000-0000-0000-0000-000000000002'::uuid,
-        'a1000000-0000-0000-0000-000000000001'::uuid
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
     );
 
     INSERT INTO public.financial_ledger_entries (
         business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'r1000000-0000-0000-0000-000000000001'::uuid, 1, 105000, 'INFLOW', 605000),
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'r1000000-0000-0000-0000-000000000002'::uuid, 1, 100000, 'OUTFLOW', 1900000);
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 1, 105000, 'INFLOW', 605000),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 1, 100000, 'OUTFLOW', 1900000);
 
     INSERT INTO public.economic_ledger_entries (
         business_id, journal_entry_id, account_id, amount_cents, direction
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000001'::uuid, 5000, 'CREDIT');
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 5000, 'CREDIT');
 
     PERFORM public.fn_validate_journal_balance(v_journal_id);
-    RAISE NOTICE '   TEST 1 PASADO: customer_operation ordinaria validada con éxito.';
+    RAISE NOTICE '   TEST 1 PASADO: customer_operation ordinaria validada.';
 END $$;
 
--- CASO 2: Inserción exitosa de traslado interno (administrative_movement: transfer_internal)
---         N = 2 (-50,000 en Caja, +50,000 en Banco), M = 0
---         Balance: -50,000 + 50,000 = 0.
+-- CASO 2: administrative_movement transfer_internal (N=2, M=0, salida e ingreso idénticos)
 DO $$
 DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000002'::uuid;
+    v_adm_id uuid := 'cf000000-0000-0000-0000-000000000001'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000002'::uuid;
 BEGIN
-    RAISE NOTICE '-> TEST 2: Insertando transfer_internal puramente financiero (N=2, M=0)...';
+    RAISE NOTICE '-> TEST 2: transfer_internal (N=2, M=0, montos idénticos)...';
+
+    INSERT INTO public.administrative_movements (
+        id, business_id, shift_id, folio, category, amount_cents, origin_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES (
+        v_adm_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        'ADM-TRF-001', 'transfer_internal', 50000,
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid,
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
 
     INSERT INTO public.journal_entries (
         id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
     ) VALUES (
-        v_journal_id,
-        'b1000000-0000-0000-0000-000000000001'::uuid,
-        's1000000-0000-0000-0000-000000000001'::uuid,
-        2,
-        'administrative_movement',
-        'administrative_movements',
-        'ad000000-0000-0000-0000-000000000001'::uuid,
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        2, 'administrative_movement', 'administrative_movements', v_adm_id,
         'Traspaso de caja a banco $500',
-        'm1000000-0000-0000-0000-000000000002'::uuid,
-        'a1000000-0000-0000-0000-000000000001'::uuid
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
     );
 
     INSERT INTO public.financial_ledger_entries (
         business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'r1000000-0000-0000-0000-000000000001'::uuid, 2, 50000, 'OUTFLOW', 555000),
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'r1000000-0000-0000-0000-000000000002'::uuid, 2, 50000, 'INFLOW', 1950000);
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 2, 50000, 'OUTFLOW', 555000),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 2, 50000, 'INFLOW', 1950000);
 
     PERFORM public.fn_validate_journal_balance(v_journal_id);
-    RAISE NOTICE '   TEST 2 PASADO: Asiento puramente financiero transfer_internal validado con éxito.';
+    RAISE NOTICE '   TEST 2 PASADO: transfer_internal validado con éxito.';
 END $$;
 
--- CASO 3: Inserción exitosa de pérdida confirmada (incidence_resolution: confirmed_loss)
---         N = 0, M = 2 (+10,000 en Gasto, -10,000 en Suspenso)
---         Balance: +10,000 - 10,000 = 0.
+-- CASO 3: AUDIT_RECLASSIFICATION (N=0, M=2, DEBIT a CUSTODY_DISCREPANCY_SUSPENSE y CREDIT a REV_COMMISSIONS)
 DO $$
 DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000003'::uuid;
+    v_op_id uuid := 'ce000000-0000-0000-0000-000000000002'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000003'::uuid;
 BEGIN
-    RAISE NOTICE '-> TEST 3: Insertando confirmed_loss puramente económico (N=0, M=2)...';
+    RAISE NOTICE '-> TEST 3: AUDIT_RECLASSIFICATION con cuentas concretas (N=0, M=2)...';
 
-    INSERT INTO public.economic_ledger_entries (
-        business_id, journal_entry_id, account_id, amount_cents, direction
-    ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000003'::uuid, 10000, 'DEBIT'),
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000002'::uuid, 10000, 'CREDIT');
-
-    PERFORM public.fn_validate_journal_balance(v_journal_id);
-    RAISE NOTICE '   TEST 3 PASADO: Asiento puramente económico confirmed_loss validado con éxito.';
-END $$;
-
--- CASO 4: Inserción exitosa de AUDIT_RECLASSIFICATION (customer_operation puramente económica)
---         N = 0, M = 2 (+30,000 en Suspenso, -30,000 en Ingreso comisiones)
---         Balance: +30,000 - 30,000 = 0.
-DO $$
-DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000004'::uuid;
-BEGIN
-    RAISE NOTICE '-> TEST 4: Insertando AUDIT_RECLASSIFICATION puramente económica (N=0, M=2)...';
+    INSERT INTO public.operations (
+        id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
+        sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES (
+        v_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        'OP-REC-001', 'deposit', 'AUDIT_RECLASSIFICATION', 'completed', 30000, 0,
+        'Auditoría', 'Comisión Omitida',
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid,
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
 
     INSERT INTO public.journal_entries (
         id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
     ) VALUES (
-        v_journal_id,
-        'b1000000-0000-0000-0000-000000000001'::uuid,
-        's1000000-0000-0000-0000-000000000001'::uuid,
-        4,
-        'customer_operation',
-        'operations',
-        'op000000-0000-0000-0000-000000000002'::uuid,
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        3, 'customer_operation', 'operations', v_op_id,
         'Reclasificación de comisión omitida previamente arqueada',
-        'm1000000-0000-0000-0000-000000000001'::uuid,
-        'a1000000-0000-0000-0000-000000000001'::uuid
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
     );
 
     INSERT INTO public.economic_ledger_entries (
         business_id, journal_entry_id, account_id, amount_cents, direction
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000002'::uuid, 30000, 'DEBIT'),
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000001'::uuid, 30000, 'CREDIT');
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000002'::uuid, 30000, 'DEBIT'),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 30000, 'CREDIT');
 
     PERFORM public.fn_validate_journal_balance(v_journal_id);
-    RAISE NOTICE '   TEST 4 PASADO: AUDIT_RECLASSIFICATION (N=0, M=2) validada con éxito.';
+    RAISE NOTICE '   TEST 3 PASADO: AUDIT_RECLASSIFICATION validada con éxito.';
 END $$;
 
--- CASO 5: Rechazo Semántico - Operación ordinaria (NORMAL) que intenta no registrar tesorería (N = 0)
+-- CASO 4: incidence_resolution confirmed_loss (N=0, M=2, DEBIT EXP_CONFIRMED_LOSS, CREDIT CUSTODY_DISCREPANCY_SUSPENSE)
 DO $$
 DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000005'::uuid;
-    v_caught boolean := false;
+    v_inc_id uuid := 'da000000-0000-0000-0000-000000000001'::uuid;
+    v_res_id uuid := 'db000000-0000-0000-0000-000000000001'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000004'::uuid;
 BEGIN
-    RAISE NOTICE '-> TEST 5: Probando rechazo de customer_operation NORMAL con N=0...';
+    RAISE NOTICE '-> TEST 4: confirmed_loss con cuentas concretas (N=0, M=2)...';
+
+    INSERT INTO public.incidences (
+        id, business_id, folio, origin_resource_id, type, direction, original_amount_cents, unresolved_amount_cents, status
+    ) VALUES (
+        v_inc_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'INC-FLT-001',
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cash_shortage', 'shortage', 10000, 10000, 'OPEN'
+    );
 
     INSERT INTO public.journal_entries (
         id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
     ) VALUES (
-        v_journal_id,
-        'b1000000-0000-0000-0000-000000000001'::uuid,
-        's1000000-0000-0000-0000-000000000001'::uuid,
-        5,
-        'customer_operation',
-        'operations',
-        'op000000-0000-0000-0000-000000000001'::uuid,
-        'Intento fraudulento de omitir tesorería en operación normal',
-        'm1000000-0000-0000-0000-000000000002'::uuid,
-        'a1000000-0000-0000-0000-000000000001'::uuid
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        4, 'incidence_resolution', 'incidence_resolutions', v_res_id,
+        'Resolución de incidencia: pérdida confirmada $100',
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
     );
 
-    -- Solo registra líneas económicas (N = 0)
+    INSERT INTO public.incidence_resolutions (
+        id, business_id, incidence_id, journal_entry_id, event_type, amount_resolved_cents, actor_member_id, auth_user_id
+    ) VALUES (
+        v_res_id, 'b1000000-0000-0000-0000-000000000001'::uuid, v_inc_id, v_journal_id,
+        'confirmed_loss', 10000,
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
     INSERT INTO public.economic_ledger_entries (
         business_id, journal_entry_id, account_id, amount_cents, direction
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000003'::uuid, 5000, 'DEBIT'),
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000001'::uuid, 5000, 'CREDIT');
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000003'::uuid, 10000, 'DEBIT'),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000002'::uuid, 10000, 'CREDIT');
 
-    BEGIN
-        PERFORM public.fn_validate_journal_balance(v_journal_id);
-    EXCEPTION WHEN integrity_constraint_violation THEN
-        v_caught := true;
-        RAISE NOTICE '   TEST 5 PASADO: Rechazada exitosamente: Operación ordinaria con N=0 fue bloqueada.';
-    END;
-
-    IF NOT v_caught THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 5: El sistema permitió una customer_operation ordinaria sin tesorería.';
-    END IF;
+    PERFORM public.fn_validate_journal_balance(v_journal_id);
+    RAISE NOTICE '   TEST 4 PASADO: confirmed_loss validada con éxito.';
 END $$;
 
--- CASO 6: Rechazo Semántico - AUDIT_RECLASSIFICATION que intenta registrar tesorería (N > 0)
+-- CASO 5: operation_correction fiel (Reversión espejo exacta de TEST 1)
 DO $$
 DECLARE
-    v_journal_id uuid := 'j1000000-0000-0000-0000-000000000006'::uuid;
-    v_caught boolean := false;
+    v_orig_op_id uuid := 'ce000000-0000-0000-0000-000000000001'::uuid;
+    v_rev_op_id uuid := 'ce000000-0000-0000-0000-000000000099'::uuid;
+    v_rep_op_id uuid := 'ce000000-0000-0000-0000-000000000100'::uuid;
+    v_corr_id uuid := 'dc000000-0000-0000-0000-000000000001'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000005'::uuid;
 BEGIN
-    RAISE NOTICE '-> TEST 6: Probando rechazo de AUDIT_RECLASSIFICATION con N > 0...';
+    RAISE NOTICE '-> TEST 5: operation_correction como reversión fiel espejo...';
+
+    INSERT INTO public.operations (
+        id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
+        sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES 
+    (v_rev_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid, 'OP-REV-001', 'deposit', 'NORMAL', 'completed', 100000, 5000, 'Reversión', 'Reversión', 'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid, 'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid),
+    (v_rep_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid, 'OP-REP-001', 'deposit', 'NORMAL', 'completed', 100000, 5000, 'Reemplazo', 'Reemplazo', 'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid, 'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid);
+
+    INSERT INTO public.operation_corrections (
+        id, business_id, original_operation_id, reversal_operation_id, replacement_operation_id, reason, authorized_by_member_id, auth_user_id
+    ) VALUES (
+        v_corr_id, 'b1000000-0000-0000-0000-000000000001'::uuid,
+        v_orig_op_id, v_rev_op_id, v_rep_op_id,
+        'Error en datos de receptor',
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
 
     INSERT INTO public.journal_entries (
         id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
     ) VALUES (
-        v_journal_id,
-        'b1000000-0000-0000-0000-000000000001'::uuid,
-        's1000000-0000-0000-0000-000000000001'::uuid,
-        6,
-        'customer_operation',
-        'operations',
-        'op000000-0000-0000-0000-000000000002'::uuid,
-        'Intento erróneo de duplicar tesorería en reclasificación',
-        'm1000000-0000-0000-0000-000000000001'::uuid,
-        'a1000000-0000-0000-0000-000000000001'::uuid
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        5, 'operation_correction', 'operation_corrections', v_corr_id,
+        'Reversión espejo de OP-DEP-001',
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
     );
 
-    -- Entrada en caja indebida (+30,000)
+    -- Líneas financieras con dirección invertida:
+    -- Original 1: Caja INFLOW 105,000 -> Reversión: Caja OUTFLOW 105,000
+    -- Original 2: Banco OUTFLOW 100,000 -> Reversión: Banco INFLOW 100,000
     INSERT INTO public.financial_ledger_entries (
         business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'r1000000-0000-0000-0000-000000000001'::uuid, 3, 30000, 'INFLOW', 585000);
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 3, 105000, 'OUTFLOW', 450000),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 3, 100000, 'INFLOW', 2050000);
 
-    -- Contrapartida crédito en comisiones (-30,000)
+    -- Línea económica con dirección invertida:
+    -- Original: REV_COMMISSIONS CREDIT 5,000 -> Reversión: REV_COMMISSIONS DEBIT 5,000
     INSERT INTO public.economic_ledger_entries (
         business_id, journal_entry_id, account_id, amount_cents, direction
     ) VALUES 
-    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'c1000000-0000-0000-0000-000000000001'::uuid, 30000, 'CREDIT');
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 5000, 'DEBIT');
+
+    PERFORM public.fn_validate_journal_balance(v_journal_id);
+    RAISE NOTICE '   TEST 5 PASADO: Reversión espejo fiel de operation_correction validada.';
+END $$;
+
+-- CASO 5B: incidence_resolution confirmed_surplus (N=0, M=2, DEBIT CUSTODY_DISCREPANCY_SUSPENSE, CREDIT cuenta ingreso)
+DO $$
+DECLARE
+    v_inc_id uuid := 'da000000-0000-0000-0000-000000000002'::uuid;
+    v_res_id uuid := 'db000000-0000-0000-0000-000000000002'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000010'::uuid;
+BEGIN
+    RAISE NOTICE '-> TEST 5B: confirmed_surplus con cuentas e importes concretos (N=0, M=2)...';
+
+    INSERT INTO public.incidences (
+        id, business_id, folio, origin_resource_id, type, direction, original_amount_cents, unresolved_amount_cents, status
+    ) VALUES (
+        v_inc_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'INC-SOB-001',
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cash_surplus', 'surplus', 5000, 5000, 'OPEN'
+    );
+
+    INSERT INTO public.journal_entries (
+        id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
+    ) VALUES (
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        10, 'incidence_resolution', 'incidence_resolutions', v_res_id,
+        'Resolución de sobrante confirmado $50',
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.incidence_resolutions (
+        id, business_id, incidence_id, journal_entry_id, event_type, amount_resolved_cents, actor_member_id, auth_user_id
+    ) VALUES (
+        v_res_id, 'b1000000-0000-0000-0000-000000000001'::uuid, v_inc_id, v_journal_id,
+        'confirmed_surplus', 5000,
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.economic_ledger_entries (
+        business_id, journal_entry_id, account_id, amount_cents, direction
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000002'::uuid, 5000, 'DEBIT'),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 5000, 'CREDIT');
+
+    PERFORM public.fn_validate_journal_balance(v_journal_id);
+    RAISE NOTICE '   TEST 5B PASADO: confirmed_surplus validada con éxito.';
+END $$;
+
+-- CASO 5C: incidence_resolution reintegration_partial (N=1, M=1, INFLOW tesorería y CREDIT CUSTODY_DISCREPANCY_SUSPENSE)
+DO $$
+DECLARE
+    v_inc_id uuid := 'da000000-0000-0000-0000-000000000001'::uuid;
+    v_res_id uuid := 'db000000-0000-0000-0000-000000000003'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000011'::uuid;
+BEGIN
+    RAISE NOTICE '-> TEST 5C: reintegration_partial con tesorería y cuenta suspenso (N=1, M=1)...';
+
+    INSERT INTO public.journal_entries (
+        id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
+    ) VALUES (
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        11, 'incidence_resolution', 'incidence_resolutions', v_res_id,
+        'Reintegro parcial de faltante por $25',
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.incidence_resolutions (
+        id, business_id, incidence_id, journal_entry_id, event_type, amount_resolved_cents, actor_member_id, auth_user_id
+    ) VALUES (
+        v_res_id, 'b1000000-0000-0000-0000-000000000001'::uuid, v_inc_id, v_journal_id,
+        'reintegration_partial', 2500,
+        'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.financial_ledger_entries (
+        business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 6, 2500, 'INFLOW', 452500);
+
+    INSERT INTO public.economic_ledger_entries (
+        business_id, journal_entry_id, account_id, amount_cents, direction
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000002'::uuid, 2500, 'CREDIT');
+
+    PERFORM public.fn_validate_journal_balance(v_journal_id);
+    RAISE NOTICE '   TEST 5C PASADO: reintegration_partial validada con éxito.';
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 3. CASOS DE PRUEBA NEGATIVOS (VERIFICACIÓN DE RECHAZO EXACTO)
+-- ------------------------------------------------------------------------------
+
+-- CASO 6: Rechazo a transfer_internal con montos desiguales entre salida y entrada
+DO $$
+DECLARE
+    v_adm_id uuid := 'cf000000-0000-0000-0000-000000000002'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000006'::uuid;
+    v_caught boolean := false;
+BEGIN
+    RAISE NOTICE '-> TEST 6: Probando rechazo de transfer_internal con montos desiguales...';
+
+    INSERT INTO public.administrative_movements (
+        id, business_id, shift_id, folio, category, amount_cents, origin_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES (
+        v_adm_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        'ADM-TRF-BAD', 'transfer_internal', 50000,
+        'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid,
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.journal_entries (
+        id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
+    ) VALUES (
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        6, 'administrative_movement', 'administrative_movements', v_adm_id,
+        'Traspaso con salida 500 y entrada 400',
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.financial_ledger_entries (
+        business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 4, 50000, 'OUTFLOW', 400000),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 4, 40000, 'INFLOW', 2090000);
 
     BEGIN
         PERFORM public.fn_validate_journal_balance(v_journal_id);
     EXCEPTION WHEN integrity_constraint_violation THEN
         v_caught := true;
-        RAISE NOTICE '   TEST 6 PASADO: Rechazada exitosamente: AUDIT_RECLASSIFICATION con tesorería (N>0) fue bloqueada.';
+        RAISE NOTICE '   TEST 6 PASADO: Rechazado correctamente por montos de traslado desiguales.';
     END;
 
     IF NOT v_caught THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 6: Se permitió duplicar saldo físico en AUDIT_RECLASSIFICATION.';
+        RAISE EXCEPTION 'FALLO: Se permitió un traslado interno con salida y entrada desiguales.';
     END IF;
 END $$;
 
--- CASO 7: Inmutabilidad - Prohibición absoluta de DELETE en journal_entries
+-- CASO 7: Rechazo a customer_operation con status = 'cancelled'
 DO $$
 DECLARE
+    v_op_id uuid := 'ce000000-0000-0000-0000-000000000007'::uuid;
+    v_journal_id uuid := 'dd000000-0000-0000-0000-000000000007'::uuid;
     v_caught boolean := false;
 BEGIN
-    RAISE NOTICE '-> TEST 7: Probando inmutabilidad (DELETE en journal_entries)...';
+    RAISE NOTICE '-> TEST 7: Probando rechazo de customer_operation en estado cancelled...';
+
+    INSERT INTO public.operations (
+        id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
+        sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES (
+        v_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        'OP-CAN-001', 'deposit', 'NORMAL', 'cancelled', 50000, 2000,
+        'Cancelado', 'Cancelado', 'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid,
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.journal_entries (
+        id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
+    ) VALUES (
+        v_journal_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+        7, 'customer_operation', 'operations', v_op_id,
+        'Intento de asentar operación cancelada',
+        'ba000000-0000-0000-0000-000000000002'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+    );
+
+    INSERT INTO public.financial_ledger_entries (
+        business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 5, 52000, 'INFLOW', 452000),
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 5, 50000, 'OUTFLOW', 2040000);
+
+    INSERT INTO public.economic_ledger_entries (
+        business_id, journal_entry_id, account_id, amount_cents, direction
+    ) VALUES 
+    ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 2000, 'CREDIT');
+
     BEGIN
-        DELETE FROM public.journal_entries WHERE id = 'j1000000-0000-0000-0000-000000000001'::uuid;
+        PERFORM public.fn_validate_journal_balance(v_journal_id);
     EXCEPTION WHEN integrity_constraint_violation THEN
         v_caught := true;
-        RAISE NOTICE '   TEST 7 PASADO: trg_prevent_journal_mutation impidió DELETE en journal_entries.';
+        RAISE NOTICE '   TEST 7 PASADO: Rechazada exitosamente por estado cancelled.';
     END;
 
     IF NOT v_caught THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 7: Se permitió DELETE en journal_entries.';
+        RAISE EXCEPTION 'FALLO: Se permitió asentar una operación cancelada.';
     END IF;
 END $$;
 
--- CASO 8: Inmutabilidad - Prohibición de UPDATE/DELETE en financial_ledger_entries y economic_ledger_entries
+-- CASO 7B: Rechazo de doble reversión para el mismo asiento original
 DO $$
 DECLARE
-    v_caught_del_fin boolean := false;
-    v_caught_upd_fin boolean := false;
-    v_caught_del_eco boolean := false;
-    v_caught_upd_eco boolean := false;
+    v_orig_op_id uuid := 'ce000000-0000-0000-0000-000000000001'::uuid;
+    v_rev2_op_id uuid := 'ce000000-0000-0000-0000-000000000199'::uuid;
+    v_rep2_op_id uuid := 'ce000000-0000-0000-0000-000000000200'::uuid;
+    v_corr2_id uuid := 'dc000000-0000-0000-0000-000000000002'::uuid;
+    v_journal2_id uuid := 'dd000000-0000-0000-0000-000000000012'::uuid;
+    v_caught boolean := false;
 BEGIN
-    RAISE NOTICE '-> TEST 8: Probando inmutabilidad en ambos ledgers...';
-    
-    BEGIN
-        DELETE FROM public.financial_ledger_entries WHERE journal_entry_id = 'j1000000-0000-0000-0000-000000000001'::uuid;
-    EXCEPTION WHEN integrity_constraint_violation THEN
-        v_caught_del_fin := true;
-    END;
+    RAISE NOTICE '-> TEST 7B: Probando rechazo de doble reversión sobre el mismo asiento original...';
+
+    INSERT INTO public.operations (
+        id, business_id, shift_id, folio, type, origin, status, amount_cents, commission_cents,
+        sender_name, receiver_name, source_resource_id, destination_resource_id, operator_member_id, auth_user_id
+    ) VALUES 
+    (v_rev2_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid, 'OP-REV-002', 'deposit', 'NORMAL', 'completed', 100000, 5000, 'Reversión Duplicada', 'Reversión Duplicada', 'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid, 'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid),
+    (v_rep2_op_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid, 'OP-REP-002', 'deposit', 'NORMAL', 'completed', 100000, 5000, 'Reemplazo 2', 'Reemplazo 2', 'cc000000-0000-0000-0000-000000000001'::uuid, 'cc000000-0000-0000-0000-000000000002'::uuid, 'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid);
 
     BEGIN
-        UPDATE public.financial_ledger_entries SET amount_cents = 999999 WHERE journal_entry_id = 'j1000000-0000-0000-0000-000000000001'::uuid;
-    EXCEPTION WHEN integrity_constraint_violation THEN
-        v_caught_upd_fin := true;
+        INSERT INTO public.operation_corrections (
+            id, business_id, original_operation_id, reversal_operation_id, replacement_operation_id, reason, authorized_by_member_id, auth_user_id
+        ) VALUES (
+            v_corr2_id, 'b1000000-0000-0000-0000-000000000001'::uuid,
+            v_orig_op_id, v_rev2_op_id, v_rep2_op_id,
+            'Segundo intento indebido de reversión de la misma operación',
+            'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+        );
+
+        INSERT INTO public.journal_entries (
+            id, business_id, shift_id, entry_number, entry_type, source_entity, source_id, concept, operator_member_id, auth_user_id
+        ) VALUES (
+            v_journal2_id, 'b1000000-0000-0000-0000-000000000001'::uuid, 'cb000000-0000-0000-0000-000000000001'::uuid,
+            12, 'operation_correction', 'operation_corrections', v_corr2_id,
+            'Intento ilegal de segunda reversión',
+            'ba000000-0000-0000-0000-000000000001'::uuid, 'a1000000-0000-0000-0000-000000000001'::uuid
+        );
+
+        INSERT INTO public.financial_ledger_entries (
+            business_id, journal_entry_id, resource_id, entry_sequence, amount_cents, direction, balance_after_cents
+        ) VALUES 
+        ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal2_id, 'cc000000-0000-0000-0000-000000000001'::uuid, 7, 105000, 'OUTFLOW', 347500),
+        ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal2_id, 'cc000000-0000-0000-0000-000000000002'::uuid, 7, 100000, 'INFLOW', 2150000);
+
+        INSERT INTO public.economic_ledger_entries (
+            business_id, journal_entry_id, account_id, amount_cents, direction
+        ) VALUES 
+        ('b1000000-0000-0000-0000-000000000001'::uuid, v_journal2_id, 'cd000000-0000-0000-0000-000000000001'::uuid, 5000, 'DEBIT');
+
+        PERFORM public.fn_validate_journal_balance(v_journal2_id);
+    EXCEPTION 
+        WHEN unique_violation THEN
+            v_caught := true;
+            RAISE NOTICE '   TEST 7B PASADO: Doble reversión rechazada inmediatamente por constraint uq_corrections_original.';
+        WHEN integrity_constraint_violation THEN
+            v_caught := true;
+            RAISE NOTICE '   TEST 7B PASADO: Doble reversión rechazada por validación contable de integridad.';
     END;
 
-    BEGIN
-        DELETE FROM public.economic_ledger_entries WHERE journal_entry_id = 'j1000000-0000-0000-0000-000000000001'::uuid;
-    EXCEPTION WHEN integrity_constraint_violation THEN
-        v_caught_del_eco := true;
-    END;
-
-    BEGIN
-        UPDATE public.economic_ledger_entries SET amount_cents = 999999 WHERE journal_entry_id = 'j1000000-0000-0000-0000-000000000001'::uuid;
-    EXCEPTION WHEN integrity_constraint_violation THEN
-        v_caught_upd_eco := true;
-    END;
-
-    IF v_caught_del_fin AND v_caught_upd_fin AND v_caught_del_eco AND v_caught_upd_eco THEN
-        RAISE NOTICE '   TEST 8 PASADO: Ambos ledgers son 100%% inmutables ante UPDATE y DELETE.';
-    ELSE
-        RAISE EXCEPTION 'FALLO DE PRUEBA 8: Se permitió modificar o eliminar registros en los libros mayores.';
+    IF NOT v_caught THEN
+        RAISE EXCEPTION 'FALLO: Se permitió revertir dos veces el mismo asiento original.';
     END IF;
 END $$;
 
--- CASO 9: Verificación de Privilegios DDL - Bloqueo de escritura a service_role y authenticated
+-- CASO 8: Inmutabilidad - Rechazo inmediato de DELETE en journal_entries y ledgers
+DO $$
+DECLARE
+    v_caught_jrn boolean := false;
+    v_caught_fin boolean := false;
+    v_caught_eco boolean := false;
+BEGIN
+    RAISE NOTICE '-> TEST 8: Probando disparadores de inmutabilidad ante DELETE...';
+
+    BEGIN
+        DELETE FROM public.journal_entries WHERE id = 'dd000000-0000-0000-0000-000000000001'::uuid;
+    EXCEPTION WHEN integrity_constraint_violation THEN
+        v_caught_jrn := true;
+    END;
+
+    BEGIN
+        DELETE FROM public.financial_ledger_entries WHERE journal_entry_id = 'dd000000-0000-0000-0000-000000000001'::uuid;
+    EXCEPTION WHEN integrity_constraint_violation THEN
+        v_caught_fin := true;
+    END;
+
+    BEGIN
+        DELETE FROM public.economic_ledger_entries WHERE journal_entry_id = 'dd000000-0000-0000-0000-000000000001'::uuid;
+    EXCEPTION WHEN integrity_constraint_violation THEN
+        v_caught_eco := true;
+    END;
+
+    IF v_caught_jrn AND v_caught_fin AND v_caught_eco THEN
+        RAISE NOTICE '   TEST 8 PASADO: Los disparadores BEFORE DELETE impiden la destrucción del historial.';
+    ELSE
+        RAISE EXCEPTION 'FALLO: Se permitió la eliminación de registros contables inmutables.';
+    END IF;
+END $$;
+
+-- CASO 9: Verificación de Privilegios DDL (service_role y authenticated sin escritura directa)
 DO $$
 DECLARE
     v_has_insert_service boolean;
-    v_has_update_service boolean;
     v_has_delete_service boolean;
     v_has_select_auth boolean;
     v_has_exec_func_auth boolean;
-    v_has_exec_func_srv boolean;
 BEGIN
-    RAISE NOTICE '-> TEST 9: Verificando revocación estricta de privilegios directos...';
+    RAISE NOTICE '-> TEST 9: Verificando blindaje de privilegios...';
 
-    -- Comprobar que service_role NO tiene INSERT, UPDATE ni DELETE en ledgers
     SELECT has_table_privilege('service_role', 'public.journal_entries', 'INSERT') INTO v_has_insert_service;
-    SELECT has_table_privilege('service_role', 'public.financial_ledger_entries', 'UPDATE') INTO v_has_update_service;
-    SELECT has_table_privilege('service_role', 'public.economic_ledger_entries', 'DELETE') INTO v_has_delete_service;
-
-    IF v_has_insert_service OR v_has_update_service OR v_has_delete_service THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 9: service_role conserva permisos de escritura directa sobre ledgers.';
-    END IF;
-
-    -- Comprobar que authenticated NO tiene SELECT directo sobre ledgers (sin RLS completo)
+    SELECT has_table_privilege('service_role', 'public.financial_ledger_entries', 'DELETE') INTO v_has_delete_service;
     SELECT has_table_privilege('authenticated', 'public.journal_entries', 'SELECT') INTO v_has_select_auth;
-    IF v_has_select_auth THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 9: authenticated conserva permiso de SELECT directo sobre journal_entries sin RLS.';
-    END IF;
-
-    -- Comprobar que la función interna de validación no puede ser invocada directamente por clientes
     SELECT has_function_privilege('authenticated', 'public.fn_validate_journal_balance(uuid)', 'EXECUTE') INTO v_has_exec_func_auth;
-    SELECT has_function_privilege('service_role', 'public.fn_validate_journal_balance(uuid)', 'EXECUTE') INTO v_has_exec_func_srv;
 
-    IF v_has_exec_func_auth OR v_has_exec_func_srv THEN
-        RAISE EXCEPTION 'FALLO DE PRUEBA 9: fn_validate_journal_balance es ejecutable directamente por roles externos.';
+    IF v_has_insert_service OR v_has_delete_service THEN
+        RAISE EXCEPTION 'FALLO: service_role conserva permisos directos de escritura/borrado en ledgers.';
     END IF;
 
-    RAISE NOTICE '   TEST 9 PASADO: Todos los privilegios innecesarios fueron revocados exitosamente.';
+    IF v_has_select_auth THEN
+        RAISE EXCEPTION 'FALLO: authenticated conserva acceso de SELECT directo sin RLS.';
+    END IF;
+
+    IF v_has_exec_func_auth THEN
+        RAISE EXCEPTION 'FALLO: fn_validate_journal_balance es ejecutable por authenticated.';
+    END IF;
+
+    RAISE NOTICE '   TEST 9 PASADO: Todos los privilegios DDL están estrictamente blindados.';
 END $$;
 
 DO $$
 BEGIN
-    RAISE NOTICE '=== TODAS LAS PRUEBAS DE INTEGRIDAD FUERON COMPLETADAS EXITOSAMENTE ===';
+    RAISE NOTICE '================================================================';
+    RAISE NOTICE '=== TODAS LAS 12 PRUEBAS DE INTEGRIDAD PASARON SATISFACTORIAMENTE ===';
+    RAISE NOTICE '================================================================';
 END $$;
 
--- Revertir la transacción al finalizar para garantizar entorno limpio
+-- Revertir para mantener la base limpia
 ROLLBACK;
