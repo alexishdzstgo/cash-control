@@ -10,6 +10,28 @@
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
+-- 0. COMPATIBILIDAD CON ENTORNO AISLADO / SUPABASE AUTH
+-- ------------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+        CREATE SCHEMA auth;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'auth' AND tablename = 'users') THEN
+        CREATE TABLE auth.users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email TEXT,
+            raw_app_meta_data JSONB DEFAULT '{}'::jsonb,
+            raw_user_meta_data JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT now()
+        );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'auth' AND p.proname = 'uid') THEN
+        CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT nullif(current_setting(''request.jwt.claim.sub'', true), '''')::uuid;';
+    END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
 -- 1. TIPOS ENUMERADOS (ENUMS)
 -- ------------------------------------------------------------------------------
 
@@ -906,6 +928,71 @@ CREATE TRIGGER trg_prevent_economic_ledger_mutation
     FOR EACH ROW
     EXECUTE FUNCTION public.fn_prevent_ledger_line_mutation();
 
+-- Función y trigger para procesar y validar atómicamente la resolución de incidencias
+CREATE OR REPLACE FUNCTION public.fn_incidence_resolutions_before_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_inc RECORD;
+    v_new_unresolved pg_catalog.int8;
+    v_new_status public.incidence_status;
+BEGIN
+    -- 1. Bloqueo exclusivo FOR UPDATE de la incidencia para serializar resoluciones concurrentes
+    SELECT inc.id, inc.unresolved_amount_cents, inc.original_amount_cents, inc.status, inc.origin_resource_id
+    INTO v_inc
+    FROM public.incidences inc
+    WHERE inc.id = NEW.incidence_id AND inc.business_id = NEW.business_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Violación de integridad: La incidencia origen (ID %) no existe o pertenece a otro negocio.',
+            NEW.incidence_id
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    -- 2. Impedir resolver incidencias ya cerradas o sin saldo pendiente
+    IF v_inc.unresolved_amount_cents <= 0 THEN
+        RAISE EXCEPTION 'Violación semántica: La incidencia % ya se encuentra completamente resuelta (saldo pendiente: 0).',
+            NEW.incidence_id
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+
+    -- 3. Evitar sobre-resolución: amount_resolved_cents no puede exceder unresolved_amount_cents
+    IF NEW.amount_resolved_cents > v_inc.unresolved_amount_cents THEN
+        RAISE EXCEPTION 'Violación semántica: El monto a resolver (% céntimos) excede el saldo no resuelto (% céntimos) de la incidencia %.',
+            NEW.amount_resolved_cents, v_inc.unresolved_amount_cents, NEW.incidence_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+
+    v_new_unresolved := v_inc.unresolved_amount_cents - NEW.amount_resolved_cents;
+
+    -- 4. Determinar nuevo estado según el remanente
+    IF v_new_unresolved = 0 THEN
+        v_new_status := 'RESOLVED';
+    ELSE
+        v_new_status := 'PARTIALLY_RESOLVED';
+    END IF;
+
+    -- 5. Actualizar la incidencia origen
+    UPDATE public.incidences
+    SET unresolved_amount_cents = v_new_unresolved,
+        status = v_new_status,
+        closed_at = CASE WHEN v_new_unresolved = 0 THEN pg_catalog.now() ELSE NULL END
+    WHERE id = NEW.incidence_id;
+
+    RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.fn_incidence_resolutions_before_insert() IS 'Aplica bloqueo FOR UPDATE sobre incidences, previene sobre-resolución concurrente y recalcula unresolved_amount_cents.';
+
+CREATE TRIGGER trg_incidence_resolutions_before_insert
+    BEFORE INSERT ON public.incidence_resolutions
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_incidence_resolutions_before_insert();
+
 -- ------------------------------------------------------------------------------
 -- 12. VALIDACIÓN DIFERIDA DE INTEGRIDAD, CARDINALIDAD Y BALANCE (COMMIT)
 -- ------------------------------------------------------------------------------
@@ -928,6 +1015,8 @@ DECLARE
     v_op RECORD;
     v_adm RECORD;
     v_res RECORD;
+    v_count RECORD;
+    v_inc_resource pg_catalog.uuid;
 BEGIN
     -- 1. Verificar existencia del asiento cabecera (No omitir integridad si fue eliminado)
     SELECT j.id, j.entry_number, j.entry_type, j.business_id, j.source_entity, j.source_id
@@ -953,7 +1042,7 @@ BEGIN
 
     -- 3. Validación de Asiento Vacío o Incompleto (< 2 líneas en total)
     IF v_total_count = 0 THEN
-        RAISE EXCEPTION 'Violación contable: El asiento contable ID % (Número %, Tipo %) no tiene ninguna línea en los libros mayores (asiento vacío no permitido).',
+        RAISE EXCEPTION 'Violación contable: El asiento contable ID % (Número %, Tipo %) está vacío (0 líneas en financial_ledger_entries y economic_ledger_entries). Todo journal_entry debe tener líneas contables asociadas.',
             v_journal.id, v_journal.entry_number, v_journal.entry_type
             USING ERRCODE = 'integrity_constraint_violation';
     END IF;
@@ -974,7 +1063,7 @@ BEGIN
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
 
-        SELECT op.type, op.origin, op.status, op.amount_cents, op.commission_cents, op.total_cents
+        SELECT op.type, op.origin, op.status, op.amount_cents, op.commission_cents, op.total_cents, op.source_resource_id, op.destination_resource_id
         INTO v_op
         FROM public.operations op
         WHERE op.id = v_journal.source_id AND op.business_id = v_journal.business_id;
@@ -1016,50 +1105,111 @@ BEGIN
                     v_fin_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-            IF v_econ_count != 2 THEN
-                RAISE EXCEPTION 'Violación semántica: Las operaciones AUDIT_RECLASSIFICATION requieren exactamente 2 líneas económicas (M=2, detectadas: %).',
-                    v_econ_count
-                    USING ERRCODE = 'integrity_constraint_violation';
-            END IF;
 
-            -- Cuentas concretas, signos e importes
-            IF NOT EXISTS (
-                SELECT 1 FROM public.economic_ledger_entries el
-                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
-                WHERE el.journal_entry_id = p_journal_id
-                  AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
-                  AND el.direction = 'DEBIT'
-                  AND el.amount_cents = v_op.total_cents
-            ) THEN
-                RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige DEBIT a CUSTODY_DISCREPANCY_SUSPENSE por el importe total (% céntimos).',
-                    v_op.total_cents
-                    USING ERRCODE = 'integrity_constraint_violation';
-            END IF;
+            IF v_op.commission_cents > 0 THEN
+                IF v_econ_count != 2 THEN
+                    RAISE EXCEPTION 'Violación semántica: Las operaciones AUDIT_RECLASSIFICATION con comisión requieren exactamente 2 líneas económicas (M=2, detectadas: %).',
+                        v_econ_count
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
 
-            IF NOT EXISTS (
-                SELECT 1 FROM public.economic_ledger_entries el
-                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
-                WHERE el.journal_entry_id = p_journal_id
-                  AND coa.code = 'REV_COMMISSIONS'
-                  AND el.direction = 'CREDIT'
-                  AND el.amount_cents = v_op.total_cents
-            ) THEN
-                RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige CREDIT a REV_COMMISSIONS por el importe total (% céntimos).',
-                    v_op.total_cents
-                    USING ERRCODE = 'integrity_constraint_violation';
+                -- Cuentas concretas, signos e importes (debe registrar la comisión, no el capital del cliente)
+                IF NOT EXISTS (
+                    SELECT 1 FROM public.economic_ledger_entries el
+                    JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                    WHERE el.journal_entry_id = p_journal_id
+                      AND coa.code = 'CUSTODY_DISCREPANCY_SUSPENSE'
+                      AND el.direction = 'DEBIT'
+                      AND el.amount_cents = v_op.commission_cents
+                ) THEN
+                    RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige DEBIT a CUSTODY_DISCREPANCY_SUSPENSE por la comisión ganada (% céntimos).',
+                        v_op.commission_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM public.economic_ledger_entries el
+                    JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                    WHERE el.journal_entry_id = p_journal_id
+                      AND (coa.code = 'REV_COMMISSIONS' OR coa.type = 'revenue')
+                      AND el.direction = 'CREDIT'
+                      AND el.amount_cents = v_op.commission_cents
+                ) THEN
+                    RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION exige CREDIT a REV_COMMISSIONS por la comisión ganada (% céntimos).',
+                        v_op.commission_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+            ELSE
+                -- Sin comisión: ambos cortes ya reconocieron la realidad física y de banco, M=0
+                IF v_econ_count != 0 THEN
+                    RAISE EXCEPTION 'Violación semántica: AUDIT_RECLASSIFICATION con comisión cero no debe tener líneas económicas (M=0 obligatorio, detectadas: %).',
+                        v_econ_count
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
             END IF;
 
         ELSE
-            -- Operaciones ordinarias (NORMAL, AUDIT_ADJUSTMENT): Exigen obligatoriamente líneas en ambos libros
-            IF v_fin_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Las operaciones ordinarias de cliente (% - %) requieren obligatoriamente movimiento de tesorería (N >= 1 en financial_ledger_entries). Solo AUDIT_RECLASSIFICATION puede carecer de líneas financieras.',
-                    v_op.type, v_op.origin
+            -- Operaciones ordinarias (NORMAL, AUDIT_ADJUSTMENT):
+            -- Validar cardinalidad financiera: exactamente 2 líneas de tesorería (entrada y salida)
+            IF v_fin_count != 2 THEN
+                RAISE EXCEPTION 'Violación semántica: Las operaciones ordinarias de cliente (% - %) requieren exactamente 2 líneas de tesorería (N=2, detectadas: %).',
+                    v_op.type, v_op.origin, v_fin_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-            IF v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Las operaciones ordinarias de cliente (% - %) requieren obligatoriamente registro económico de comisión o pasivo transitorio (M >= 1 en economic_ledger_entries).',
-                    v_op.type, v_op.origin
+
+            -- Validar recurso origen (INFLOW de total_cents)
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_op.source_resource_id
+                  AND fl.direction = 'INFLOW'
+                  AND fl.amount_cents = v_op.total_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: La operación de cliente exige INFLOW en el recurso origen % por el total (% céntimos).',
+                    v_op.source_resource_id, v_op.total_cents
                     USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Validar recurso destino (OUTFLOW de amount_cents)
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_op.destination_resource_id
+                  AND fl.direction = 'OUTFLOW'
+                  AND fl.amount_cents = v_op.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: La operación de cliente exige OUTFLOW en el recurso destino % por el principal (% céntimos).',
+                    v_op.destination_resource_id, v_op.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Validar comisión económica
+            IF v_op.commission_cents > 0 THEN
+                IF v_econ_count != 1 THEN
+                    RAISE EXCEPTION 'Violación semántica: Las operaciones de cliente con comisión (% céntimos) requieren exactamente 1 línea económica (M=1, detectadas: %).',
+                        v_op.commission_cents, v_econ_count
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM public.economic_ledger_entries el
+                    JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                    WHERE el.journal_entry_id = p_journal_id
+                      AND (coa.code = 'REV_COMMISSIONS' OR coa.type = 'revenue')
+                      AND el.direction = 'CREDIT'
+                      AND el.amount_cents = v_op.commission_cents
+                ) THEN
+                    RAISE EXCEPTION 'Violación semántica: La operación exige CREDIT a cuenta de ingreso (REV_COMMISSIONS) por la comisión (% céntimos).',
+                        v_op.commission_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+            ELSE
+                -- Comisión cero (promocional / sin cobro de tarifa)
+                IF v_econ_count != 0 THEN
+                    RAISE EXCEPTION 'Violación semántica: Las operaciones de cliente con comisión cero no deben tener líneas económicas (M=0 obligatorio, detectadas: %).',
+                        v_econ_count
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
             END IF;
         END IF;
 
@@ -1141,22 +1291,171 @@ BEGIN
                 END IF;
             END;
 
-        ELSIF v_adm.category IN ('funding_in', 'owner_capital_injection') THEN
-            IF v_fin_count < 1 OR v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Los movimientos de categoría % requieren tesorería (N >= 1) y contrapartida económica/patrimonial (M >= 1).',
-                    v_adm.category
+        ELSIF v_adm.category = 'funding_in' THEN
+            -- Fondeo de tesorería: Entrada a destination_resource_id y contrapartida patrimonial o clearing
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: funding_in requiere exactamente 1 línea de tesorería (N=1) y 1 línea económica (M=1).'
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
-        ELSIF v_adm.category IN ('expense_out', 'owner_drawing_withdrawal') THEN
-            IF v_fin_count < 1 OR v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Los movimientos de categoría % requieren salida de tesorería (N >= 1) y cuenta de gasto/retiro (M >= 1).',
-                    v_adm.category
+            IF v_adm.destination_resource_id IS NULL THEN
+                RAISE EXCEPTION 'Violación semántica: funding_in requiere destination_resource_id obligatorio.'
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_adm.destination_resource_id
+                  AND fl.direction = 'INFLOW'
+                  AND fl.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: funding_in exige INFLOW al recurso destino % por % céntimos.',
+                    v_adm.destination_resource_id, v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.type IN ('equity', 'clearing_control')
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: funding_in exige CREDIT a cuenta de patrimonio o clearing por % céntimos.',
+                    v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_adm.category = 'expense_out' THEN
+            -- Gasto operativo pagado: Salida de origin_resource_id y contrapartida de gasto
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: expense_out requiere exactamente 1 línea de salida de tesorería (N=1) y 1 línea de gasto (M=1).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_adm.origin_resource_id IS NULL THEN
+                RAISE EXCEPTION 'Violación semántica: expense_out requiere origin_resource_id obligatorio.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_adm.origin_resource_id
+                  AND fl.direction = 'OUTFLOW'
+                  AND fl.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: expense_out exige OUTFLOW del recurso origen % por % céntimos.',
+                    v_adm.origin_resource_id, v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.type = 'expense'
+                  AND el.direction = 'DEBIT'
+                  AND el.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: expense_out exige DEBIT a cuenta de gasto por % céntimos.',
+                    v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_adm.category = 'owner_capital_injection' THEN
+            -- Aportación de capital: Entrada a destination_resource_id y crédito a patrimonio (equity)
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: owner_capital_injection requiere exactamente 1 línea de tesorería (N=1) y 1 línea de patrimonio (M=1).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_adm.destination_resource_id IS NULL THEN
+                RAISE EXCEPTION 'Violación semántica: owner_capital_injection requiere destination_resource_id obligatorio.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_adm.destination_resource_id
+                  AND fl.direction = 'INFLOW'
+                  AND fl.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: owner_capital_injection exige INFLOW al recurso destino % por % céntimos.',
+                    v_adm.destination_resource_id, v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.type = 'equity'
+                  AND el.direction = 'CREDIT'
+                  AND el.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: owner_capital_injection exige CREDIT a cuenta de patrimonio (equity) por % céntimos.',
+                    v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+        ELSIF v_adm.category = 'owner_drawing_withdrawal' THEN
+            -- Retiro de utilidades del dueño: Salida de origin_resource_id y débito a patrimonio (equity)
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: owner_drawing_withdrawal requiere exactamente 1 línea de tesorería (N=1) y 1 línea de patrimonio (M=1).'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_adm.origin_resource_id IS NULL THEN
+                RAISE EXCEPTION 'Violación semántica: owner_drawing_withdrawal requiere origin_resource_id obligatorio.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.financial_ledger_entries fl
+                WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_adm.origin_resource_id
+                  AND fl.direction = 'OUTFLOW'
+                  AND fl.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: owner_drawing_withdrawal exige OUTFLOW del recurso origen % por % céntimos.',
+                    v_adm.origin_resource_id, v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM public.economic_ledger_entries el
+                JOIN public.chart_of_accounts coa ON coa.id = el.account_id
+                WHERE el.journal_entry_id = p_journal_id
+                  AND coa.type = 'equity'
+                  AND el.direction = 'DEBIT'
+                  AND el.amount_cents = v_adm.amount_cents
+            ) THEN
+                RAISE EXCEPTION 'Violación semántica: owner_drawing_withdrawal exige DEBIT a cuenta de patrimonio (equity) por % céntimos.',
+                    v_adm.amount_cents
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
         ELSIF v_adm.category = 'reconciliation_adjustment' THEN
-            IF v_fin_count < 1 OR v_econ_count < 1 THEN
-                RAISE EXCEPTION 'Violación semántica: Los ajustes de conciliación administrativa requieren N >= 1 y M >= 1.'
+            IF v_fin_count != 1 OR v_econ_count != 1 THEN
+                RAISE EXCEPTION 'Violación semántica: reconciliation_adjustment requiere exactamente N=1 y M=1.'
                     USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            IF v_adm.origin_resource_id IS NOT NULL THEN
+                IF NOT EXISTS (
+                    SELECT 1 FROM public.financial_ledger_entries fl
+                    WHERE fl.journal_entry_id = p_journal_id
+                      AND fl.resource_id = v_adm.origin_resource_id
+                      AND fl.direction = 'OUTFLOW'
+                      AND fl.amount_cents = v_adm.amount_cents
+                ) THEN
+                    RAISE EXCEPTION 'Violación semántica: reconciliation_adjustment de salida exige OUTFLOW de origin_resource_id por % céntimos.',
+                        v_adm.amount_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
+            ELSIF v_adm.destination_resource_id IS NOT NULL THEN
+                IF NOT EXISTS (
+                    SELECT 1 FROM public.financial_ledger_entries fl
+                    WHERE fl.journal_entry_id = p_journal_id
+                      AND fl.resource_id = v_adm.destination_resource_id
+                      AND fl.direction = 'INFLOW'
+                      AND fl.amount_cents = v_adm.amount_cents
+                ) THEN
+                    RAISE EXCEPTION 'Violación semántica: reconciliation_adjustment de entrada exige INFLOW a destination_resource_id por % céntimos.',
+                        v_adm.amount_cents
+                        USING ERRCODE = 'integrity_constraint_violation';
+                END IF;
             END IF;
         ELSE
             RAISE EXCEPTION 'Violación semántica: Categoría administrativa no reconocida: %.',
@@ -1174,6 +1473,7 @@ BEGIN
 
         DECLARE
             v_cut RECORD;
+            v_expected_adjustments_count pg_catalog.int8 := 0;
         BEGIN
             SELECT c.status
             INTO v_cut
@@ -1205,6 +1505,52 @@ BEGIN
                   AND coa.code != 'CUSTODY_DISCREPANCY_SUSPENSE'
             ) THEN
                 RAISE EXCEPTION 'Violación semántica: En cut_reconciliation todas las líneas económicas deben registrarse exclusivamente en la cuenta CUSTODY_DISCREPANCY_SUSPENSE.'
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
+            -- Validar correspondencia con arqueos físicos (cut_cash_counts) y conciliaciones bancarias (bank_audits)
+            FOR v_count IN (
+                SELECT resource_id, difference_cents
+                FROM public.cut_cash_counts
+                WHERE cut_id = v_journal.source_id AND difference_cents != 0
+                UNION ALL
+                SELECT resource_id, difference_cents
+                FROM public.bank_audits
+                WHERE cut_id = v_journal.source_id AND difference_cents != 0
+            ) LOOP
+                v_expected_adjustments_count := v_expected_adjustments_count + 1;
+
+                IF v_count.difference_cents < 0 THEN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM public.financial_ledger_entries fl
+                        WHERE fl.journal_entry_id = p_journal_id
+                          AND fl.resource_id = v_count.resource_id
+                          AND fl.direction = 'OUTFLOW'
+                          AND fl.amount_cents = pg_catalog.abs(v_count.difference_cents)
+                    ) THEN
+                        RAISE EXCEPTION 'Violación semántica: El corte exige ajuste de salida (OUTFLOW) en el recurso % por el faltante de % céntimos.',
+                            v_count.resource_id, pg_catalog.abs(v_count.difference_cents)
+                            USING ERRCODE = 'integrity_constraint_violation';
+                    END IF;
+                ELSIF v_count.difference_cents > 0 THEN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM public.financial_ledger_entries fl
+                        WHERE fl.journal_entry_id = p_journal_id
+                          AND fl.resource_id = v_count.resource_id
+                          AND fl.direction = 'INFLOW'
+                          AND fl.amount_cents = v_count.difference_cents
+                    ) THEN
+                        RAISE EXCEPTION 'Violación semántica: El corte exige ajuste de entrada (INFLOW) en el recurso % por el sobrante de % céntimos.',
+                            v_count.resource_id, v_count.difference_cents
+                            USING ERRCODE = 'integrity_constraint_violation';
+                    END IF;
+                END IF;
+            END LOOP;
+
+            -- Si hubo conteos con diferencias registradas, verificar que no existan líneas financieras espurias
+            IF v_expected_adjustments_count > 0 AND v_fin_count != v_expected_adjustments_count THEN
+                RAISE EXCEPTION 'Violación semántica: La cantidad de líneas de tesorería del corte (%) difiere de la cantidad de discrepancias auditadas (%).',
+                    v_fin_count, v_expected_adjustments_count
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
         END;
@@ -1310,14 +1656,26 @@ BEGIN
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
 
+            -- Obtener el recurso original de la incidencia para validar que el dinero ingrese a la caja/banco correcta
+            SELECT inc.origin_resource_id INTO v_inc_resource
+            FROM public.incidences inc
+            WHERE inc.id = v_res.incidence_id AND inc.business_id = v_journal.business_id;
+
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Violación de integridad: La incidencia asociada (ID %) no existe o pertenece a otro negocio.',
+                    v_res.incidence_id
+                    USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+
             IF NOT EXISTS (
                 SELECT 1 FROM public.financial_ledger_entries fl
                 WHERE fl.journal_entry_id = p_journal_id
+                  AND fl.resource_id = v_inc_resource
                   AND fl.direction = 'INFLOW'
                   AND fl.amount_cents = v_res.amount_resolved_cents
             ) THEN
-                RAISE EXCEPTION 'Violación semántica: El reintegro exige INFLOW en tesorería por % céntimos.',
-                    v_res.amount_resolved_cents
+                RAISE EXCEPTION 'Violación semántica: El reintegro exige INFLOW en el recurso original de la incidencia (%) por % céntimos.',
+                    v_inc_resource, v_res.amount_resolved_cents
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
 
@@ -1399,7 +1757,7 @@ BEGIN
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
 
-            -- Reversión fiel: misma cardinalidad
+            -- Reversión fiel espejo: misma cardinalidad total
             SELECT pg_catalog.count(fl.id) INTO v_orig_fin_count FROM public.financial_ledger_entries fl WHERE fl.journal_entry_id = v_orig_journal.id;
             SELECT pg_catalog.count(el.id) INTO v_orig_econ_count FROM public.economic_ledger_entries el WHERE el.journal_entry_id = v_orig_journal.id;
 
@@ -1409,39 +1767,55 @@ BEGIN
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
 
-            -- Reversión fiel: cada línea financiera original con dirección invertida
+            -- Reversión fiel: cada línea financiera original con dirección invertida y misma multiplicidad (Multiconjunto Biyectivo)
             SELECT pg_catalog.count(*)
             INTO v_mismatch_count
-            FROM public.financial_ledger_entries orig_fl
-            WHERE orig_fl.journal_entry_id = v_orig_journal.id
-              AND NOT EXISTS (
-                  SELECT 1 FROM public.financial_ledger_entries rev_fl
-                  WHERE rev_fl.journal_entry_id = v_journal.id
-                    AND rev_fl.resource_id = orig_fl.resource_id
-                    AND rev_fl.amount_cents = orig_fl.amount_cents
-                    AND rev_fl.direction = CASE WHEN orig_fl.direction = 'INFLOW' THEN 'OUTFLOW'::public.financial_direction ELSE 'INFLOW'::public.financial_direction END
-              );
+            FROM (
+                SELECT resource_id, amount_cents,
+                       CASE WHEN direction = 'INFLOW' THEN 'OUTFLOW'::public.financial_direction ELSE 'INFLOW'::public.financial_direction END AS exp_direction,
+                       pg_catalog.count(*) AS cnt
+                FROM public.financial_ledger_entries
+                WHERE journal_entry_id = v_orig_journal.id
+                GROUP BY resource_id, amount_cents, direction
+            ) o
+            FULL OUTER JOIN (
+                SELECT resource_id, amount_cents, direction, pg_catalog.count(*) AS cnt
+                FROM public.financial_ledger_entries
+                WHERE journal_entry_id = v_journal.id
+                GROUP BY resource_id, amount_cents, direction
+            ) r ON o.resource_id = r.resource_id
+               AND o.amount_cents = r.amount_cents
+               AND o.exp_direction = r.direction
+            WHERE o.cnt IS DISTINCT FROM r.cnt;
 
             IF v_mismatch_count > 0 THEN
-                RAISE EXCEPTION 'Violación semántica: La reversión financiera no es espejo exacto del asiento original (líneas o direcciones no coinciden).'
+                RAISE EXCEPTION 'Violación semántica: La reversión financiera no es espejo multiconjunto exacto del asiento original (cardinalidades, montos, recursos o direcciones no coinciden).'
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
 
-            -- Reversión fiel: cada línea económica original con dirección invertida
+            -- Reversión fiel: cada línea económica original con dirección invertida y misma multiplicidad (Multiconjunto Biyectivo)
             SELECT pg_catalog.count(*)
             INTO v_mismatch_count
-            FROM public.economic_ledger_entries orig_el
-            WHERE orig_el.journal_entry_id = v_orig_journal.id
-              AND NOT EXISTS (
-                  SELECT 1 FROM public.economic_ledger_entries rev_el
-                  WHERE rev_el.journal_entry_id = v_journal.id
-                    AND rev_el.account_id = orig_el.account_id
-                    AND rev_el.amount_cents = orig_el.amount_cents
-                    AND rev_el.direction = CASE WHEN orig_el.direction = 'DEBIT' THEN 'CREDIT'::public.economic_direction ELSE 'DEBIT'::public.economic_direction END
-              );
+            FROM (
+                SELECT account_id, amount_cents,
+                       CASE WHEN direction = 'DEBIT' THEN 'CREDIT'::public.economic_direction ELSE 'DEBIT'::public.economic_direction END AS exp_direction,
+                       pg_catalog.count(*) AS cnt
+                FROM public.economic_ledger_entries
+                WHERE journal_entry_id = v_orig_journal.id
+                GROUP BY account_id, amount_cents, direction
+            ) o
+            FULL OUTER JOIN (
+                SELECT account_id, amount_cents, direction, pg_catalog.count(*) AS cnt
+                FROM public.economic_ledger_entries
+                WHERE journal_entry_id = v_journal.id
+                GROUP BY account_id, amount_cents, direction
+            ) r ON o.account_id = r.account_id
+               AND o.amount_cents = r.amount_cents
+               AND o.exp_direction = r.direction
+            WHERE o.cnt IS DISTINCT FROM r.cnt;
 
             IF v_mismatch_count > 0 THEN
-                RAISE EXCEPTION 'Violación semántica: La reversión económica no es espejo exacto del asiento original (cuentas o direcciones no coinciden).'
+                RAISE EXCEPTION 'Violación semántica: La reversión económica no es espejo multiconjunto exacto del asiento original (cardinalidades, montos, cuentas o direcciones no coinciden).'
                     USING ERRCODE = 'integrity_constraint_violation';
             END IF;
         END;
@@ -1527,35 +1901,275 @@ CREATE CONSTRAINT TRIGGER trg_validate_journal_balance_economic
     EXECUTE FUNCTION public.fn_trigger_validate_journal_balance();
 
 -- ------------------------------------------------------------------------------
--- 13. BLINDAJE DE PRIVILEGIOS Y PROTECCIÓN CONTRA ESCRITURA DIRECTA
+-- 13. BLINDAJE DE PRIVILEGIOS Y POLÍTICAS DE AISLAMIENTO RLS MULTI-EMPRESA
 -- ------------------------------------------------------------------------------
+
+-- 13.1 Función de validación de tenencia de negocio libre de recursión
+-- Se marca STABLE y SECURITY DEFINER con search_path vacío para evaluar la pertenencia
+-- del auth.uid() autenticado sin volver a invocar las políticas RLS sobre public.businesses.
+CREATE OR REPLACE FUNCTION public.fn_is_business_owner(p_business_id pg_catalog.uuid)
+RETURNS pg_catalog.bool
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.businesses b
+        WHERE b.id = p_business_id
+          AND b.owner_user_id = (SELECT auth.uid())
+    );
+$$;
+COMMENT ON FUNCTION public.fn_is_business_owner(pg_catalog.uuid) IS 'Evalúa si el usuario autenticado (auth.uid()) es el propietario legal del negocio indicado. Utilizado por RLS para evitar recursión.';
 
 -- Propietario controlado de las funciones de seguridad
 ALTER FUNCTION public.fn_prevent_journal_mutation() OWNER TO postgres;
 ALTER FUNCTION public.fn_prevent_ledger_line_mutation() OWNER TO postgres;
+ALTER FUNCTION public.fn_incidence_resolutions_before_insert() OWNER TO postgres;
 ALTER FUNCTION public.fn_validate_journal_balance(pg_catalog.uuid) OWNER TO postgres;
 ALTER FUNCTION public.fn_trigger_validate_journal_balance() OWNER TO postgres;
+ALTER FUNCTION public.fn_is_business_owner(pg_catalog.uuid) OWNER TO postgres;
 
 -- Revocación total de permisos de ejecución directa a roles públicos, clientes y service_role.
 -- Estas funciones son estrictamente internas (invocadas por disparadores y futuras RPCs SECURITY DEFINER).
 REVOKE ALL ON FUNCTION public.fn_prevent_journal_mutation() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.fn_prevent_ledger_line_mutation() FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.fn_incidence_resolutions_before_insert() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.fn_validate_journal_balance(pg_catalog.uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.fn_trigger_validate_journal_balance() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.fn_is_business_owner(pg_catalog.uuid) TO authenticated, service_role;
 
--- Blindaje absoluto de las tablas del libro mayor:
--- Prohibir INSERT, UPDATE, DELETE y TRUNCATE a PUBLIC, anon, authenticated y service_role.
--- Ningún rol de aplicación ni cliente API puede escribir directamente en los ledgers.
--- La única vía legítima es la ejecución de RPCs transaccionales SECURITY DEFINER ejecutadas por postgres.
-REVOKE ALL ON TABLE public.journal_entries FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON TABLE public.financial_ledger_entries FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON TABLE public.economic_ledger_entries FROM PUBLIC, anon, authenticated, service_role;
+-- 13.3 Habilitación obligatoria de Row Level Security (RLS) en todas las 23 entidades
+ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workstations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shift_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.custody_handovers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.commission_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.treasury_resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chart_of_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operation_corrections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.administrative_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journal_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.financial_ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.economic_ledger_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cuts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cut_audited_shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cut_cash_counts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_audits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_audit_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.incidences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.incidence_resolutions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_events ENABLE ROW LEVEL SECURITY;
 
--- Lectura (SELECT) restringida:
--- service_role retiene SELECT para consultas analíticas del servidor.
--- Los roles de cliente (authenticated, anon) tienen REVOKE total hasta que se implementen y prueben
--- las políticas RLS definitivas libres de recursión.
+-- 13.4 Políticas RLS de Aislamiento Multi-inquilino para el Dueño (authenticated)
+-- Tabla businesses (raíz del tenant)
+CREATE POLICY businesses_tenant_select ON public.businesses
+    FOR SELECT TO authenticated
+    USING (owner_user_id = (SELECT auth.uid()));
+
+CREATE POLICY businesses_service_role ON public.businesses
+    FOR ALL TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Políticas RLS sobre las 22 tablas hijas
+CREATE POLICY business_members_tenant_select ON public.business_members
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY business_members_service_role ON public.business_members
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY workstations_tenant_select ON public.workstations
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY workstations_service_role ON public.workstations
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY shifts_tenant_select ON public.shifts
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY shifts_service_role ON public.shifts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY shift_participants_tenant_select ON public.shift_participants
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY shift_participants_service_role ON public.shift_participants
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY custody_handovers_tenant_select ON public.custody_handovers
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY custody_handovers_service_role ON public.custody_handovers
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY commission_rules_tenant_select ON public.commission_rules
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY commission_rules_service_role ON public.commission_rules
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY treasury_resources_tenant_select ON public.treasury_resources
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY treasury_resources_service_role ON public.treasury_resources
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY chart_of_accounts_tenant_select ON public.chart_of_accounts
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY chart_of_accounts_service_role ON public.chart_of_accounts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY operations_tenant_select ON public.operations
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY operations_service_role ON public.operations
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY operation_corrections_tenant_select ON public.operation_corrections
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY operation_corrections_service_role ON public.operation_corrections
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY administrative_movements_tenant_select ON public.administrative_movements
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY administrative_movements_service_role ON public.administrative_movements
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY journal_entries_tenant_select ON public.journal_entries
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY journal_entries_service_role ON public.journal_entries
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY financial_ledger_entries_tenant_select ON public.financial_ledger_entries
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY financial_ledger_entries_service_role ON public.financial_ledger_entries
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY economic_ledger_entries_tenant_select ON public.economic_ledger_entries
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY economic_ledger_entries_service_role ON public.economic_ledger_entries
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY cuts_tenant_select ON public.cuts
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY cuts_service_role ON public.cuts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY cut_audited_shifts_tenant_select ON public.cut_audited_shifts
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY cut_audited_shifts_service_role ON public.cut_audited_shifts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY cut_cash_counts_tenant_select ON public.cut_cash_counts
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY cut_cash_counts_service_role ON public.cut_cash_counts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY bank_audits_tenant_select ON public.bank_audits
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY bank_audits_service_role ON public.bank_audits
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY bank_audit_items_tenant_select ON public.bank_audit_items
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY bank_audit_items_service_role ON public.bank_audit_items
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY incidences_tenant_select ON public.incidences
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY incidences_service_role ON public.incidences
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY incidence_resolutions_tenant_select ON public.incidence_resolutions
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY incidence_resolutions_service_role ON public.incidence_resolutions
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY audit_events_tenant_select ON public.audit_events
+    FOR SELECT TO authenticated
+    USING (public.fn_is_business_owner(business_id));
+CREATE POLICY audit_events_service_role ON public.audit_events
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- 13.5 Concesión de SELECT a authenticated amparado por RLS y revocación de escrituras directas
+GRANT USAGE ON SCHEMA public TO authenticated, service_role;
+GRANT USAGE ON SCHEMA auth TO authenticated, service_role;
+GRANT SELECT ON TABLE public.businesses TO authenticated;
+GRANT SELECT ON TABLE public.business_members TO authenticated;
+GRANT SELECT ON TABLE public.workstations TO authenticated;
+GRANT SELECT ON TABLE public.shifts TO authenticated;
+GRANT SELECT ON TABLE public.shift_participants TO authenticated;
+GRANT SELECT ON TABLE public.custody_handovers TO authenticated;
+GRANT SELECT ON TABLE public.commission_rules TO authenticated;
+GRANT SELECT ON TABLE public.treasury_resources TO authenticated;
+GRANT SELECT ON TABLE public.chart_of_accounts TO authenticated;
+GRANT SELECT ON TABLE public.operations TO authenticated;
+GRANT SELECT ON TABLE public.operation_corrections TO authenticated;
+GRANT SELECT ON TABLE public.administrative_movements TO authenticated;
+GRANT SELECT ON TABLE public.journal_entries TO authenticated;
+GRANT SELECT ON TABLE public.financial_ledger_entries TO authenticated;
+GRANT SELECT ON TABLE public.economic_ledger_entries TO authenticated;
+GRANT SELECT ON TABLE public.cuts TO authenticated;
+GRANT SELECT ON TABLE public.cut_audited_shifts TO authenticated;
+GRANT SELECT ON TABLE public.cut_cash_counts TO authenticated;
+GRANT SELECT ON TABLE public.bank_audits TO authenticated;
+GRANT SELECT ON TABLE public.bank_audit_items TO authenticated;
+GRANT SELECT ON TABLE public.incidences TO authenticated;
+GRANT SELECT ON TABLE public.incidence_resolutions TO authenticated;
+GRANT SELECT ON TABLE public.audit_events TO authenticated;
+
+-- Service role retiene acceso administrativo a entidades maestras y de consulta, pero sin escritura directa en ledgers
+GRANT ALL ON TABLE public.businesses TO service_role;
+GRANT ALL ON TABLE public.business_members TO service_role;
+GRANT ALL ON TABLE public.workstations TO service_role;
+GRANT ALL ON TABLE public.shifts TO service_role;
+GRANT ALL ON TABLE public.shift_participants TO service_role;
+GRANT ALL ON TABLE public.custody_handovers TO service_role;
+GRANT ALL ON TABLE public.commission_rules TO service_role;
+GRANT ALL ON TABLE public.treasury_resources TO service_role;
+GRANT ALL ON TABLE public.chart_of_accounts TO service_role;
+GRANT ALL ON TABLE public.operations TO service_role;
+GRANT ALL ON TABLE public.operation_corrections TO service_role;
+GRANT ALL ON TABLE public.administrative_movements TO service_role;
 GRANT SELECT ON TABLE public.journal_entries TO service_role;
 GRANT SELECT ON TABLE public.financial_ledger_entries TO service_role;
 GRANT SELECT ON TABLE public.economic_ledger_entries TO service_role;
+GRANT ALL ON TABLE public.cuts TO service_role;
+GRANT ALL ON TABLE public.cut_audited_shifts TO service_role;
+GRANT ALL ON TABLE public.cut_cash_counts TO service_role;
+GRANT ALL ON TABLE public.bank_audits TO service_role;
+GRANT ALL ON TABLE public.bank_audit_items TO service_role;
+GRANT ALL ON TABLE public.incidences TO service_role;
+GRANT ALL ON TABLE public.incidence_resolutions TO service_role;
+GRANT ALL ON TABLE public.audit_events TO service_role;
+
+-- Blindaje absoluto de escritura directa:
+-- Prohibir INSERT, UPDATE, DELETE a authenticated y service_role en los libros mayores
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.journal_entries FROM PUBLIC, anon, authenticated, service_role;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.financial_ledger_entries FROM PUBLIC, anon, authenticated, service_role;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.economic_ledger_entries FROM PUBLIC, anon, authenticated, service_role;
+
+-- Blindaje de columnas críticas de saldo y secuencia (Invariantes 1 y 8)
+REVOKE UPDATE (unresolved_amount_cents) ON TABLE public.incidences FROM PUBLIC, anon, authenticated, service_role;
+REVOKE UPDATE (current_balance_cents, last_entry_sequence) ON TABLE public.treasury_resources FROM PUBLIC, anon, authenticated, service_role;
+
+-- Revocación total para el rol anónimo (anon)
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
 
