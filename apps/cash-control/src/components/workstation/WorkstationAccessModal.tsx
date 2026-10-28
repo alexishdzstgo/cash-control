@@ -18,6 +18,7 @@ interface WorkstationAccessModalProps {
   onAccess: (userId: string) => void;
   onJoin: (userId: string) => void;
   onCancel: () => void;
+  onVerifyPin?: (userId: string, pin: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function WorkstationAccessModal({
@@ -29,6 +30,7 @@ export function WorkstationAccessModal({
   onAccess,
   onJoin,
   onCancel,
+  onVerifyPin,
 }: WorkstationAccessModalProps) {
   const { getUserAvatar } = useMockSession();
   const [step, setStep] = useState<ModalStep>("selection");
@@ -129,13 +131,14 @@ export function WorkstationAccessModal({
         />
       ) : (
         selectedUser && (
-         <UserPinStep
-  selectedUserId={selectedUser.userId}
-  selectedUserName={selectedUser.userName}
-  selectedUserAvatar={getUserAvatar(selectedUser.userId)}
-  onBack={handleBack}
-  onConfirm={handleConfirm}
-/>
+          <UserPinStep
+            selectedUserId={selectedUser.userId}
+            selectedUserName={selectedUser.userName}
+            selectedUserAvatar={getUserAvatar(selectedUser.userId)}
+            onBack={handleBack}
+            onConfirm={handleConfirm}
+            onVerifyPin={onVerifyPin ? (pin) => onVerifyPin(selectedUser.userId, pin) : undefined}
+          />
         )
       )}
     </ModalShell>

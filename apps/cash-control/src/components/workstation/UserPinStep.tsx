@@ -13,6 +13,7 @@ interface UserPinStepProps {
   selectedUserAvatar?: UserAvatarModel;
   onBack: () => void;
   onConfirm: () => void;
+  onVerifyPin?: (pin: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function UserPinStep({
@@ -21,6 +22,7 @@ export function UserPinStep({
   selectedUserAvatar,
   onBack,
   onConfirm,
+  onVerifyPin,
 }: UserPinStepProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,16 @@ const handleConfirm = async () => {
   setError(null);
 
   try {
+    if (onVerifyPin) {
+      const v2Res = await onVerifyPin(pin);
+      if (!v2Res.ok) {
+        setError(v2Res.error ?? "PIN incorrecto. Intenta de nuevo.");
+        return;
+      }
+      onConfirm();
+      return;
+    }
+
     const response = await fetch("/api/workstation/verify-pin", {
       method: "POST",
       headers: {

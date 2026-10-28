@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Clock,
+  LogOut,
   ShieldCheck,
   UserPlus,
   UserRound,
@@ -12,9 +13,32 @@ import { useCallback, useEffect, useState } from "react";
 import { Footer } from "@/components/layout/Footer";
 import { useMockSession } from "@/components/session/MockSessionContext";
 import { UserAvatar } from "@/components/shared/UserAvatar";
+import { TerminalSessionProvider } from "@/features/session/TerminalSessionContext";
+import { v2Client } from "@/lib/api-v2/client";
+import type { OwnerSessionInfo } from "@/lib/api-v2/types";
 import type { UserAvatar as UserAvatarModel } from "@/types/user";
+import { OwnerLoginForm } from "./OwnerLoginForm";
 import type { Participant } from "./types";
 import { WorkstationAccessModal } from "./WorkstationAccessModal";
+import { WorkstationV2Control } from "./WorkstationV2Control";
+
+const DEFAULT_LOCAL_USERS: RegisteredUser[] = [
+  {
+    userId: "ba900000-0000-0000-0000-000000000001",
+    userName: "Dueño Concurrente",
+    pin: "",
+    systemRole: "owner",
+  },
+  {
+    userId: "ba900000-0000-0000-0000-000000000002",
+    userName: "Cajero Uno",
+    pin: "",
+    systemRole: "employee",
+  },
+];
+
+const LOCAL_V2_BIZ_ID = "b9000000-0000-0000-0000-000000000001";
+const LOCAL_V2_WS_ID = "ca900000-0000-0000-0000-000000000001";
 
 interface RegisteredUser {
   userId: string;
@@ -142,7 +166,17 @@ function JoinAnotherUserCard({
 export function WorkstationPage() {
   const router = useRouter();
 
-  const { getUserAvatar, participants: globalParticipants, unlockSession, isSessionLoading } = useMockSession();
+  const {
+    getUserAvatar,
+    participants: globalParticipants,
+    unlockSession,
+    isSessionLoading,
+  } = useMockSession();
+
+  const [ownerSession, setOwnerSession] = useState<OwnerSessionInfo | null>(
+    null,
+  );
+  const [isOwnerAuthChecking, setIsOwnerAuthChecking] = useState(true);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"access" | "join">("access");
@@ -151,65 +185,85 @@ export function WorkstationPage() {
     null,
   );
 
-  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
+  const [registeredUsers, setRegisteredUsers] =
+    useState<RegisteredUser[]>(DEFAULT_LOCAL_USERS);
 
-  /*
-   * Cargar usuarios reales desde Supabase a través de /api/users.
-   *
-   * Además, se inicializa el estado de la sesión verificando la identidad
-   * real mediante el token almacenado en las cookies.
-   */
+  // Cargar sesión del dueño y usuarios registrados en su empresa
   useEffect(() => {
     let cancelled = false;
 
-    async function loadUsers() {
+    async function checkOwnerSession() {
+      setIsOwnerAuthChecking(true);
       try {
-        const response = await fetch("/api/users");
+        const sessionRes = await v2Client.getOwnerSession();
+        if (cancelled) return;
 
-        if (!response.ok) {
-          throw new Error("No se pudieron cargar los usuarios.");
-        }
+        if (sessionRes.ok && sessionRes.data) {
+          setOwnerSession(sessionRes.data);
 
-        const data: {
-          ok: boolean;
-          users?: Array<{
-            id: string;
-            displayName: string;
-            systemRole: "owner" | "employee";
-            status: string;
-          }>;
-          error?: string;
-        } = await response.json();
-
-        if (!data.ok || !data.users) {
-          throw new Error(
-            data.error ?? "Respuesta inválida del servidor.",
-          );
-        }
-
-        if (!cancelled) {
-          const users: RegisteredUser[] = data.users
-            .filter((user) => user.status === "active")
-            .map((user) => ({
-              userId: user.id,
-              userName: user.displayName,
+          // Cargar exclusivamente los miembros de esta empresa
+          const membersRes = await v2Client.getBusinessMembers();
+          if (!cancelled && membersRes.ok && membersRes.data) {
+            const mapped: RegisteredUser[] = membersRes.data.map((m) => ({
+              userId: m.id,
+              userName: m.fullName,
               pin: "",
-              systemRole: user.systemRole,
+              systemRole: m.role === "owner" ? "owner" : "employee",
             }));
-
-          setRegisteredUsers(users);
+            setRegisteredUsers(
+              mapped.length > 0 ? mapped : DEFAULT_LOCAL_USERS,
+            );
+          }
+        } else {
+          setOwnerSession(null);
         }
       } catch (error) {
-        console.error("Error cargando usuarios:", error);
+        console.error("Error al consultar sesión del dueño:", error);
+      } finally {
+        if (!cancelled) setIsOwnerAuthChecking(false);
       }
     }
 
-    void loadUsers();
+    void checkOwnerSession();
 
     return () => {
       cancelled = true;
     };
-  }, [unlockSession]);
+  }, []);
+
+  const handleLoginSuccess = async (session: OwnerSessionInfo) => {
+    setOwnerSession(session);
+    try {
+      const membersRes = await v2Client.getBusinessMembers();
+      if (membersRes.ok && membersRes.data) {
+        const mapped: RegisteredUser[] = membersRes.data.map((m) => ({
+          userId: m.id,
+          userName: m.fullName,
+          pin: "",
+          systemRole: m.role === "owner" ? "owner" : "employee",
+        }));
+        setRegisteredUsers(mapped.length > 0 ? mapped : DEFAULT_LOCAL_USERS);
+      }
+    } catch (err) {
+      console.error("Error cargando miembros tras inicio de sesión:", err);
+    }
+  };
+
+  const handleLogoutOwner = async () => {
+    await v2Client.logoutOwner();
+    setOwnerSession(null);
+  };
+
+  const handleVerifyPin = async (userId: string, pin: string) => {
+    const res = await v2Client.verifyMemberPin({ memberId: userId, pin });
+    if (!res.ok) {
+      return { ok: false, error: res.message };
+    }
+    if (!res.data.valid) {
+      return { ok: false, error: "PIN incorrecto. Intenta de nuevo." };
+    }
+    return { ok: true };
+  };
 
   const activeParticipants = globalParticipants
     .filter((p) => p.status === "active")
@@ -236,18 +290,36 @@ export function WorkstationPage() {
 
   const handleAccess = useCallback(
     (userId: string) => {
+      const user = registeredUsers.find((u) => u.userId === userId);
+      if (user) {
+        unlockSession({
+          userId: user.userId,
+          userName: user.userName,
+          systemRole: user.systemRole,
+          hasActiveParticipation: true,
+        });
+      }
       setModalOpen(false);
-      window.location.href = "/";
+      router.push("/");
     },
-    [],
+    [registeredUsers, unlockSession, router],
   );
 
   const handleJoin = useCallback(
     (userId: string) => {
+      const user = registeredUsers.find((u) => u.userId === userId);
+      if (user) {
+        unlockSession({
+          userId: user.userId,
+          userName: user.userName,
+          systemRole: user.systemRole,
+          hasActiveParticipation: true,
+        });
+      }
       setModalOpen(false);
-      window.location.href = "/";
+      router.push("/");
     },
-    [],
+    [registeredUsers, unlockSession, router],
   );
 
   const handleCancel = useCallback(() => {
@@ -255,139 +327,193 @@ export function WorkstationPage() {
     setPreselectedUserId(null);
   }, []);
 
+  const currentBusinessId = ownerSession?.businessId || LOCAL_V2_BIZ_ID;
+
   return (
-    <div className="flex min-h-screen flex-col bg-brand-surface">
-      {/* Header / Nav superior */}
-      <nav className="border-b border-slate-800 bg-slate-900 animate-fade-in">
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-6 w-6 text-white" />
+    <TerminalSessionProvider
+      businessId={currentBusinessId}
+      workstationId={LOCAL_V2_WS_ID}
+    >
+      <div className="flex min-h-screen flex-col bg-brand-surface">
+        {/* Header / Nav superior */}
+        <nav className="border-b border-slate-800 bg-slate-900 animate-fade-in">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-5 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-6 w-6 text-white" />
 
-            <div>
-              <h1 className="text-xl font-bold text-white">
-                Control de caja
-              </h1>
+              <div>
+                <h1 className="text-xl font-bold text-white">
+                  Control de caja
+                </h1>
 
-              <p className="text-sm text-slate-400">
-                Control de acceso de usuarios
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
-              <span className="h-2 w-2 rounded-full bg-brand-responsible animate-pulse-soft" />
-              Estación activa
-            </span>
-
-            <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
-              {isSessionLoading ? (
-                <span className="animate-pulse">Cargando...</span>
-              ) : (
-                <>
-                  {activeParticipants.length}{" "}
-                  {activeParticipants.length === 1 ? "activo" : "activos"}
-                </>
-              )}
-            </span>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main content */}
-      <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl space-y-6">
-          {/* Active participants container */}
-          <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
-            <section>
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-brand-text">
-                    Control de usuarios
-                  </h3>
-
-                  <p className="mt-1 text-sm text-brand-text-muted">
-                    {isSessionLoading ? "Cargando..." : (
-                      <>
-                        {activeParticipants.length}{" "}
-                        {activeParticipants.length === 1
-                          ? "usuario activo"
-                          : "usuarios activos"}
-                      </>
-                    )}
-                  </p>
-                </div>
+                <p className="text-sm text-slate-400">
+                  {ownerSession
+                    ? `${ownerSession.business.commercialName} &bull; Estación de Trabajo`
+                    : "Identificación de Sesión y Acceso"}
+                </p>
               </div>
+            </div>
 
-              <div className="space-y-3">
-                {isSessionLoading ? (
-                  <div className="rounded-xl border border-brand-border bg-slate-50 p-6 flex flex-col items-center justify-center min-h-30 animate-pulse">
-                    <div className="h-4 w-32 bg-slate-200 rounded mb-2"></div>
-                    <div className="h-3 w-48 bg-slate-200 rounded"></div>
-                  </div>
-                ) : (
-                  <>
-                    {activeParticipants.map((participant, index) => (
-                      <ActiveParticipantCard
-                        key={participant.id}
-                        participant={participant}
-                        isResponsible={
-                          participant.participationType === "responsible"
-                        }
-                        onSelect={() => handleActiveParticipantClick(participant)}
-                        index={index + 1}
-                        avatar={getUserAvatar(participant.userId)}
-                      />
-                    ))}
+            {ownerSession ? (
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:block text-right">
+                  <span className="block text-xs font-semibold text-slate-200">
+                    {ownerSession.business.commercialName}
+                  </span>
+                  <span className="block text-[11px] text-slate-400">
+                    {ownerSession.email}
+                  </span>
+                </div>
 
-                    {activeParticipants.length === 0 && (
-                      <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
-                        <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200">
+                  <span className="h-2 w-2 rounded-full bg-brand-responsible animate-pulse-soft" />
+                  Estación activa
+                </span>
 
-                        <p className="mt-2 font-medium text-brand-text">
-                          No hay participantes activos
-                        </p>
+                <button
+                  type="button"
+                  onClick={handleLogoutOwner}
+                  title="Cerrar sesión del dueño"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
+                  Requiere Sesión de Dueño
+                </span>
+              </div>
+            )}
+          </div>
+        </nav>
 
-                        <p className="text-sm text-brand-text-muted">
-                          Inicia una jornada o incorpórate como participante.
+        {/* Main content */}
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-4xl space-y-6">
+            {isOwnerAuthChecking ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+                <div className="h-6 w-6 mx-auto animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+                <p className="mt-3 text-sm text-slate-500">
+                  Comprobando sesión del dueño en PostgreSQL local...
+                </p>
+              </div>
+            ) : !ownerSession ? (
+              /* Paso 1: Formulario de inicio de sesión del dueño */
+              <OwnerLoginForm onLoginSuccess={handleLoginSuccess} />
+            ) : (
+              /* Pasos 2 a 11: Operación completa de la terminal */
+              <>
+                {/* Núcleo v2: Control de Turno y Sesión de Terminal */}
+                <WorkstationV2Control
+                  businessId={currentBusinessId}
+                  workstationId={LOCAL_V2_WS_ID}
+                  registeredUsers={registeredUsers}
+                />
+
+                {/* Active participants container */}
+                <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
+                  <section>
+                    <div className="mb-5 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-brand-text">
+                          Control de usuarios (
+                          {ownerSession.business.commercialName})
+                        </h3>
+
+                        <p className="mt-1 text-sm text-brand-text-muted">
+                          {isSessionLoading ? (
+                            "Cargando..."
+                          ) : (
+                            <>
+                              {activeParticipants.length}{" "}
+                              {activeParticipants.length === 1
+                                ? "usuario activo"
+                                : "usuarios activos"}
+                            </>
+                          )}
                         </p>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </section>
+                    </div>
 
-            {/* Join another user */}
-            <div
-              className="mt-6 animate-fade-in-up opacity-0"
-              style={{
-                animationDelay: `${(activeParticipants.length + 1) * 0.08}s`,
-                animationFillMode: "forwards",
-              }}
-            >
-              <JoinAnotherUserCard
-                onClick={handleJoinClick}
-                index={activeParticipants.length + 1}
-              />
-            </div>
+                    <div className="space-y-3">
+                      {isSessionLoading ? (
+                        <div className="rounded-xl border border-brand-border bg-slate-50 p-6 flex flex-col items-center justify-center min-h-30 animate-pulse">
+                          <div className="h-4 w-32 bg-slate-200 rounded mb-2"></div>
+                          <div className="h-3 w-48 bg-slate-200 rounded"></div>
+                        </div>
+                      ) : (
+                        <>
+                          {activeParticipants.map((participant, index) => (
+                            <ActiveParticipantCard
+                              key={participant.id}
+                              participant={participant}
+                              isResponsible={
+                                participant.participationType === "responsible"
+                              }
+                              onSelect={() =>
+                                handleActiveParticipantClick(participant)
+                              }
+                              index={index + 1}
+                              avatar={getUserAvatar(participant.userId)}
+                            />
+                          ))}
+
+                          {activeParticipants.length === 0 && (
+                            <div className="rounded-xl border border-dashed border-brand-border bg-white p-8 text-center">
+                              <UserRound className="mx-auto h-8 w-8 text-brand-text-muted" />
+
+                              <p className="mt-2 font-medium text-brand-text">
+                                No hay participantes activos
+                              </p>
+
+                              <p className="text-sm text-brand-text-muted">
+                                Inicia una jornada o incorpórate como
+                                participante.
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* Join another user */}
+                  <div
+                    className="mt-6 animate-fade-in-up opacity-0"
+                    style={{
+                      animationDelay: `${(activeParticipants.length + 1) * 0.08}s`,
+                      animationFillMode: "forwards",
+                    }}
+                  >
+                    <JoinAnotherUserCard
+                      onClick={handleJoinClick}
+                      index={activeParticipants.length + 1}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      </main>
+        </main>
 
-      <Footer />
+        <Footer />
 
-      {/* Modal */}
-      <WorkstationAccessModal
-        open={modalOpen}
-        mode={modalMode}
-        registeredUsers={registeredUsers}
-        activeUserIds={activeParticipants.map((p) => p.userId)}
-        preselectedUserId={preselectedUserId}
-        onAccess={handleAccess}
-        onJoin={handleJoin}
-        onCancel={handleCancel}
-      />
-    </div>
+        {/* Modal */}
+        <WorkstationAccessModal
+          open={modalOpen}
+          mode={modalMode}
+          registeredUsers={registeredUsers}
+          activeUserIds={activeParticipants.map((p) => p.userId)}
+          preselectedUserId={preselectedUserId}
+          onAccess={handleAccess}
+          onJoin={handleJoin}
+          onCancel={handleCancel}
+          onVerifyPin={handleVerifyPin}
+        />
+      </div>
+    </TerminalSessionProvider>
   );
 }
